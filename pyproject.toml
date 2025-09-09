@@ -1,0 +1,24 @@
+[project]
+name = "ez-expense"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "azure-ai-vision-imageanalysis>=1.0.0",
+    "azure-cognitiveservices-vision-computervision>=0.9.1",
+    "azure-core>=1.35.0",
+    "browser-use>=0.7.6",
+    "numpy>=2.3.3",
+    "opencv-python>=4.11.0.86",
+    "pillow>=11.3.0",
+    "playwright>=1.55.0",
+    "pydantic>=2.11.7",
+    "pytesseract>=0.3.13",
+]
+
+[dependency-groups]
+dev = ["pyright>=1.1.405", "ruff>=0.12.12"]
+
+[tool.ruff]
+line-length = 100
