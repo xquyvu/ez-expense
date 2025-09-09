@@ -18,7 +18,7 @@ class TextSearchResult(BaseModel):
     bounding_polygon: list[dict[str, int]]
 
 
-client = ImageAnalysisClient(
+IMG_ANALYSIS_CLIENT = ImageAnalysisClient(
     endpoint=os.environ["AZURE_AI_SERVICES_ENDPOINT"],
     credential=AzureKeyCredential(os.environ["AZURE_AI_SERVICES_KEY"]),
 )
@@ -29,8 +29,8 @@ with open("screenshot.png", "rb") as image_file:
     text_to_find = "Unattached expenses"
 
 
-def find_text_in_image(image_data, text_to_find):
-    analysed_image_data = client.analyze(
+def find_text_in_image(image_data: bytes, text_to_find: str) -> list[TextSearchResult]:
+    analysed_image_data = IMG_ANALYSIS_CLIENT.analyze(
         image_data=image_data,
         visual_features=[VisualFeatures.READ],
     )
