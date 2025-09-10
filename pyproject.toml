@@ -18,7 +18,11 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pyright>=1.1.405", "ruff>=0.12.12"]
+dev = [
+    "pyright>=1.1.405",
+    "pytest>=8.4.2",
+    "ruff>=0.12.12",
+]
 
 [tool.ruff]
 line-length = 100

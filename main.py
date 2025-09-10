@@ -1,25 +1,27 @@
-import io
+import datetime
 import subprocess
 import time
+from logging import getLogger
 
-import pytesseract
 from dotenv import load_dotenv
-from PIL import Image
 from playwright.sync_api import sync_playwright
+
+from azure_ai_tools import find_text_in_image, get_polygon_center, get_scaled_coordinate
+
+logger = getLogger(__name__)
 
 load_dotenv()
 
 PORT = 9222
 
 # Check if there is an existing Microsoft Edge process
-result = subprocess.run(
-    ["pgrep", "-f", "Microsoft Edge"], capture_output=True, text=True
-)
+result = subprocess.run(["pgrep", "-f", "Microsoft Edge"], capture_output=True, text=True)
 if result.stdout.strip():
     print("Found existing Microsoft Edge process(es).")
     user_input = (
         input(
-            "Edge needs to be closed for this to work. Hit <Enter> to continue or <Ctrl+C> to cancel"
+            """Edge needs to be closed for this to work. Hit <Enter> to Close your
+            browser or <Ctrl+C> to cancel"""
         )
         .strip()
         .lower()
@@ -44,82 +46,97 @@ time.sleep(2)  # Give Edge time to start
 CDP_URL = f"http://localhost:{PORT}"
 
 with sync_playwright() as p:
-    # Attach to the running Edge instance via the Chrome DevTools Protocol.
+    # Attach to the existing browser instance
     browser = p.chromium.connect_over_cdp(CDP_URL)
 
-    # Grab the default context (your existing Edge profile session).
+    # Find the expense management page
     context = browser.contexts[0] if browser.contexts else browser.new_context()
 
-    # Pick an existing tab if there is one; otherwise open a new one.
-    page = context.new_page()
-
-    # Example: interact with the page (navigate, click, etc.)
-    page.goto(
-        "https://myexpense.operations.dynamics.com/", wait_until="domcontentloaded"
-    )
-    time.sleep(2)
-
-    # Use computer vision to find a button that says "Expense Management" and click on it
-    screenshot = page.screenshot()
-
-    # Use OCR to find "Expense Management" text and its coordinates
-    # Convert screenshot bytes to PIL Image
-    image = Image.open(io.BytesIO(screenshot))
-
-    # Look for "Expense Management" text and get its coordinates
-    expense_mgmt_found = False
-    for i, text in enumerate(ocr_data["text"]):
-        if "Expense" in text and "Management" in " ".join(ocr_data["text"][i : i + 2]):
-            # Found "Expense Management", get coordinates
-            x = ocr_data["left"][i]
-            y = ocr_data["top"][i]
-            width = (
-                ocr_data["width"][i] + ocr_data["width"][i + 1]
-                if i + 1 < len(ocr_data["width"])
-                else ocr_data["width"][i]
-            )
-            height = ocr_data["height"][i]
-
-            # Click at the center of the found text
-            click_x = x + width // 2
-            click_y = y + height // 2
-
-            page.mouse.click(click_x, click_y)
-            print(
-                f"✅ Clicked on 'Expense Management' at coordinates ({click_x}, {click_y})"
-            )
-            expense_mgmt_found = True
+    for page in context.pages:
+        if "myexpense.operations.dynamics.com" in page.url:
+            page.bring_to_front()
             break
-    if not expense_mgmt_found:
-        print("❌ Could not find 'Expense Management' text in OCR results")
-    image = Image.open(io.BytesIO(screenshot))
-
-    # Extract text from the image
-    extracted_text = pytesseract.image_to_string(image)
-
-    # Try to find and click the "Expense Management" button
-    try:
-        expense_mgmt_button = page.get_by_text("Expense Management").first
-        expense_mgmt_button.click()
-        print("✅ Clicked on 'Expense Management' button")
-    except:
-        print("❌ Could not find or click 'Expense Management' button")
-
-    # Find the "New expense" button using text locator
-
-    # # Save screenshot to workspace
-    # screenshot_path = "screenshot.png"
-    # with open(screenshot_path, "wb") as f:
-    #     f.write(screenshot)
-    # print(f"Screenshot saved to {screenshot_path}")
-
-    # You'll need to install pytesseract and Pillow: pip install pytesseract Pillow
-
-    # Check if "Expense Management" exists in the extracted text
-    if "Expense Management" in extracted_text:
-        print("✅ Found 'Expense Management' text on the page")
     else:
-        print("❌ 'Expense Management' text not found on the page")
-        print(
-            f"Extracted text: {extracted_text[:200]}..."
-        )  # Show first 200 chars for debugging
+        page = context.new_page()
+        page.goto("https://myexpense.operations.dynamics.com/")
+
+    # Wait for the user input
+    input(
+        """Press <Enter> after you have created a new expense report, or navigated
+        to the expense report you want to fill. Press <Ctrl+C> to exit at any
+        time."""
+    )
+
+    def click_text_in_page(text_to_click: str) -> tuple[int, int] | None:
+        screenshot = page.screenshot()
+        ocr_results = find_text_in_image(screenshot, text_to_click)
+
+        # # Save screenshot to screenshot.png for debugging
+        # image = Image.open(io.BytesIO(screenshot))
+        # image.save("screenshot.png")
+
+        if ocr_results:
+            for result in ocr_results:
+                click_point = get_polygon_center(result.bounding_polygon)
+                click_x, click_y = get_scaled_coordinate(click_point["x"], click_point["y"], page)
+                page.mouse.click(click_x, click_y, button="left")
+
+                logger.info(
+                    f"✅ Clicked on '{text_to_click}' at coordinates ({click_x}, {click_y})"
+                )
+                return click_x, click_y
+        else:
+            logger.warning(f"❌ Could not find '{text_to_click}' text in OCR results")
+
+    click_text_in_page("New expense")
+
+    new_expense_button = page.get_by_text("New expense", exact=True)
+    new_expense_button.click()
+    page.wait_for_load_state("networkidle", timeout=10000)
+    print(1)
+
+    category = "Airfare"
+    amount = "10"
+    currency = "CHF"
+    date_to_fill = datetime.datetime.now().date()
+    merchant = "merchant"
+    description = "desc"  # Expense description / Business purpose
+
+    page.fill('input[name="CategoryInput"]', category)
+    page.fill('input[name="AmountInput"]', amount)
+    page.fill('input[name="CurrencyInput"]', currency)
+    page.fill('input[name="MerchantInputNoLookup"]', merchant)
+    page.fill('input[name="DateInput"]', date_to_fill.strftime("%-m/%-d/%Y"))
+    page.fill('textarea[name="NotesInput"]', description)
+
+    page.get_by_text("Save").click()
+    page.wait_for_timeout(3000)
+
+    # Now we add receipt to the expense
+    page.click('a[name="EditReceipts"]')
+    page.click('button[name="AddButton"]')
+
+    # Upload receipt
+    with page.expect_file_chooser() as fc_info:
+        page.click('button[name="UploadControlBrowseButton"]')
+
+    file_chooser = fc_info.value
+    file_chooser.set_files("screenshot.png")
+
+    page.click('button[name="UploadControlUploadButton"]')
+
+    page.click('button[name="OkButtonAddNewTabPage"]')
+    page.wait_for_timeout(1000)
+    page.get_by_text("Close", exact=True).click()
+
+    page.get_by_text("Save and continue", exact=True).click()
+
+    # Optionally, you can also wait for a specific element that indicates success
+    try:
+        # Wait for success message or form reset
+
+        logger.info("✅ Expense saved successfully - form has been reset")
+    except:
+        logger.warning("⚠️  Could not confirm if save operation completed")
+
+    page.get_by_text("Expense management", exact=True).click()
