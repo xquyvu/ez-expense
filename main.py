@@ -24,7 +24,9 @@ INPUT_DATA_PATH.mkdir(exist_ok=True)
 RECEIPTS_PATH = INPUT_DATA_PATH / "receipts"
 RECEIPTS_PATH.mkdir(exist_ok=True)
 
-EXPENSE_ID_COLUMN = "EXPENSE_ID"
+EXPENSE_ID_COLUMN = "Created ID"
+EXPENSE_LINE_NUMBER_COLUMN = "Line number"
+RECEIPT_PATHS_COLUMN = "Receipt files"
 
 browser_process = BrowserProcess(browser_name="edge", port=PORT)
 browser_process.close_browser_if_running()
@@ -61,10 +63,12 @@ with sync_playwright() as p:
     merchant = "merchant"
     description = "desc"  # Expense description / Business purpose
 
-    # region: Show the Created ID column
+    # region: Open the column selection dialog
     page.get_by_role("button", name="Grid options").click()
     page.get_by_text("Insert columns...").click()
 
+    # region: Show the Created ID column, which we will use to identify which expense to
+    # click on in the tool
     # Filter for the Created ID column
     page.fill('input[name="QuickFilterControl_Input"]', "Created ID")
     page.wait_for_timeout(2000)
@@ -76,6 +80,8 @@ with sync_playwright() as p:
         for row in page.query_selector_all("div.fixedDataTableCellGroupLayout_cellGroup")
         if "Created ID" in row.inner_html() and "Number" in row.inner_html()
     ]
+
+    expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
 
     for created_id_column in created_id_columns:
         created_id_checkbox = created_id_column.query_selector("span.dyn-checkbox-span")
@@ -91,7 +97,28 @@ with sync_playwright() as p:
     if not created_id_checkbox.is_checked():
         created_id_checkbox.click()
 
+    # endregion
+
+    # region: Show the Line number column, which we will use as the ID for each expense
+    page.fill('input[name="QuickFilterControl_Input"]', EXPENSE_LINE_NUMBER_COLUMN)
+    page.wait_for_timeout(2000)
+    page.keyboard.press("Enter")
+
+    line_number_column = next(
+        row
+        for row in page.query_selector_all("div.fixedDataTableCellGroupLayout_cellGroup")
+        if EXPENSE_LINE_NUMBER_COLUMN in row.inner_html() and "Expense lines" in row.inner_html()
+    )
+
+    line_number_checkbox = line_number_column.query_selector("span.dyn-checkbox-span")
+
+    if not line_number_checkbox.is_checked():
+        line_number_checkbox.click()
+
+    # endregion
+
     page.click('button[data-dyn-controlname="OK"]')
+
     # endregion
 
     # region: Export the list of existing expenses
@@ -104,7 +131,6 @@ with sync_playwright() as p:
 
     # Add ID column to the expense report
     existing_expenses = pd.read_excel(download_info.value.url)
-    existing_expenses[EXPENSE_ID_COLUMN] = existing_expenses.index + 1
     existing_expenses.to_csv(existing_expenses_path, index=False)
     # endregion
 
@@ -117,21 +143,22 @@ with sync_playwright() as p:
             print(
                 dedent(
                     f"""
-                    Found {num_expenses_without_receipts} expense(s) without receipts attached.
+                    Found {num_expenses_without_receipts} expense(s) without receipts
+                    attached.
 
-                    1. Please find the ID of each expense without receipt by either:
-                       - Look at the `{EXPENSE_ID_COLUMN}` column in the spreadsheet saved at
-                         {existing_expenses_path.absolute()}; or
-                       - Use the row number of the expense in the Expense management app
-                         (starting from 1).
+                    1. Please find the line number of each expense without receipt by
+                       looking at the `{EXPENSE_LINE_NUMBER_COLUMN}` column in the
+                       spreadsheet saved at {existing_expenses_path.absolute()}. Yes,
+                       they are in increments of 2.
 
                     2. Gather the receipt file(s) you want to attach to the expense(s)
                        and put them in the {RECEIPTS_PATH.absolute()} directory.
 
-                    3. Add the expense ID as prefix to the receipt file(s) that corresponds
-                       to your expense. For example, if your expense with ID `10` had 2
-                       receipts files, `restaurant.jpg` and `bar.jpg`, then rename the files
-                       to `10_restaurant.jpg` and `10_bar.jpg`. """,
+                    3. Add the line number as prefix to the receipt file(s) that
+                       corresponds to your expense. For example, if your expense with
+                       line number `10` had 2 receipts files, `restaurant.jpg` and
+                       `bar.jpg`, then rename the files to `10_restaurant.jpg` and
+                       `10_bar.jpg`. """,
                 )
             )
             input("Press <Enter> when you are done, or <Ctrl+C> to exit.")
@@ -146,9 +173,9 @@ with sync_playwright() as p:
 
     for receipt_file_path in receipt_file_paths:
         try:
-            expense_id = int(receipt_file_path.stem.split("_")[0])
-            if expense_id in existing_expenses[EXPENSE_ID_COLUMN].values:
-                mapped_receipt_files.setdefault(expense_id, []).append(receipt_file_path)
+            expense_line_number = int(receipt_file_path.stem.split("_")[0])
+            if expense_line_number in existing_expenses[EXPENSE_LINE_NUMBER_COLUMN].values:
+                mapped_receipt_files.setdefault(expense_line_number, []).append(receipt_file_path)
             else:
                 unmapped_receipt_files.append(receipt_file_path)
         except ValueError:
@@ -156,51 +183,84 @@ with sync_playwright() as p:
 
     # Now join back to the pandas dataframe
     mapped_receipt_files_data = (
-        pd.Series(mapped_receipt_files, name="Receipt files")
+        pd.Series(mapped_receipt_files, name=RECEIPT_PATHS_COLUMN)
         .reset_index()
-        .rename(columns={"index": EXPENSE_ID_COLUMN})
+        .rename(columns={"index": EXPENSE_LINE_NUMBER_COLUMN})
     )
 
     existing_expenses_to_update = pd.merge(
         existing_expenses,
         mapped_receipt_files_data,
-        on=EXPENSE_ID_COLUMN,
+        on=EXPENSE_LINE_NUMBER_COLUMN,
         how="inner",
     )
 
-    # Now, we go over each expense that needs receipts attached
+    # Now, get all expense lines
+    ids_of_expenses_to_update = existing_expenses_to_update["Created ID"].values
+    expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
 
-    # Attach receipts to the expenses
-    page.click('button[name="NewExpenseButton"]')
-    page.wait_for_load_state("networkidle", timeout=10000)
+    for expense_line in expense_lines:
+        expense_line_id = int(expense_line.get_attribute("value"))
 
-    page.fill('input[name="CategoryInput"]', category)
-    page.fill('input[name="AmountInput"]', amount)
-    page.fill('input[name="CurrencyInput"]', currency)
-    page.fill('input[name="MerchantInputNoLookup"]', merchant)
-    page.fill('input[name="DateInput"]', date_to_fill.strftime("%-m/%-d/%Y"))
-    page.fill('textarea[name="NotesInput"]', description)
+        if expense_line_id not in ids_of_expenses_to_update:
+            continue
 
-    page.click('button[name="SaveButton"]')
-    page.wait_for_timeout(3000)
+        # Select the expense line
+        expense_line.dispatch_event("click")
 
-    # Now we add receipt to the expense
-    receipt_file_paths = ["screenshot.png"]
+        # Now we attach the receipts
+        expense_details = existing_expenses_to_update.loc[
+            existing_expenses_to_update["Created ID"] == expense_line_id
+        ].squeeze()
 
-    for receipt_file_path in receipt_file_paths:
-        page.click('a[name="EditReceipts"]')
-        page.click('button[name="AddButton"]')
+        for receipt_file_path in expense_details[RECEIPT_PATHS_COLUMN]:
+            page.click('a[name="EditReceipts"]')
+            page.click('button[name="AddButton"]')
 
-        # Upload receipt
-        with page.expect_file_chooser() as file_chooser_info:
-            page.click('button[name="UploadControlBrowseButton"]')
+            # Upload receipt
+            with page.expect_file_chooser() as file_chooser_info:
+                page.click('button[name="UploadControlBrowseButton"]')
 
-        file_chooser = file_chooser_info.value
-        file_chooser.set_files(receipt_file_path)
+            file_chooser = file_chooser_info.value
+            file_chooser.set_files(receipt_file_path)
 
-        page.click('button[name="UploadControlUploadButton"]')
-        page.click('button[name="OkButtonAddNewTabPage"]')
-        page.wait_for_timeout(1000)
-        page.get_by_text("Close", exact=True).click()
+            page.click('button[name="UploadControlUploadButton"]')
+            page.click('button[name="OkButtonAddNewTabPage"]')
+            page.click('button[name="CloseButton"]')
 
-        page.get_by_text("Save and continue", exact=True).click()
+            page.get_by_text("Save and continue", exact=True).click()
+
+    # # Create new expenses and attach receipts to them
+    # page.click('button[name="NewExpenseButton"]')
+    # page.wait_for_load_state("networkidle", timeout=10000)
+
+    # page.fill('input[name="CategoryInput"]', category)
+    # page.fill('input[name="AmountInput"]', amount)
+    # page.fill('input[name="CurrencyInput"]', currency)
+    # page.fill('input[name="MerchantInputNoLookup"]', merchant)
+    # page.fill('input[name="DateInput"]', date_to_fill.strftime("%-m/%-d/%Y"))
+    # page.fill('textarea[name="NotesInput"]', description)
+
+    # page.click('button[name="SaveButton"]')
+    # page.wait_for_timeout(3000)
+
+    # # Now we add receipt to the expense
+    # receipt_file_paths = ["screenshot.png"]
+
+    # for receipt_file_path in receipt_file_paths:
+    #     page.click('a[name="EditReceipts"]')
+    #     page.click('button[name="AddButton"]')
+
+    #     # Upload receipt
+    #     with page.expect_file_chooser() as file_chooser_info:
+    #         page.click('button[name="UploadControlBrowseButton"]')
+
+    #     file_chooser = file_chooser_info.value
+    #     file_chooser.set_files(receipt_file_path)
+
+    #     page.click('button[name="UploadControlUploadButton"]')
+    #     page.click('button[name="OkButtonAddNewTabPage"]')
+    #     page.wait_for_timeout(1000)
+    #     page.get_by_text("Close", exact=True).click()
+
+    #     page.get_by_text("Save and continue", exact=True).click()
