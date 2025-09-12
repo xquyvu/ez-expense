@@ -8,7 +8,7 @@ def import_expense() -> pd.DataFrame:
     # Logic to interact with the website and fetch expenses
     # This is a placeholder for the actual implementation
     expenses = [
-        {"Created ID": 1, "Amount": 100.0, "Description": "Office Supplies"},
+        {"Created ID": 4, "Amount": 100.0, "Description": "Office Supplies"},
         {"Created ID": 2, "Amount": 250.0, "Description": "Travel Expenses"},
     ]
 
