@@ -30,7 +30,7 @@ class BrowserProcess:
             [
                 self.browser.application_path,
                 f"--remote-debugging-port={self.port}",
-                "--new-window",
+                "--new",
             ]
         )
 
