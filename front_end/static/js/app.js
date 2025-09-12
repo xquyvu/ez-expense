@@ -71,10 +71,10 @@ class EZExpenseApp {
     }
 
     /**
-     * Import expenses from external website
+     * Import expenses from My Expense system
      */
     async importFromWebsite() {
-        this.showLoading('Importing expenses from website...');
+        this.showLoading('Importing expenses from My Expense...');
 
         try {
             // Try the real import endpoint first
@@ -107,7 +107,7 @@ class EZExpenseApp {
 
         } catch (error) {
             console.error('Error importing expenses:', error);
-            this.showToast('Failed to import expenses from website: ' + error.message, 'error');
+            this.showToast('Failed to import expenses from My Expense: ' + error.message, 'error');
         } finally {
             this.hideLoading();
         }
