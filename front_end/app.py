@@ -13,8 +13,11 @@ import os
 import sys
 import tempfile
 
+from dotenv import load_dotenv
 from flask import Flask, g, jsonify, render_template
 from flask_cors import CORS
+
+load_dotenv()
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -126,7 +129,7 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     debug_mode = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
-    port = int(os.environ.get("PORT", 5001))
+    port = int(os.environ.get("FRONTEND_PORT", 5001))
 
     logger.info(f"Starting EZ Expense Flask app on port {port}")
     app.run(debug=debug_mode, host="0.0.0.0", port=port)
