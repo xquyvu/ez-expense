@@ -87,24 +87,18 @@ def get_mock_expenses():
             "Created ID": 1,
             "Amount": 45.99,
             "Description": "Office Supplies",
-            "date": "2024-01-15",
-            "category": "Office",
         },
         {
             "id": 2,
             "Created ID": 2,
             "Amount": 67.50,
             "Description": "Client Lunch",
-            "date": "2024-01-16",
-            "category": "Meals",
         },
         {
             "id": 3,
             "Created ID": 3,
             "Amount": 28.75,
             "Description": "Taxi to Airport",
-            "date": "2024-01-17",
-            "category": "Travel",
         },
     ]
 

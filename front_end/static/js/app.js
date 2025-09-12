@@ -91,10 +91,8 @@ class EZExpenseApp {
             if (data.success) {
                 this.expenses = data.data.map((expense, index) => ({
                     id: expense.id || index + 1,
-                    date: expense.date || new Date().toISOString().split('T')[0],
                     description: expense.Description || expense.description || '',
                     amount: expense.Amount || expense.amount || 0,
-                    category: expense.category || 'Uncategorized',
                     'Created ID': expense['Created ID'] || expense.id || index + 1
                 }));
 
