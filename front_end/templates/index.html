@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EZ Expense - Invoice and Receipt Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-receipt"></i> EZ Expense</h1>
+                <p class="subtitle">Invoice and Receipt Management System</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Step 1: Import Expenses -->
+            <section class="section" id="import-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-download"></i> Step 1: Import Expenses</h2>
+                    <p>Get your expense data from external sources or upload a CSV file</p>
+                </div>
+                <div class="action-buttons">
+                    <button id="import-from-website-btn" class="btn btn-primary">
+                        <i class="fas fa-globe"></i> Import from Website
+                    </button>
+                    <button id="upload-csv-btn" class="btn btn-secondary">
+                        <i class="fas fa-upload"></i> Upload CSV File
+                    </button>
+                    <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+                </div>
+                <div id="import-status" class="status-message"></div>
+            </section>
+
+            <!-- Step 2: Review and Edit Expenses -->
+            <section class="section" id="expenses-section" style="display: none;">
+                <div class="section-header">
+                    <h2><i class="fas fa-table"></i> Step 2: Review and Edit Expenses</h2>
+                    <p>Verify your expense data and make any necessary edits</p>
+                </div>
+                <div class="table-container">
+                    <table id="expenses-table" class="data-table">
+                        <thead id="table-header">
+                            <!-- Dynamic headers will be inserted here -->
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Dynamic rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-actions">
+                    <button id="add-row-btn" class="btn btn-outline">
+                        <i class="fas fa-plus"></i> Add Row
+                    </button>
+                    <button id="save-changes-btn" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            </section>
+
+            <!-- Step 3: Match Receipts -->
+            <section class="section" id="receipts-section" style="display: none;">
+                <div class="section-header">
+                    <h2><i class="fas fa-paperclip"></i> Step 3: Match Receipts</h2>
+                    <p>Attach receipt files to corresponding expenses</p>
+                </div>
+                <div class="receipts-info">
+                    <div class="info-card">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <strong>How to attach receipts:</strong>
+                            <ul>
+                                <li>Click the "Attach Receipt" button in each row, or</li>
+                                <li>Drag and drop files directly onto the table rows</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 4: Export -->
+            <section class="section" id="export-section" style="display: none;">
+                <div class="section-header">
+                    <h2><i class="fas fa-file-export"></i> Step 4: Export Data</h2>
+                    <p>Download your finalized expense data with matched receipts</p>
+                </div>
+                <div class="export-summary">
+                    <div class="summary-stats">
+                        <div class="stat-item">
+                            <span class="stat-number" id="total-expenses">0</span>
+                            <span class="stat-label">Total Expenses</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number" id="matched-receipts">0</span>
+                            <span class="stat-label">Matched Receipts</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number" id="completion-rate">0%</span>
+                            <span class="stat-label">Completion Rate</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="export-info">
+                    <div class="info-card">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <strong>Export Information:</strong>
+                            <ul id="export-method-info">
+                                <li>Choose destination folder for organized export</li>
+                                <li>Creates timestamped folder with CSV file + receipts subfolder</li>
+                                <li>All receipt files saved with original names</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button id="export-enhanced-btn" class="btn btn-success">
+                        <i class="fas fa-file-export"></i> Export (with Receipts)
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay" style="display: none;">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p id="loading-text">Processing...</p>
+            </div>
+        </div>
+
+        <!-- Receipt Preview Modal -->
+        <div id="receipt-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Receipt Preview</h3>
+                    <button class="modal-close" onclick="closeReceiptModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="receipt-preview"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+
+</html>

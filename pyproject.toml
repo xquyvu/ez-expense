@@ -9,6 +9,8 @@ dependencies = [
     "azure-cognitiveservices-vision-computervision>=0.9.1",
     "azure-core>=1.35.0",
     "browser-use>=0.7.6",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
     "numpy>=2.3.3",
     "opencv-python>=4.11.0.86",
     "openpyxl>=3.1.5",
@@ -17,14 +19,12 @@ dependencies = [
     "playwright>=1.55.0",
     "pydantic>=2.11.7",
     "pytesseract>=0.3.13",
+    "werkzeug>=3.0.0",
+    "requests>=2.32.5",
 ]
 
 [dependency-groups]
-dev = [
-    "pyright>=1.1.405",
-    "pytest>=8.4.2",
-    "ruff>=0.12.12",
-]
+dev = ["pyright>=1.1.405", "pytest>=8.4.2", "ruff>=0.12.12"]
 
 [tool.ruff]
 line-length = 100
