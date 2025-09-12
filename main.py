@@ -81,8 +81,6 @@ with sync_playwright() as p:
         if "Created ID" in row.inner_html() and "Number" in row.inner_html()
     ]
 
-    expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
-
     for created_id_column in created_id_columns:
         created_id_checkbox = created_id_column.query_selector("span.dyn-checkbox-span")
         if created_id_checkbox.is_checked():
