@@ -44,10 +44,6 @@ class EZExpenseApp {
             this.addNewRow();
         });
 
-        document.getElementById('save-changes-btn').addEventListener('click', () => {
-            this.saveTableChanges();
-        });
-
         // Export events
         document.getElementById('export-enhanced-btn').addEventListener('click', () => {
             this.exportEnhanced();
@@ -503,7 +499,7 @@ class EZExpenseApp {
 
             // Refresh the table display
             this.displayExpensesTable();
-            this.showStep(3);
+            this.showStep(2);
 
             // Show summary message
             if (successCount > 0 && failCount === 0) {
@@ -580,7 +576,7 @@ class EZExpenseApp {
             // Refresh the table display
             this.displayExpensesTable();
             this.showToast('Receipt attached successfully', 'success');
-            this.showStep(3);
+            this.showStep(2);
 
         } catch (error) {
             console.error('Error processing receipt:', error);
@@ -949,29 +945,6 @@ class EZExpenseApp {
         this.expenses.push(newExpense);
         this.displayExpensesTable();
         this.showToast('New row added', 'success');
-    }
-
-    /**
-     * Save changes made to the table
-     */
-    saveTableChanges() {
-        const inputs = document.querySelectorAll('.table-input');
-
-        inputs.forEach(input => {
-            const row = input.closest('tr');
-            const expenseId = parseInt(row.dataset.expenseId);
-            const field = input.dataset.field;
-            const value = input.value;
-
-            // Find and update the expense
-            const expense = this.expenses.find(e => e.id === expenseId);
-            if (expense) {
-                expense[field] = value;
-            }
-        });
-
-        this.showToast('Changes saved successfully', 'success');
-        this.updateStatistics();
     }
 
     /**
@@ -1525,24 +1498,24 @@ class EZExpenseApp {
         document.getElementById('matched-receipts').textContent = `${totalReceipts} (${expensesWithReceipts} expenses)`;
         document.getElementById('completion-rate').textContent = `${completionRate}%`;
 
-        // Show export section if we have expenses
-        if (totalExpenses > 0) {
-            this.showStep(4);
-        }
+        // Export section is now always visible as part of Step 2
+        // No need to show a separate step
     }
 
     /**
      * Show specific step section
      */
     showStep(step) {
-        const sections = ['expenses-section', 'receipts-section', 'export-section'];
+        // With the new structure, we only have 2 steps:
+        // Step 1: Import (always visible)
+        // Step 2: Review, Edit, and Export (expenses-section)
 
-        sections.forEach((sectionId, index) => {
-            const section = document.getElementById(sectionId);
-            if (index < step - 1) {
-                section.style.display = 'block';
+        if (step >= 2) {
+            const expensesSection = document.getElementById('expenses-section');
+            if (expensesSection) {
+                expensesSection.style.display = 'block';
             }
-        });
+        }
 
         this.currentStep = Math.max(this.currentStep, step);
     }
