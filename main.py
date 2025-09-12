@@ -148,8 +148,9 @@ with sync_playwright() as p:
 
                     1. Please find the line number of each expense without receipt by
                        looking at the `{EXPENSE_LINE_NUMBER_COLUMN}` column in the
-                       spreadsheet saved at {existing_expenses_path.absolute()}. Yes,
-                       they are in increments of 2.
+                       spreadsheet saved at {existing_expenses_path.absolute()}. For
+                       expenses not paid by corporate card, the line number can be in
+                       increment of 2.
 
                     2. Gather the receipt file(s) you want to attach to the expense(s)
                        and put them in the {RECEIPTS_PATH.absolute()} directory.
