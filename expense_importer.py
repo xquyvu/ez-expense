@@ -10,7 +10,7 @@ from config import DEBUG, EXPENSE_LINE_NUMBER_COLUMN
 load_dotenv()
 
 
-def set_playwright_page(page: Page | None = None, playwright_instance=None):
+def set_playwright_page(page: Page | None = None) -> None:
     """
     Set the global Playwright page instance for use by the expense importer.
 

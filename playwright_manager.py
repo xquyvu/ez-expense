@@ -6,7 +6,6 @@ and browser connections across the application.
 """
 
 import logging
-from typing import Optional
 
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 
@@ -15,9 +14,9 @@ from config import BROWSER_PORT
 logger = logging.getLogger(__name__)
 
 # Global variables for Playwright management
-_playwright_instance: Optional[Playwright] = None
-_browser_connection: Optional[Browser] = None
-_current_page: Optional[Page] = None
+_playwright_instance: Playwright | None = None
+_browser_connection: Browser | None = None
+_current_page: Page | None = None
 
 
 def start_playwright() -> Playwright:
@@ -74,7 +73,7 @@ def connect_to_browser() -> Browser:
         raise ConnectionError(f"Unable to connect to browser on port {BROWSER_PORT}: {e}")
 
 
-def set_current_page(page: Optional[Page]) -> None:
+def set_current_page(page: Page | None) -> None:
     """
     Set the current active page.
 
@@ -89,7 +88,7 @@ def set_current_page(page: Optional[Page]) -> None:
         logger.info("Current page cleared")
 
 
-def get_current_page() -> Optional[Page]:
+def get_current_page() -> Page | None:
     """
     Get the current active page.
 
@@ -99,7 +98,7 @@ def get_current_page() -> Optional[Page]:
     return _current_page
 
 
-def get_playwright_instance() -> Optional[Playwright]:
+def get_playwright_instance() -> Playwright | None:
     """
     Get the current Playwright instance.
 
@@ -109,7 +108,7 @@ def get_playwright_instance() -> Optional[Playwright]:
     return _playwright_instance
 
 
-def get_browser_connection() -> Optional[Browser]:
+def get_browser_connection() -> Browser | None:
     """
     Get the current browser connection.
 
