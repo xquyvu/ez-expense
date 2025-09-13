@@ -1,4 +1,6 @@
 import os
+import signal
+import sys
 import time
 from logging import getLogger
 from pathlib import Path
@@ -10,10 +12,54 @@ from playwright.sync_api import sync_playwright
 
 from browser import BrowserProcess
 from expense_importer import import_expense_my_expense
+from front_end_launcher import open_frontend_in_browser, start_flask_app, wait_for_flask_to_start
 
 logger = getLogger(__name__)
 
+# Global variables for cleanup
+_playwright_instance = None
+_browser_process = None
+_shutdown_requested = False
+
+
+def signal_handler(signum, frame):
+    """Handle graceful shutdown on signal reception"""
+    global _shutdown_requested
+    signal_name = signal.Signals(signum).name
+    logger.info(f"Received signal {signal_name} ({signum}). Initiating graceful shutdown...")
+    print(f"\n🛑 Received {signal_name} signal. Shutting down gracefully...")
+
+    _shutdown_requested = True
+
+    # Clean up playwright instance
+    if _playwright_instance:
+        try:
+            print("🔄 Stopping Playwright instance...")
+            _playwright_instance.stop()
+            print("✅ Playwright instance stopped")
+        except Exception as e:
+            logger.error(f"Error stopping Playwright: {e}")
+            print(f"⚠️  Error stopping Playwright: {e}")
+
+    # Clean up browser process
+    if _browser_process:
+        try:
+            print("🔄 Closing browser process...")
+            _browser_process.close_browser_if_running()
+            print("✅ Browser process closed")
+        except Exception as e:
+            logger.error(f"Error closing browser process: {e}")
+            print(f"⚠️  Error closing browser process: {e}")
+
+    print("👋 Shutdown complete. Exiting...")
+    sys.exit(0)
+
+
 load_dotenv()
+
+# Register signal handlers for graceful shutdown
+signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+signal.signal(signal.SIGTERM, signal_handler)  # Process termination (e.g., debugger stop)
 
 PORT = os.getenv("PORT", 9222)
 EXPENSE_APP_URL = "myexpense.operations.dynamics.com"
@@ -31,17 +77,19 @@ RECEIPT_PATHS_COLUMN = "Receipt files"
 
 def setup_browser_session():
     """Set up the browser session and return the page object"""
-    browser_process = BrowserProcess(browser_name="edge", port=PORT)
+    global _browser_process
+
+    _browser_process = BrowserProcess(browser_name="edge", port=PORT)
 
     # Try to close existing browser gracefully
-    if not browser_process.close_browser_if_running():
+    if not _browser_process.close_browser_if_running():
         logger.error("Browser setup cancelled by user")
         return None
 
-    browser_process.start_browser_debug_mode()
+    _browser_process.start_browser_debug_mode()
     time.sleep(2)  # Give Edge time to start
 
-    return browser_process
+    return _browser_process
 
 
 def connect_to_browser():
@@ -50,12 +98,15 @@ def connect_to_browser():
     Returns the sync_playwright instance and browser connection.
     Use this in a 'with' statement to maintain the connection.
     """
-    playwright_instance = sync_playwright().start()
+    global _playwright_instance
+
+    _playwright_instance = sync_playwright().start()
     try:
-        browser = playwright_instance.chromium.connect_over_cdp(f"http://localhost:{PORT}")
-        return playwright_instance, browser
+        browser = _playwright_instance.chromium.connect_over_cdp(f"http://localhost:{PORT}")
+        return _playwright_instance, browser
     except Exception:
-        playwright_instance.stop()
+        _playwright_instance.stop()
+        _playwright_instance = None
         raise
 
 
@@ -79,10 +130,16 @@ def get_expense_page_from_browser(browser):
 
 def run_expense_automation():
     """Run the expense automation workflow"""
+    global _shutdown_requested
+
     browser_process = setup_browser_session()
 
     if browser_process is None:
         logger.error("❌ Cannot proceed without browser session")
+        return
+
+    # Check for shutdown before proceeding
+    if _shutdown_requested:
         return
 
     # Connect to the browser using our helper function
@@ -92,12 +149,24 @@ def run_expense_automation():
         # Get the expense management page
         page = get_expense_page_from_browser(browser)
 
+        start_flask_app()
+        wait_for_flask_to_start()
+        open_frontend_in_browser()
+
         # Wait for the user input
-        input(
-            """Press <Enter> after you have created a new expense report, or navigated
-            to the expense report you want to fill. Press <Ctrl+C> to exit at any
-            time."""
-        )
+        print("Press <Enter> after you have created a new expense report, or navigated")
+        print("to the expense report you want to fill. Press <Ctrl+C> to exit at any")
+        print("time.")
+
+        try:
+            input()
+        except (KeyboardInterrupt, EOFError):
+            print("\n🛑 User interrupted. Exiting gracefully...")
+            return
+
+        # Check for shutdown after user input
+        if _shutdown_requested:
+            return
 
         existing_expenses_path = INPUT_DATA_PATH / "existing_expenses.csv"
         existing_expenses = import_expense_my_expense(page, existing_expenses_path)
@@ -130,7 +199,15 @@ def run_expense_automation():
                            `10_bar.jpg`. """,
                     )
                 )
-                input("Press <Enter> when you are done, or <Ctrl+C> to exit.")
+                try:
+                    input("Press <Enter> when you are done, or <Ctrl+C> to exit.")
+                except (KeyboardInterrupt, EOFError):
+                    print("\n🛑 User interrupted. Exiting gracefully...")
+                    return
+
+        # Check for shutdown before processing receipts
+        if _shutdown_requested:
+            return
 
         # Now we add receipts to the expenses. Reload the existing expenses file because it may have been updated
         existing_expenses = pd.read_csv(existing_expenses_path)
@@ -141,6 +218,8 @@ def run_expense_automation():
         unmapped_receipt_files = []
 
         for receipt_file_path in receipt_file_paths:
+            if _shutdown_requested:
+                return
             try:
                 expense_line_number = int(receipt_file_path.stem.split("_")[0])
                 if expense_line_number in existing_expenses[EXPENSE_LINE_NUMBER_COLUMN].values:
@@ -171,6 +250,9 @@ def run_expense_automation():
         expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
 
         for expense_line in expense_lines:
+            if _shutdown_requested:
+                return
+
             expense_line_id = int(expense_line.get_attribute("value"))
 
             if expense_line_id not in ids_of_expenses_to_update:
@@ -185,6 +267,9 @@ def run_expense_automation():
             ].squeeze()
 
             for receipt_file_path in expense_details[RECEIPT_PATHS_COLUMN]:
+                if _shutdown_requested:
+                    return
+
                 page.click('a[name="EditReceipts"]')
                 page.click('button[name="AddButton"]')
 
@@ -201,15 +286,31 @@ def run_expense_automation():
 
                 page.get_by_text("Save and continue", exact=True).click()
 
+    except KeyboardInterrupt:
+        print("\n🛑 Keyboard interrupt received. Exiting gracefully...")
+    except Exception as e:
+        logger.error(f"An error occurred during automation: {e}")
+        print(f"❌ An error occurred: {e}")
     finally:
-        # Don't stop the playwright instance to keep browser windows open
-        # playwright_instance.stop()
-        print("🌐 Browser windows will remain open")
-        print("💡 You can continue using the browser or run more automation scripts")
+        if not _shutdown_requested:
+            # Don't stop the playwright instance to keep browser windows open
+            # Only print these messages if we're not shutting down
+            print("🌐 Browser windows will remain open")
+            print("💡 You can continue using the browser or run more automation scripts")
 
 
 if __name__ == "__main__":
-    run_expense_automation()
+    try:
+        run_expense_automation()
+    except KeyboardInterrupt:
+        print("\n🛑 Program interrupted by user")
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}")
+        print(f"❌ Unexpected error: {e}")
+    finally:
+        # Ensure cleanup happens even if the signal handler wasn't called
+        if _playwright_instance or _browser_process:
+            signal_handler(signal.SIGTERM, None)
 
     # # Create new expenses and attach receipts to them
     # page.click('button[name="NewExpenseButton"]')
