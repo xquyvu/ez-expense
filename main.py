@@ -1,17 +1,14 @@
-import os
 import signal
 import sys
 import time
 from logging import getLogger
-from pathlib import Path
-from textwrap import dedent
 
-import pandas as pd
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 from browser import BrowserProcess
-from expense_importer import import_expense_my_expense
+from config import BROWSER_PORT, EXPENSE_APP_URL
+from expense_importer import cleanup_playwright_connection, set_playwright_page
 from front_end_launcher import open_frontend_in_browser, start_flask_app, wait_for_flask_to_start
 
 logger = getLogger(__name__)
@@ -35,11 +32,20 @@ def signal_handler(signum, frame):
     if _playwright_instance:
         try:
             print("🔄 Stopping Playwright instance...")
+            # Clear the global page reference before stopping
+            set_playwright_page(None)
             _playwright_instance.stop()
             print("✅ Playwright instance stopped")
         except Exception as e:
             logger.error(f"Error stopping Playwright: {e}")
             print(f"⚠️  Error stopping Playwright: {e}")
+
+    # Also clean up any Flask subprocess Playwright connections
+    try:
+        cleanup_playwright_connection()
+    except Exception as e:
+        logger.error(f"Error cleaning up Flask Playwright connection: {e}")
+        print(f"⚠️  Error cleaning up Flask Playwright connection: {e}")
 
     # Clean up browser process
     if _browser_process:
@@ -61,25 +67,12 @@ load_dotenv()
 signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
 signal.signal(signal.SIGTERM, signal_handler)  # Process termination (e.g., debugger stop)
 
-PORT = os.getenv("PORT", 9222)
-EXPENSE_APP_URL = "myexpense.operations.dynamics.com"
-
-INPUT_DATA_PATH = Path("./input_data")
-INPUT_DATA_PATH.mkdir(exist_ok=True)
-
-RECEIPTS_PATH = INPUT_DATA_PATH / "receipts"
-RECEIPTS_PATH.mkdir(exist_ok=True)
-
-EXPENSE_ID_COLUMN = "Created ID"
-EXPENSE_LINE_NUMBER_COLUMN = "Line number"
-RECEIPT_PATHS_COLUMN = "Receipt files"
-
 
 def setup_browser_session():
     """Set up the browser session and return the page object"""
     global _browser_process
 
-    _browser_process = BrowserProcess(browser_name="edge", port=PORT)
+    _browser_process = BrowserProcess(browser_name="edge", port=BROWSER_PORT)
 
     # Try to close existing browser gracefully
     if not _browser_process.close_browser_if_running():
@@ -102,7 +95,7 @@ def connect_to_browser():
 
     _playwright_instance = sync_playwright().start()
     try:
-        browser = _playwright_instance.chromium.connect_over_cdp(f"http://localhost:{PORT}")
+        browser = _playwright_instance.chromium.connect_over_cdp(f"http://localhost:{BROWSER_PORT}")
         return _playwright_instance, browser
     except Exception:
         _playwright_instance.stop()
@@ -145,9 +138,8 @@ def run_expense_automation():
         # Get the expense management page
         page = get_expense_page_from_browser(browser)
 
-        start_flask_app()
-        wait_for_flask_to_start()
-        open_frontend_in_browser()
+        # Set the Playwright page for use by the Flask app
+        set_playwright_page(page)
 
         # Wait for the user input
         print("Press <Enter> after you have created a new expense report, or navigated")
@@ -160,111 +152,13 @@ def run_expense_automation():
             print("\n🛑 User interrupted. Exiting gracefully...")
             return
 
-        existing_expenses_path = INPUT_DATA_PATH / "existing_expenses.csv"
-        existing_expenses = import_expense_my_expense(page, existing_expenses_path)
+        start_flask_app()
+        wait_for_flask_to_start()
+        open_frontend_in_browser()
 
-        if existing_expenses.shape[0]:
-            print("""Found existing expenses""")
-
-            num_expenses_without_receipts = (existing_expenses["Receipts attached"] == "No").sum()
-
-            if num_expenses_without_receipts:
-                print(
-                    dedent(
-                        f"""
-                        Found {num_expenses_without_receipts} expense(s) without receipts
-                        attached.
-
-                        1. Please find the line number of each expense without receipt by
-                           looking at the `{EXPENSE_LINE_NUMBER_COLUMN}` column in the
-                           spreadsheet saved at {existing_expenses_path.absolute()}. For
-                           expenses not paid by corporate card, the line number can be in
-                           increment of 2.
-
-                        2. Gather the receipt file(s) you want to attach to the expense(s)
-                           and put them in the {RECEIPTS_PATH.absolute()} directory.
-
-                        3. Add the line number as prefix to the receipt file(s) that
-                           corresponds to your expense. For example, if your expense with
-                           line number `10` had 2 receipts files, `restaurant.jpg` and
-                           `bar.jpg`, then rename the files to `10_restaurant.jpg` and
-                           `10_bar.jpg`. """,
-                    )
-                )
-                try:
-                    input("Press <Enter> when you are done, or <Ctrl+C> to exit.")
-                except (KeyboardInterrupt, EOFError):
-                    print("\n🛑 User interrupted. Exiting gracefully...")
-                    return
-
-        # Now we add receipts to the expenses. Reload the existing expenses file because it may have been updated
-        existing_expenses = pd.read_csv(existing_expenses_path)
-
-        receipt_file_paths = list(RECEIPTS_PATH.glob("*"))
-
-        mapped_receipt_files: dict[int, list[Path]] = {}
-        unmapped_receipt_files = []
-
-        for receipt_file_path in receipt_file_paths:
-            try:
-                expense_line_number = int(receipt_file_path.stem.split("_")[0])
-                if expense_line_number in existing_expenses[EXPENSE_LINE_NUMBER_COLUMN].values:
-                    mapped_receipt_files.setdefault(expense_line_number, []).append(
-                        receipt_file_path
-                    )
-                else:
-                    unmapped_receipt_files.append(receipt_file_path)
-            except ValueError:
-                unmapped_receipt_files.append(receipt_file_path)
-
-        # Now join back to the pandas dataframe
-        mapped_receipt_files_data = (
-            pd.Series(mapped_receipt_files, name=RECEIPT_PATHS_COLUMN)
-            .reset_index()
-            .rename(columns={"index": EXPENSE_LINE_NUMBER_COLUMN})
-        )
-
-        existing_expenses_to_update = pd.merge(
-            existing_expenses,
-            mapped_receipt_files_data,
-            on=EXPENSE_LINE_NUMBER_COLUMN,
-            how="inner",
-        )
-
-        # Now, get all expense lines
-        ids_of_expenses_to_update = existing_expenses_to_update["Created ID"].values
-        expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
-
-        for expense_line in expense_lines:
-            expense_line_id = int(expense_line.get_attribute("value"))
-
-            if expense_line_id not in ids_of_expenses_to_update:
-                continue
-
-            # Select the expense line
-            expense_line.dispatch_event("click")
-
-            # Now we attach the receipts
-            expense_details = existing_expenses_to_update.loc[
-                existing_expenses_to_update["Created ID"] == expense_line_id
-            ].squeeze()
-
-            for receipt_file_path in expense_details[RECEIPT_PATHS_COLUMN]:
-                page.click('a[name="EditReceipts"]')
-                page.click('button[name="AddButton"]')
-
-                # Upload receipt
-                with page.expect_file_chooser() as file_chooser_info:
-                    page.click('button[name="UploadControlBrowseButton"]')
-
-                file_chooser = file_chooser_info.value
-                file_chooser.set_files(receipt_file_path)
-
-                page.click('button[name="UploadControlUploadButton"]')
-                page.click('button[name="OkButtonAddNewTabPage"]')
-                page.click('button[name="CloseButton"]')
-
-                page.get_by_text("Save and continue", exact=True).click()
+        print("\n🚀 Automation is running. Press <Ctrl+C> to stop and exit.")
+        while not _shutdown_requested:
+            time.sleep(1)
 
     except KeyboardInterrupt:
         print("\n🛑 Keyboard interrupt received. Exiting gracefully...")
@@ -272,6 +166,8 @@ def run_expense_automation():
         logger.error(f"An error occurred during automation: {e}")
         print(f"❌ An error occurred: {e}")
     finally:
+        # Clear the global page reference when exiting
+        set_playwright_page(None)
         if not _shutdown_requested:
             # Don't stop the playwright instance to keep browser windows open
             # Only print these messages if we're not shutting down

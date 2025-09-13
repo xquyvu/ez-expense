@@ -14,14 +14,23 @@ import pandas as pd
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from config import DEBUG
+
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 try:
-    from expense_importer import import_expense
+    from expense_importer import (
+        get_playwright_page,
+        import_expense_wrapper,
+    )
 except ImportError as e:
     logging.error(f"Could not import expense_importer: {e}")
-    import_expense = None
+    get_playwright_page = None
+    import_expense_wrapper = None
 
 try:
     from expense_matcher import receipt_match_score
@@ -35,81 +44,211 @@ logger = logging.getLogger(__name__)
 
 
 @expense_bp.route("/import", methods=["POST"])
-def import_expenses_from_website():
+def import_expenses():
     """
-    Import expenses from external website using the existing import_expense function.
+    Primary import endpoint that automatically chooses between mock and real import based on environment.
+    This is the main endpoint used by the frontend in production.
     """
     try:
-        if import_expense is None:
-            return jsonify(
-                {
-                    "error": "Import function not available",
-                    "message": "Could not load expense_importer module",
-                }
-            ), 500
+        logger.info(f"Starting expense import (DEBUG mode: {DEBUG})")
 
-        # Call the existing import_expense function
-        logger.info("Starting expense import from website")
-        expense_df = import_expense()
+        if DEBUG:
+            logger.info("Using mock data due to DEBUG=True")
+            result = get_mock_expenses_internal()
+            logger.info("Import completed successfully using mock source")
+            return result
+        else:
+            logger.info("Using real browser import due to DEBUG=False")
+            result = _import_real_data()
+            logger.info("Import completed successfully using browser source")
+            return result
+
+    except Exception as e:
+        logger.error(f"Error during expense import: {e}")
+        return jsonify(
+            {
+                "error": "Import failed",
+                "message": str(e),
+            }
+        ), 500
+
+
+@expense_bp.route("/import/mock", methods=["POST"])
+def import_expenses_mock():
+    """
+    Explicit mock import endpoint for testing and development.
+    Always returns mock data regardless of DEBUG setting.
+    """
+    logger.info("Explicit mock import requested")
+    return get_mock_expenses_internal()
+
+
+@expense_bp.route("/import/real", methods=["POST"])
+def import_expenses_real():
+    """
+    Explicit real import endpoint for testing and debugging.
+    Always attempts real browser import regardless of DEBUG setting.
+    """
+    logger.info("Explicit real import requested")
+    return _import_real_data()
+
+
+def _import_real_data():
+    """Internal function to handle real browser-based import."""
+    if import_expense_wrapper is None:
+        return jsonify(
+            {
+                "error": "Import function not available",
+                "message": "Expense importer module could not be loaded.",
+            }
+        ), 500
+
+    try:
+        # Use the wrapper function for real browser import
+        expense_df = import_expense_wrapper()
+        expense_df["id"] = range(1, len(expense_df) + 1)
 
         # Convert DataFrame to list of dictionaries for JSON response
         expenses = expense_df.to_dict("records")
 
-        # Add IDs if not present
-        for i, expense in enumerate(expenses):
-            if "id" not in expense:
-                expense["id"] = i + 1
-
-        logger.info(f"Successfully imported {len(expenses)} expenses")
+        logger.info(f"Successfully imported {len(expenses)} expenses from browser")
 
         return jsonify(
             {
                 "success": True,
-                "message": f"Successfully imported {len(expenses)} expenses",
+                "message": f"Successfully imported {len(expenses)} expenses from My Expense",
                 "data": expenses,
                 "count": len(expenses),
+                "source": "browser",
             }
         )
 
+    except RuntimeError as e:
+        # Handle browser connection errors specifically
+        error_msg = str(e)
+        if "Playwright page not available" in error_msg:
+            return jsonify(
+                {
+                    "error": "Browser session required",
+                    "message": "No active browser session found. Please run main.py first to start the browser session, or set DEBUG=True in .env for mock data.",
+                }
+            ), 400
+        else:
+            return jsonify(
+                {
+                    "error": "Browser automation failed",
+                    "message": error_msg,
+                }
+            ), 500
+
     except Exception as e:
-        logger.error(f"Error importing expenses: {e}")
-        return jsonify({"error": "Import failed", "message": str(e)}), 500
+        logger.error(f"Error in real data import: {e}")
+        return jsonify(
+            {
+                "error": "Import failed",
+                "message": str(e),
+            }
+        ), 500
+
+
+def get_mock_expenses_internal():
+    """Internal function to handle mock data import."""
+    try:
+        # Import mock function specifically for this endpoint
+        from expense_importer import import_expense_mock
+
+        mock_expenses_df = import_expense_mock()
+        mock_expenses_df["id"] = range(1, len(mock_expenses_df) + 1)
+
+        # Convert DataFrame to list of dictionaries for JSON response
+        expenses = mock_expenses_df.to_dict("records")
+
+        logger.info(f"Successfully loaded {len(expenses)} mock expenses")
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Mock data loaded with {len(expenses)} expenses",
+                "data": expenses,
+                "count": len(expenses),
+                "source": "mock",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error loading mock expenses: {e}")
+        return jsonify(
+            {
+                "error": "Failed to load mock data",
+                "message": str(e),
+            }
+        ), 500
 
 
 @expense_bp.route("/mock", methods=["POST"])
 def get_mock_expenses():
     """
-    Get mock expense data for testing (fallback when real import is not available).
+    Explicit mock endpoint for testing purposes - always returns mock data regardless of DEBUG setting.
     """
-    mock_expenses = [
-        {
-            "id": 1,
-            "Created ID": 1,
-            "Amount": 45.99,
-            "Description": "Office Supplies",
-        },
-        {
-            "id": 2,
-            "Created ID": 2,
-            "Amount": 67.50,
-            "Description": "Client Lunch",
-        },
-        {
-            "id": 3,
-            "Created ID": 3,
-            "Amount": 28.75,
-            "Description": "Taxi to Airport",
-        },
-    ]
+    logger.info("Explicit mock data request")
+    return get_mock_expenses_internal()
 
-    return jsonify(
-        {
-            "success": True,
-            "message": f"Mock data loaded with {len(mock_expenses)} expenses",
-            "data": mock_expenses,
-            "count": len(mock_expenses),
+
+@expense_bp.route("/debug-status", methods=["GET"])
+def get_debug_status():
+    """
+    Get the current DEBUG status from centralized configuration.
+    """
+    return jsonify({"debug": DEBUG})
+
+
+@expense_bp.route("/health", methods=["GET"])
+def health_check():
+    """
+    Health check endpoint that reports system status including browser availability.
+    """
+    try:
+        # Check browser availability
+        browser_available = get_playwright_page() is not None if get_playwright_page else False
+
+        # Check if import functions are available
+        import_functions_available = import_expense_wrapper is not None
+
+        # Determine overall health
+        is_healthy = True
+        issues = []
+
+        if not import_functions_available:
+            is_healthy = False
+            issues.append("Import functions not available")
+
+        if not DEBUG and not browser_available:
+            is_healthy = False
+            issues.append("Browser session not available (required for non-DEBUG mode)")
+
+        health_status = {
+            "status": "healthy" if is_healthy else "degraded",
+            "debug_mode": DEBUG,
+            "browser_available": browser_available,
+            "import_functions_available": import_functions_available,
+            "timestamp": datetime.now().isoformat(),
         }
-    )
+
+        if issues:
+            health_status["issues"] = issues
+
+        status_code = 200 if is_healthy else 503
+
+        return jsonify(health_status), status_code
+
+    except Exception as e:
+        logger.error(f"Error in health check: {e}")
+        return jsonify(
+            {
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat(),
+            }
+        ), 500
 
 
 def allowed_file(filename: str, allowed_extensions: set) -> bool:

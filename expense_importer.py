@@ -1,12 +1,51 @@
 from pathlib import Path
 
 import pandas as pd
+from dotenv import load_dotenv
 from playwright.sync_api import Page
 
-EXPENSE_LINE_NUMBER_COLUMN = "Line number"
+from config import DEBUG, EXPENSE_LINE_NUMBER_COLUMN
+
+load_dotenv()
+
+# Global variables to store the Playwright instance and page
+_playwright_instance = None
+_playwright_page = None
 
 
-def import_expense() -> pd.DataFrame:
+def set_playwright_page(page: Page | None = None, playwright_instance=None):
+    """Set the global Playwright page instance and its parent instance for use by the expense importer."""
+    global _playwright_page, _playwright_instance
+    _playwright_page = page
+    if playwright_instance is not None:
+        _playwright_instance = playwright_instance
+
+
+def get_playwright_page() -> Page | None:
+    """Get the global Playwright page instance."""
+    global _playwright_page
+    return _playwright_page
+
+
+def cleanup_playwright_connection():
+    """Clean up the existing Playwright connection."""
+    global _playwright_instance, _playwright_page
+
+    if _playwright_instance:
+        try:
+            _playwright_instance.stop()
+        except Exception as e:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error stopping Playwright instance: {e}")
+        finally:
+            _playwright_instance = None
+
+    _playwright_page = None
+
+
+def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
     """
     Import expenses from a website and return them as a pandas DataFrame.
     """
@@ -95,3 +134,83 @@ def import_expense_my_expense(page: Page, save_path: Path | None = None) -> pd.D
     # endregion
 
     return existing_expenses
+
+
+def import_expense_wrapper(page: Page | None = None, save_path: Path | None = None) -> pd.DataFrame:
+    """
+    Wrapper function that handles both DEBUG and non-DEBUG modes.
+    In DEBUG mode, it uses the mock function.
+    In non-DEBUG mode, it uses the real implementation with the Playwright page.
+    """
+    if DEBUG:
+        return import_expense_mock(page)
+    else:
+        # Get the page from parameter or global state
+        playwright_page = page if page is not None else get_playwright_page()
+
+        # If we have a cached page, try to validate it's still usable
+        if playwright_page is not None:
+            try:
+                # Simple check to see if the page is still responsive
+                _ = playwright_page.url
+            except Exception:
+                # Page is no longer valid, clear it and reconnect
+                playwright_page = None
+                cleanup_playwright_connection()
+
+        # If no page is available or the cached page failed, try to connect to the browser session
+        if playwright_page is None:
+            playwright_page = _try_connect_to_browser()
+
+        if playwright_page is None:
+            raise RuntimeError(
+                "Playwright page not available. Make sure the browser session is initialized."
+            )
+        return import_expense_my_expense(playwright_page, save_path)
+
+
+def _try_connect_to_browser():
+    """
+    Attempt to connect to an existing browser session running in debug mode.
+    This allows the Flask subprocess to access the browser started by main.py.
+    Properly manages the Playwright instance to prevent threading issues.
+    """
+    global _playwright_instance
+
+    try:
+        from playwright.sync_api import sync_playwright
+
+        from config import BROWSER_PORT, EXPENSE_APP_URL
+
+        # Clean up any existing instance first to prevent conflicts
+        cleanup_playwright_connection()
+
+        # Create a new Playwright instance
+        _playwright_instance = sync_playwright().start()
+        browser = _playwright_instance.chromium.connect_over_cdp(f"http://localhost:{BROWSER_PORT}")
+
+        # Find the expense management page
+        context = browser.contexts[0] if browser.contexts else browser.new_context()
+
+        for page in context.pages:
+            if EXPENSE_APP_URL in page.url:
+                # Set both page and instance globally so future calls can reuse them
+                set_playwright_page(page, _playwright_instance)
+                return page
+
+        # If no existing page found, create a new one
+        page = context.new_page()
+        page.goto(f"https://{EXPENSE_APP_URL}")
+        set_playwright_page(page, _playwright_instance)
+        return page
+
+    except Exception as e:
+        # Clean up on failure
+        cleanup_playwright_connection()
+
+        # Log the error but don't crash - let the caller handle it
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to connect to browser from Flask process: {e}")
+        return None

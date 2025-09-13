@@ -7,7 +7,6 @@ Launcher script that:
 4. Opens the front end page in the browser
 """
 
-import os
 import subprocess
 import time
 import webbrowser
@@ -15,10 +14,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from config import BROWSER_PORT, FRONTEND_PORT, FRONTEND_URL
+
 load_dotenv()
-PORT = os.getenv("PORT", 9222)
-FRONTEND_PORT = os.getenv("FRONTEND_PORT", 5000)
-FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
 
 def start_flask_app():
@@ -67,6 +65,26 @@ def wait_for_flask_to_start(max_wait=30):
 def open_frontend_in_browser():
     """Open the frontend page in the browser using Playwright"""
     print("🌍 Opening frontend page in browser...")
+
+    # Check if we're running in an asyncio loop
+    try:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        if loop.is_running():
+            print("⚠️  Detected asyncio loop - using system browser instead of Playwright")
+            # Fall back to system browser when in asyncio context
+            try:
+                webbrowser.open(FRONTEND_URL)
+                print(f"✅ Opened {FRONTEND_URL} in default browser")
+                return None
+            except Exception as fallback_error:
+                print(f"❌ Failed to open in default browser: {fallback_error}")
+                return None
+    except RuntimeError:
+        # No asyncio loop running, safe to use Playwright
+        pass
+
     try:
         from main import connect_to_browser
 
@@ -114,7 +132,7 @@ def main():
         print("❌ Browser setup cancelled or failed")
         return
 
-    print(f"✅ Browser session started on port {PORT}")
+    print(f"✅ Browser session started on port {BROWSER_PORT}")
 
     # Start Flask app
     print("\n📍 Starting Flask application...")
@@ -137,7 +155,7 @@ def main():
     print("\n🎉 All services are running!")
     print("=" * 50)
     print("📋 Services Status:")
-    print(f"   • Browser Session: ✅ Running (Port {PORT})")
+    print(f"   • Browser Session: ✅ Running (Port {BROWSER_PORT})")
     print(f"   • Flask App: ✅ Running (Port {FRONTEND_PORT})")
     print(f"   • Frontend Page: ✅ Open at {FRONTEND_URL}")
     if playwright_instance:
@@ -155,6 +173,15 @@ def main():
         while True:
             if flask_process.poll() is not None:
                 print("❌ Flask app has stopped unexpectedly")
+                # Get the stderr output to understand why it stopped
+                try:
+                    stdout, stderr = flask_process.communicate(timeout=1)
+                    if stderr:
+                        print(f"❌ Flask app error output: {stderr}")
+                    if stdout:
+                        print(f"ℹ️  Flask app output: {stdout}")
+                except subprocess.TimeoutExpired:
+                    pass
                 break
             time.sleep(1)
     except KeyboardInterrupt:

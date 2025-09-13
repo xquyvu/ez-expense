@@ -22,6 +22,9 @@ load_dotenv()
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import configuration
+from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,12 +35,12 @@ def create_app():
     app = Flask(__name__)
 
     # Configuration
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+    app.config["SECRET_KEY"] = SECRET_KEY
     # Use system temporary directory for both temp operations and uploads
     app.config["TEMP_FOLDER"] = tempfile.gettempdir()
     # Store uploaded receipts in a temporary directory that will be cleaned up
     app.config["UPLOAD_FOLDER"] = os.path.join(tempfile.gettempdir(), "ez-expense-uploads")
-    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
+    app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
     # Ensure upload folder exists
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -66,7 +69,7 @@ def create_app():
     app.cleanup_old_uploads = cleanup_old_uploads
 
     # Allowed file extensions
-    app.config["ALLOWED_EXTENSIONS"] = {"csv", "pdf", "png", "jpg", "jpeg", "gif"}
+    app.config["ALLOWED_EXTENSIONS"] = ALLOWED_EXTENSIONS
 
     # Enable CORS for all routes
     CORS(app)
@@ -128,8 +131,6 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    debug_mode = os.environ.get("FLASK_DEBUG", "False").lower() == "true"
-    port = int(os.environ.get("FRONTEND_PORT", 5001))
 
-    logger.info(f"Starting EZ Expense Flask app on port {port}")
-    app.run(debug=debug_mode, host="0.0.0.0", port=port)
+    logger.info(f"Starting EZ Expense Flask app on port {FRONTEND_PORT}")
+    app.run(debug=FLASK_DEBUG, host="0.0.0.0", port=FRONTEND_PORT)

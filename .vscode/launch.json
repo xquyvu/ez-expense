@@ -10,6 +10,12 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal"
-        }
+        },
+        {
+            "name": "App",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "main",
+        },
     ]
 }

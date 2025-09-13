@@ -77,18 +77,14 @@ class EZExpenseApp {
         this.showLoading('Importing expenses from My Expense...');
 
         try {
-            // Try the real import endpoint first
-            let response = await fetch('/api/expenses/import', { method: 'POST' });
-
-            if (!response.ok) {
-                // Fallback to mock data if real import fails
-                console.warn('Real import failed, falling back to mock data');
-                response = await fetch('/api/expenses/mock', { method: 'POST' });
-            }
+            // The backend now automatically handles DEBUG vs non-DEBUG mode
+            console.log('Importing expenses (backend will choose mock vs real based on DEBUG setting)');
+            const response = await fetch('/api/expenses/import', { method: 'POST' });
 
             const data = await response.json();
 
             if (data.success) {
+                console.log(`Successfully imported ${data.count} expenses from ${data.source} source`);
                 this.expenses = data.data.map((expense, index) => ({
                     id: expense.id || index + 1,
                     description: expense.Description || expense.description || '',
