@@ -4,17 +4,16 @@ import time
 from logging import getLogger
 
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
 
+import playwright_manager
 from browser import BrowserProcess
 from config import BROWSER_PORT, EXPENSE_APP_URL
-from expense_importer import cleanup_playwright_connection, set_playwright_page
+from expense_importer import cleanup_playwright_connection
 from front_end_launcher import open_frontend_in_browser, start_flask_app, wait_for_flask_to_start
 
 logger = getLogger(__name__)
 
 # Global variables for cleanup
-_playwright_instance = None
 _browser_process = None
 _shutdown_requested = False
 
@@ -28,13 +27,13 @@ def signal_handler(signum, frame):
 
     _shutdown_requested = True
 
-    # Clean up playwright instance
-    if _playwright_instance:
+    # Clean up playwright instance using the manager
+    if playwright_manager.is_playwright_running():
         try:
             print("🔄 Stopping Playwright instance...")
-            # Clear the global page reference before stopping
-            set_playwright_page(None)
-            _playwright_instance.stop()
+            # Clear the page reference before stopping
+            playwright_manager.set_current_page(None)
+            playwright_manager.stop_playwright()
             print("✅ Playwright instance stopped")
         except Exception as e:
             logger.error(f"Error stopping Playwright: {e}")
@@ -88,19 +87,15 @@ def setup_browser_session():
 def connect_to_browser():
     """
     Connect to an existing browser session running in debug mode.
-    Returns the sync_playwright instance and browser connection.
-    Use this in a 'with' statement to maintain the connection.
+    Returns the browser connection.
     """
-    global _playwright_instance
-
-    _playwright_instance = sync_playwright().start()
     try:
-        browser = _playwright_instance.chromium.connect_over_cdp(f"http://localhost:{BROWSER_PORT}")
-        return _playwright_instance, browser
-    except Exception:
-        _playwright_instance.stop()
-        _playwright_instance = None
-        raise
+        playwright_manager.start_playwright()
+        browser = playwright_manager.connect_to_browser()
+        return browser
+    except Exception as e:
+        logger.error(f"Failed to connect to browser: {e}")
+        return None
 
 
 def get_expense_page_from_browser(browser):
@@ -132,14 +127,17 @@ def run_expense_automation():
         return
 
     # Connect to the browser using our helper function
-    _, browser = connect_to_browser()
+    browser = connect_to_browser()
+    if not browser:
+        print("❌ Failed to connect to browser")
+        return
 
     try:
         # Get the expense management page
         page = get_expense_page_from_browser(browser)
 
-        # Set the Playwright page for use by the Flask app
-        set_playwright_page(page)
+        # Set the page in the playwright manager (expense_importer will use this too)
+        playwright_manager.set_current_page(page)
 
         # Wait for the user input
         print("Press <Enter> after you have created a new expense report, or navigated")
@@ -166,8 +164,8 @@ def run_expense_automation():
         logger.error(f"An error occurred during automation: {e}")
         print(f"❌ An error occurred: {e}")
     finally:
-        # Clear the global page reference when exiting
-        set_playwright_page(None)
+        # Clear the page reference when exiting
+        playwright_manager.set_current_page(None)
         if not _shutdown_requested:
             # Don't stop the playwright instance to keep browser windows open
             # Only print these messages if we're not shutting down
@@ -185,7 +183,7 @@ if __name__ == "__main__":
         print(f"❌ Unexpected error: {e}")
     finally:
         # Ensure cleanup happens even if the signal handler wasn't called
-        if _playwright_instance or _browser_process:
+        if playwright_manager.is_playwright_running() or _browser_process:
             signal_handler(signal.SIGTERM, None)
 
     # # Create new expenses and attach receipts to them

@@ -4,45 +4,34 @@ import pandas as pd
 from dotenv import load_dotenv
 from playwright.sync_api import Page
 
+import playwright_manager
 from config import DEBUG, EXPENSE_LINE_NUMBER_COLUMN
 
 load_dotenv()
 
-# Global variables to store the Playwright instance and page
-_playwright_instance = None
-_playwright_page = None
-
 
 def set_playwright_page(page: Page | None = None, playwright_instance=None):
-    """Set the global Playwright page instance and its parent instance for use by the expense importer."""
-    global _playwright_page, _playwright_instance
-    _playwright_page = page
-    if playwright_instance is not None:
-        _playwright_instance = playwright_instance
+    """
+    Set the global Playwright page instance for use by the expense importer.
+
+    Args:
+        page: The page instance to set
+        playwright_instance: Legacy parameter, ignored (playwright_manager handles this)
+    """
+    # All page management is now handled by playwright_manager
+    playwright_manager.set_current_page(page)
 
 
 def get_playwright_page() -> Page | None:
     """Get the global Playwright page instance."""
-    global _playwright_page
-    return _playwright_page
+    # All page management is now handled by playwright_manager
+    return playwright_manager.get_current_page()
 
 
 def cleanup_playwright_connection():
     """Clean up the existing Playwright connection."""
-    global _playwright_instance, _playwright_page
-
-    if _playwright_instance:
-        try:
-            _playwright_instance.stop()
-        except Exception as e:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Error stopping Playwright instance: {e}")
-        finally:
-            _playwright_instance = None
-
-    _playwright_page = None
+    # All cleanup is now handled by playwright_manager
+    playwright_manager.stop_playwright()
 
 
 def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
@@ -173,35 +162,33 @@ def _try_connect_to_browser() -> Page | None:
     """
     Attempt to connect to an existing browser session running in debug mode.
     This allows the Flask subprocess to access the browser started by main.py.
-    Properly manages the Playwright instance to prevent threading issues.
+    Uses the centralized playwright_manager to prevent threading issues.
     """
-    global _playwright_instance
-
     try:
-        from playwright.sync_api import sync_playwright
+        from config import EXPENSE_APP_URL
 
-        from config import BROWSER_PORT, EXPENSE_APP_URL
-
-        # Clean up any existing instance first to prevent conflicts
+        # Clean up any existing connections first
         cleanup_playwright_connection()
 
-        # Create a new Playwright instance
-        _playwright_instance = sync_playwright().start()
-        browser = _playwright_instance.chromium.connect_over_cdp(f"http://localhost:{BROWSER_PORT}")
+        # Use playwright manager to create and connect
+        if not playwright_manager.is_playwright_running():
+            playwright_manager.start_playwright()
+
+        browser = playwright_manager.connect_to_browser()
 
         # Find the expense management page
         context = browser.contexts[0] if browser.contexts else browser.new_context()
 
         for page in context.pages:
             if EXPENSE_APP_URL in page.url:
-                # Set both page and instance globally so future calls can reuse them
-                set_playwright_page(page, _playwright_instance)
+                # Set the page using playwright_manager
+                set_playwright_page(page)
                 return page
 
         # If no existing page found, create a new one
         page = context.new_page()
         page.goto(f"https://{EXPENSE_APP_URL}")
-        set_playwright_page(page, _playwright_instance)
+        set_playwright_page(page)
         return page
 
     except Exception as e:
