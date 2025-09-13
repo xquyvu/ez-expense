@@ -860,3 +860,79 @@ body {
 .tooltip-content {
     position: relative;
 }
+
+/* Drag and Drop Styles */
+.receipt-preview[draggable="true"] {
+    cursor: move;
+    position: relative;
+}
+
+.receipt-preview[draggable="true"]:hover .drag-indicator {
+    opacity: 1;
+}
+
+.drag-indicator {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(102, 126, 234, 0.9);
+    color: white;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.receipt-preview.being-dragged {
+    opacity: 0.5;
+    transform: rotate(5deg);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+/* Enhanced drag-over styles for different drop types */
+.data-table tr.drag-over {
+    background-color: #e3f2fd;
+    border: 2px dashed #2196f3;
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+.data-table tr.receipt-drag-over {
+    background-color: #e8f5e8;
+    border: 2px dashed #28a745;
+    box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.1);
+}
+
+.data-table tr.file-drag-over {
+    background-color: #fff3cd;
+    border: 2px dashed #ffc107;
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.1);
+}
+
+/* Improved receipt cell drop zone */
+.receipt-cell {
+    position: relative;
+    min-height: 60px;
+    transition: all 0.2s ease;
+}
+
+.receipt-cell.drag-over::after {
+    content: 'Drop receipt here';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(40, 167, 69, 0.1);
+    border: 2px dashed #28a745;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #28a745;
+    z-index: 10;
+}

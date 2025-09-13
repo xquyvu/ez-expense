@@ -242,7 +242,12 @@ class EZExpenseApp {
                 const escapedName = receipt.name ? receipt.name.replace(/'/g, '&#39;') : '';
 
                 html += `
-                    <div class="receipt-preview" data-receipt-index="${index}">
+                    <div class="receipt-preview"
+                         data-receipt-index="${index}"
+                         data-expense-id="${expenseId}"
+                         draggable="true"
+                         ondragstart="app.handleReceiptDragStart(event, ${expenseId}, ${index})"
+                         ondragend="app.handleReceiptDragEnd(event)">
                         ${receipt.type === 'image' ?
                         `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
                               onclick="app.showReceiptModal(${expenseId}, ${index})"
@@ -268,6 +273,9 @@ class EZExpenseApp {
                         <button onclick="app.removeReceipt(${expenseId}, ${index})" class="btn btn-sm">
                             <i class="fas fa-trash"></i>
                         </button>
+                        <div class="drag-indicator">
+                            <i class="fas fa-arrows-alt"></i>
+                        </div>
                     </div>
                 `;
             });
@@ -294,25 +302,52 @@ class EZExpenseApp {
     }
 
     /**
-     * Make a table row droppable for receipt files
+     * Make a table row droppable for receipt files and receipt transfers
      */
     makeRowDroppable(row) {
         row.addEventListener('dragover', (e) => {
             e.preventDefault();
-            row.classList.add('drag-over');
+
+            // Check if we're dragging a receipt (not a file)
+            const isDraggingReceipt = e.dataTransfer.types.includes('application/x-receipt-data');
+            const isDraggingFile = e.dataTransfer.types.includes('Files');
+
+            if (isDraggingReceipt || isDraggingFile) {
+                row.classList.add('drag-over');
+
+                // Add different styles for receipt vs file drops
+                if (isDraggingReceipt) {
+                    row.classList.add('receipt-drag-over');
+                } else {
+                    row.classList.add('file-drag-over');
+                }
+            }
         });
 
-        row.addEventListener('dragleave', () => {
-            row.classList.remove('drag-over');
+        row.addEventListener('dragleave', (e) => {
+            // Only remove highlight if we're actually leaving the row
+            if (!row.contains(e.relatedTarget)) {
+                row.classList.remove('drag-over', 'receipt-drag-over', 'file-drag-over');
+            }
         });
 
         row.addEventListener('drop', (e) => {
             e.preventDefault();
-            row.classList.remove('drag-over');
+            row.classList.remove('drag-over', 'receipt-drag-over', 'file-drag-over');
 
+            const expenseId = parseInt(row.dataset.expenseId);
+
+            // Check if we're dropping a receipt from another expense
+            const receiptData = e.dataTransfer.getData('application/x-receipt-data');
+            if (receiptData) {
+                const draggedReceipt = JSON.parse(receiptData);
+                this.handleReceiptDrop(draggedReceipt, expenseId);
+                return;
+            }
+
+            // Otherwise, handle file drops
             const files = e.dataTransfer.files;
             if (files.length > 0) {
-                const expenseId = parseInt(row.dataset.expenseId);
                 // Use the new multiple file handler
                 this.handleMultipleReceiptSelection(expenseId, files);
             }
@@ -471,7 +506,9 @@ class EZExpenseApp {
                                 preview: preview,
                                 confidence: confidence,
                                 file: originalFile,
-                                filePath: result.file_info.file_path
+                                filePath: result.file_info.file_path,
+                                filename: result.file_info.saved_filename,  // Store the saved filename for API calls
+                                originalFilename: result.file_info.original_filename
                             };
 
                             existingReceipts.push(newReceipt);
@@ -559,7 +596,9 @@ class EZExpenseApp {
                 preview: preview,
                 confidence: matchResult.confidence,
                 file: file,
-                filePath: matchResult.filePath  // Store the absolute file path
+                filePath: matchResult.filePath,  // Store the absolute file path
+                filename: matchResult.savedFilename,  // Store the saved filename for API calls
+                originalFilename: matchResult.originalFilename
             };
 
             existingReceipts.push(newReceipt);
@@ -584,6 +623,8 @@ class EZExpenseApp {
      * Calculate receipt match confidence score using backend API
      */
     async calculateReceiptMatchScore(expenseId, file) {
+        let uploadData = null;
+
         try {
             // First, upload the receipt file to get a file path
             const formData = new FormData();
@@ -599,7 +640,7 @@ class EZExpenseApp {
                 throw new Error('Failed to upload receipt');
             }
 
-            const uploadData = await uploadResponse.json();
+            uploadData = await uploadResponse.json();
             const receiptPath = uploadData.file_info.file_path;
 
             // Get expense data for this expense ID
@@ -634,7 +675,9 @@ class EZExpenseApp {
                 }
                 return {
                     confidence: Math.round(confidence),
-                    filePath: receiptPath
+                    filePath: receiptPath,
+                    savedFilename: uploadData.file_info.saved_filename,
+                    originalFilename: uploadData.file_info.original_filename
                 };
             } else {
                 throw new Error(matchData.message || 'Match calculation failed');
@@ -642,20 +685,23 @@ class EZExpenseApp {
 
         } catch (error) {
             console.warn('Error calculating confidence score:', error);
-            // Fallback to a default score if API fails, but still try to return the path if we have it
-            let filePath = null;
 
-            // Try to extract file path from error context if upload succeeded
-            if (error.message && error.message.includes('receiptPath:')) {
-                const pathMatch = error.message.match(/receiptPath:\s*(.+)$/);
-                if (pathMatch) {
-                    filePath = pathMatch[1].trim();
-                }
+            // If we have upload data, use it even if match calculation failed
+            if (uploadData && uploadData.file_info) {
+                return {
+                    confidence: 85, // Default confidence
+                    filePath: uploadData.file_info.file_path,
+                    savedFilename: uploadData.file_info.saved_filename,
+                    originalFilename: uploadData.file_info.original_filename
+                };
             }
 
+            // Complete fallback if upload also failed
             return {
                 confidence: 85,
-                filePath: filePath
+                filePath: null,
+                savedFilename: null,
+                originalFilename: file.name
             };
         }
     }
@@ -1530,6 +1576,120 @@ class EZExpenseApp {
     hideLoading() {
         const overlay = document.getElementById('loading-overlay');
         overlay.style.display = 'none';
+    }
+
+    /**
+     * Handle receipt drag start
+     */
+    handleReceiptDragStart(event, expenseId, receiptIndex) {
+        const receipt = this.receipts.get(expenseId)[receiptIndex];
+        const dragData = {
+            receipt: receipt,
+            fromExpenseId: expenseId,
+            receiptIndex: receiptIndex
+        };
+
+        // Set drag data
+        event.dataTransfer.setData('application/x-receipt-data', JSON.stringify(dragData));
+        event.dataTransfer.effectAllowed = 'move';
+
+        // Add visual feedback to the dragged element
+        event.target.classList.add('being-dragged');
+
+        console.log('Starting drag of receipt:', receipt.name, 'from expense:', expenseId);
+        console.log('Receipt data:', receipt);
+    }
+
+    /**
+     * Handle receipt drag end
+     */
+    handleReceiptDragEnd(event) {
+        // Remove visual feedback
+        event.target.classList.remove('being-dragged');
+
+        // Remove any remaining drag-over classes
+        document.querySelectorAll('.drag-over, .receipt-drag-over, .file-drag-over').forEach(el => {
+            el.classList.remove('drag-over', 'receipt-drag-over', 'file-drag-over');
+        });
+    }
+
+    /**
+     * Handle receipt drop onto an expense row
+     */
+    async handleReceiptDrop(draggedReceipt, targetExpenseId) {
+        const { receipt, fromExpenseId, receiptIndex } = draggedReceipt;
+
+        // Don't allow dropping on the same expense
+        if (fromExpenseId === targetExpenseId) {
+            this.showToast('Cannot move receipt to the same expense', 'warning');
+            return;
+        }
+
+        console.log('Moving receipt:', receipt.name, 'from expense:', fromExpenseId, 'to expense:', targetExpenseId);
+        console.log('Original receipt object:', receipt);
+
+        try {
+            this.showLoading('Moving receipt...');
+
+            // Prepare receipt data with proper filename field for API
+            const receiptDataForAPI = {
+                ...receipt,
+                filename: receipt.filename || receipt.name || receipt.originalFilename
+            };
+
+            console.log('Receipt data being sent to API:', receiptDataForAPI);
+
+            // Call the backend API to move the receipt
+            const response = await fetch('/api/receipts/move', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    receipt_data: receiptDataForAPI,
+                    from_expense_id: fromExpenseId,
+                    to_expense_id: targetExpenseId
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Update the frontend receipts data
+                this.moveReceiptInFrontend(fromExpenseId, receiptIndex, targetExpenseId, receipt);
+
+                // Refresh the table display
+                this.displayExpensesTable();
+
+                this.showToast(`Receipt "${receipt.name}" moved successfully`, 'success');
+            } else {
+                throw new Error(data.message || 'Move failed');
+            }
+
+        } catch (error) {
+            console.error('Error moving receipt:', error);
+            this.showToast(`Failed to move receipt: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Move receipt in frontend data structures
+     */
+    moveReceiptInFrontend(fromExpenseId, receiptIndex, toExpenseId, receipt) {
+        // Remove from source expense
+        const sourceReceipts = this.receipts.get(fromExpenseId) || [];
+        sourceReceipts.splice(receiptIndex, 1);
+        this.receipts.set(fromExpenseId, sourceReceipts);
+
+        // Add to target expense
+        const targetReceipts = this.receipts.get(toExpenseId) || [];
+        targetReceipts.push(receipt);
+        this.receipts.set(toExpenseId, targetReceipts);
+
+        // Update stats
+        this.updateStatistics();
     }
 
     /**

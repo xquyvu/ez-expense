@@ -397,3 +397,91 @@ def upload_multiple_receipts():
     except Exception as e:
         logger.error(f"Error in bulk upload: {e}")
         return jsonify({"error": "Bulk upload failed", "message": str(e)}), 500
+
+
+@receipt_bp.route("/move", methods=["POST"])
+def move_receipt():
+    """
+    Move a receipt from one expense to another.
+
+    Expected JSON data:
+    - receipt_data: The receipt object to move (includes filename, name, etc.)
+    - from_expense_id: ID of the expense the receipt is currently attached to
+    - to_expense_id: ID of the expense to move the receipt to
+
+    Returns:
+    - JSON response indicating success/failure of the move operation
+    """
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Invalid request", "message": "Request must be JSON"}), 400
+
+        data = request.get_json()
+
+        # Validate required fields
+        if not all(key in data for key in ["receipt_data", "from_expense_id", "to_expense_id"]):
+            return jsonify(
+                {
+                    "error": "Missing required fields",
+                    "message": "receipt_data, from_expense_id, and to_expense_id are required",
+                }
+            ), 400
+
+        receipt_data = data["receipt_data"]
+        from_expense_id = data["from_expense_id"]
+        to_expense_id = data["to_expense_id"]
+
+        # Validate expense IDs
+        if from_expense_id == to_expense_id:
+            return jsonify(
+                {
+                    "error": "Invalid move",
+                    "message": "Cannot move receipt to the same expense",
+                }
+            ), 400
+
+        # Validate receipt data has required fields
+        if not receipt_data.get("filename"):
+            return jsonify(
+                {
+                    "error": "Invalid receipt data",
+                    "message": "Receipt filename is required",
+                }
+            ), 400
+
+        # For this implementation, we're primarily managing the frontend state
+        # The actual file doesn't need to be moved since we're just changing which expense it's associated with
+        # The filename and file_path remain the same, only the association changes
+
+        filename = receipt_data.get("filename")
+
+        # Verify the receipt file exists in the upload folder
+        upload_folder = current_app.config.get("UPLOAD_FOLDER", "uploads")
+        file_path = os.path.join(upload_folder, filename)
+
+        if not os.path.exists(file_path):
+            return jsonify(
+                {
+                    "error": "Receipt file not found",
+                    "message": f"Receipt file '{filename}' does not exist",
+                }
+            ), 404
+
+        logger.info(
+            f"Moving receipt '{filename}' from expense {from_expense_id} to expense {to_expense_id}"
+        )
+
+        # Return success response with the updated receipt data
+        response_data = {
+            "success": True,
+            "message": f"Receipt '{receipt_data.get('name', filename)}' moved successfully",
+            "receipt_data": receipt_data,
+            "from_expense_id": from_expense_id,
+            "to_expense_id": to_expense_id,
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"Error moving receipt: {e}")
+        return jsonify({"error": "Move failed", "message": str(e)}), 500
