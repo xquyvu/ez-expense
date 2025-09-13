@@ -32,50 +32,75 @@ RECEIPT_PATHS_COLUMN = "Receipt files"
 def setup_browser_session():
     """Set up the browser session and return the page object"""
     browser_process = BrowserProcess(browser_name="edge", port=PORT)
-    browser_process.close_browser_if_running()
+
+    # Try to close existing browser gracefully
+    if not browser_process.close_browser_if_running():
+        logger.error("Browser setup cancelled by user")
+        return None
+
     browser_process.start_browser_debug_mode()
     time.sleep(2)  # Give Edge time to start
 
     return browser_process
 
 
-def get_expense_page():
-    """Connect to the browser and get the expense management page"""
-    with sync_playwright() as p:
-        # Attach to the existing browser instance
-        browser = p.chromium.connect_over_cdp(f"http://localhost:{PORT}")
+def connect_to_browser():
+    """
+    Connect to an existing browser session running in debug mode.
+    Returns the sync_playwright instance and browser connection.
+    Use this in a 'with' statement to maintain the connection.
+    """
+    playwright_instance = sync_playwright().start()
+    try:
+        browser = playwright_instance.chromium.connect_over_cdp(f"http://localhost:{PORT}")
+        return playwright_instance, browser
+    except Exception:
+        playwright_instance.stop()
+        raise
 
-        # Find the expense management page
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
 
-        for page in context.pages:
-            if EXPENSE_APP_URL in page.url:
-                page.bring_to_front()
-                return p, browser, page
-        else:
-            page = context.new_page()
-            page.goto(f"https://{EXPENSE_APP_URL}")
-            page.get_by_text("Expense management", exact=True).click()
-            return p, browser, page
+def get_expense_page_from_browser(browser):
+    """
+    Get the expense management page from an existing browser connection.
+    This function assumes the browser is already connected via connect_to_browser().
+    """
+    # Find the expense management page
+    context = browser.contexts[0] if browser.contexts else browser.new_context()
+
+    for page in context.pages:
+        if EXPENSE_APP_URL in page.url:
+            page.bring_to_front()
+            return page
+    else:
+        page = context.new_page()
+        page.goto(f"https://{EXPENSE_APP_URL}")
+        return page
 
 
 def run_expense_automation():
     """Run the expense automation workflow"""
-    setup_browser_session()
+    browser_process = setup_browser_session()
 
-    # Wait for the user input
-    input(
-        """Press <Enter> after you have created a new expense report, or navigated
-        to the expense report you want to fill. Press <Ctrl+C> to exit at any
-        time."""
-    )
+    if browser_process is None:
+        logger.error("❌ Cannot proceed without browser session")
+        return
 
-    p, browser, page = get_expense_page()
+    # Connect to the browser using our helper function
+    _, browser = connect_to_browser()
 
     try:
+        # Get the expense management page
+        page = get_expense_page_from_browser(browser)
+
+        # Wait for the user input
+        input(
+            """Press <Enter> after you have created a new expense report, or navigated
+            to the expense report you want to fill. Press <Ctrl+C> to exit at any
+            time."""
+        )
+
         existing_expenses_path = INPUT_DATA_PATH / "existing_expenses.csv"
         existing_expenses = import_expense_my_expense(page, existing_expenses_path)
-        # endregion
 
         if existing_expenses.shape[0]:
             print("""Found existing expenses""")
@@ -177,8 +202,10 @@ def run_expense_automation():
                 page.get_by_text("Save and continue", exact=True).click()
 
     finally:
-        # Don't close the browser here - keep it running for other scripts to use
-        pass
+        # Don't stop the playwright instance to keep browser windows open
+        # playwright_instance.stop()
+        print("🌐 Browser windows will remain open")
+        print("💡 You can continue using the browser or run more automation scripts")
 
 
 if __name__ == "__main__":
