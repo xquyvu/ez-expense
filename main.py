@@ -138,10 +138,6 @@ def run_expense_automation():
         logger.error("❌ Cannot proceed without browser session")
         return
 
-    # Check for shutdown before proceeding
-    if _shutdown_requested:
-        return
-
     # Connect to the browser using our helper function
     _, browser = connect_to_browser()
 
@@ -162,10 +158,6 @@ def run_expense_automation():
             input()
         except (KeyboardInterrupt, EOFError):
             print("\n🛑 User interrupted. Exiting gracefully...")
-            return
-
-        # Check for shutdown after user input
-        if _shutdown_requested:
             return
 
         existing_expenses_path = INPUT_DATA_PATH / "existing_expenses.csv"
@@ -205,10 +197,6 @@ def run_expense_automation():
                     print("\n🛑 User interrupted. Exiting gracefully...")
                     return
 
-        # Check for shutdown before processing receipts
-        if _shutdown_requested:
-            return
-
         # Now we add receipts to the expenses. Reload the existing expenses file because it may have been updated
         existing_expenses = pd.read_csv(existing_expenses_path)
 
@@ -218,8 +206,6 @@ def run_expense_automation():
         unmapped_receipt_files = []
 
         for receipt_file_path in receipt_file_paths:
-            if _shutdown_requested:
-                return
             try:
                 expense_line_number = int(receipt_file_path.stem.split("_")[0])
                 if expense_line_number in existing_expenses[EXPENSE_LINE_NUMBER_COLUMN].values:
@@ -250,9 +236,6 @@ def run_expense_automation():
         expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
 
         for expense_line in expense_lines:
-            if _shutdown_requested:
-                return
-
             expense_line_id = int(expense_line.get_attribute("value"))
 
             if expense_line_id not in ids_of_expenses_to_update:
@@ -267,9 +250,6 @@ def run_expense_automation():
             ].squeeze()
 
             for receipt_file_path in expense_details[RECEIPT_PATHS_COLUMN]:
-                if _shutdown_requested:
-                    return
-
                 page.click('a[name="EditReceipts"]')
                 page.click('button[name="AddButton"]')
 

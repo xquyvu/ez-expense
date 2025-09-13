@@ -1,7 +1,6 @@
 import subprocess
 import time
 from logging import getLogger
-from textwrap import dedent
 
 from pydantic import BaseModel
 
@@ -57,38 +56,17 @@ class BrowserProcess:
         result = subprocess.run(
             ["pgrep", "-f", self.browser.process_name], capture_output=True, text=True
         )
+
         if result.stdout.strip():
             logger.info(f"Found existing {self.browser.process_name} process(es).")
-
-            choice = input(
-                dedent(f"""
-                    {self.browser.process_name} is currently running.
-                    Choose an option:
-                    1. Gracefully close browser (recommended - saves tabs)
-                    2. Force close browser (may lose unsaved data)
-                    3. Cancel operation
-
-                    Enter choice (1/2/3): """)
-            ).strip()
-
-            if choice == "1":
-                print(f"Gracefully closing {self.browser.process_name}...")
-                if self.close_browser_gracefully():
-                    print("✅ Browser closed gracefully")
-                else:
-                    print("⚠️ Graceful close failed, falling back to force close...")
-                    subprocess.run(["pkill", "-f", self.browser.process_name], capture_output=True)
-                    time.sleep(1)
-            elif choice == "2":
-                print(f"Force closing {self.browser.process_name}...")
+            print(f"Gracefully closing {self.browser.process_name}...")
+            if self.close_browser_gracefully():
+                print("✅ Browser closed gracefully")
+            else:
+                print("⚠️ Graceful close failed, falling back to force close...")
                 subprocess.run(["pkill", "-f", self.browser.process_name], capture_output=True)
                 time.sleep(1)
-            elif choice == "3":
-                print("Operation cancelled")
-                return False
-            else:
-                print("Invalid choice, cancelling operation")
-                return False
+
         else:
             logger.info(f"No existing {self.browser.process_name} processes found.")
 
