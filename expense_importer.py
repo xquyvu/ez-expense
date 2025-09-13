@@ -144,32 +144,32 @@ def import_expense_wrapper(page: Page | None = None, save_path: Path | None = No
     """
     if DEBUG:
         return import_expense_mock(page)
-    else:
-        # Get the page from parameter or global state
-        playwright_page = page if page is not None else get_playwright_page()
 
-        # If we have a cached page, try to validate it's still usable
-        if playwright_page is not None:
-            try:
-                # Simple check to see if the page is still responsive
-                _ = playwright_page.url
-            except Exception:
-                # Page is no longer valid, clear it and reconnect
-                playwright_page = None
-                cleanup_playwright_connection()
+    # Get the page from parameter or global state
+    playwright_page = page if page is not None else get_playwright_page()
 
-        # If no page is available or the cached page failed, try to connect to the browser session
-        if playwright_page is None:
-            playwright_page = _try_connect_to_browser()
+    # If we have a cached page, try to validate it's still usable
+    if playwright_page is not None:
+        try:
+            # Simple check to see if the page is still responsive
+            _ = playwright_page.url
+        except Exception:
+            # Page is no longer valid, clear it and reconnect
+            playwright_page = None
+            cleanup_playwright_connection()
 
-        if playwright_page is None:
-            raise RuntimeError(
-                "Playwright page not available. Make sure the browser session is initialized."
-            )
-        return import_expense_my_expense(playwright_page, save_path)
+    # If no page is available or the cached page failed, try to connect to the browser session
+    if playwright_page is None:
+        playwright_page = _try_connect_to_browser()
+
+    if playwright_page is None:
+        raise RuntimeError(
+            "Playwright page not available. Make sure the browser session is initialized."
+        )
+    return import_expense_my_expense(playwright_page, save_path)
 
 
-def _try_connect_to_browser():
+def _try_connect_to_browser() -> Page | None:
     """
     Attempt to connect to an existing browser session running in debug mode.
     This allows the Flask subprocess to access the browser started by main.py.
