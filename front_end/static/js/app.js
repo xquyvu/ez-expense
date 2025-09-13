@@ -193,7 +193,7 @@ class EZExpenseApp {
         const headerRow = document.createElement('tr');
         allKeys.forEach(key => {
             const th = document.createElement('th');
-            th.textContent = this.formatColumnName(key);
+            th.textContent = key;
             headerRow.appendChild(th);
         });
         tableHeader.appendChild(headerRow);
@@ -292,13 +292,6 @@ class EZExpenseApp {
         `;
 
         return html;
-    }
-
-    /**
-     * Format column name for display
-     */
-    formatColumnName(key) {
-        return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
     }
 
     /**
