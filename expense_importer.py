@@ -48,37 +48,53 @@ def import_expense_my_expense(page: Page, save_path: Path | None = None) -> pd.D
     page.get_by_role("button", name="Grid options").click()
     page.get_by_text("Insert columns...").click()
 
+    # Navigate to the column selection dialog - wait for it to appear
+    page.wait_for_selector("div.dialog-popup-content", timeout=10000)
+    dialog_content = page.query_selector("div.dialog-popup-content")
+
+    # region: Show expense description / biz purpose
+    expense_desc_column = next(
+        row
+        for row in dialog_content.query_selector_all("div.fixedDataTableCellGroupLayout_cellGroup")
+        if "Additional information (Expense Description / Business Purpose)" in row.inner_html()
+        and "Expense lines" in row.inner_html()
+    )
+
+    expense_desc_checkbox = expense_desc_column.query_selector("span.dyn-checkbox-span")
+
+    if not expense_desc_checkbox.is_checked():
+        expense_desc_checkbox.click()
+
+    # endregion
+
     # region: Show the Created ID column, which we will use to identify which expense to
+
     # click on in the tool
     # Filter for the Created ID column
     page.fill('input[name="QuickFilterControl_Input"]', "Created ID")
-    page.wait_for_timeout(2000)
+    page.wait_for_selector("li.quickFilter-listItem.flyout-menuItem")
     page.keyboard.press("Enter")
 
     # Uncheck all Created ID columns
     created_id_columns = [
         row
-        for row in page.query_selector_all("div.fixedDataTableCellGroupLayout_cellGroup")
-        if "Created ID" in row.inner_html() and "Number" in row.inner_html()
+        for row in dialog_content.query_selector_all("div.fixedDataTableCellGroupLayout_cellGroup")
+        if "Created ID" in row.inner_html()
     ]
 
     for created_id_column in created_id_columns:
         created_id_checkbox = created_id_column.query_selector("span.dyn-checkbox-span")
-        if created_id_checkbox.is_checked():
-            created_id_checkbox.click()
 
-    # Then check the one that's corresponding to "Expense lines"
-    expense_line_created_id_column = next(
-        row for row in created_id_columns if "Expense lines" in row.inner_html()
-    )
-
-    created_id_checkbox = expense_line_created_id_column.query_selector("span.dyn-checkbox-span")
-    if not created_id_checkbox.is_checked():
-        created_id_checkbox.click()
-
-    page.click('button[data-dyn-controlname="OK"]')
+        if "Expense lines" in created_id_column.inner_html():
+            # Check the one that's corresponding to "Expense lines"
+            created_id_checkbox.set_checked(True)
+        else:
+            # Uncheck everything else
+            created_id_checkbox.set_checked(False)
 
     # endregion
+
+    page.click('button[data-dyn-controlname="OK"]')
 
     # region: Export the list of existing expenses
     with page.expect_download() as download_info:
@@ -87,6 +103,7 @@ def import_expense_my_expense(page: Page, save_path: Path | None = None) -> pd.D
         page.click('button[name="DownloadButton"]')
 
     existing_expenses = pd.read_excel(download_info.value.url)
+    existing_expenses.replace({np.nan: None}, inplace=True)
 
     if save_path:
         existing_expenses.to_csv(save_path, index=False)
