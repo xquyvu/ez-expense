@@ -10,45 +10,6 @@ from config import DEBUG, EXPENSE_LINE_NUMBER_COLUMN
 load_dotenv()
 
 
-def request_import_from_main_thread():
-    """
-    Thread-safe function for Flask to request import operations from the main thread.
-    This function should be used by Flask routes instead of import_expense_wrapper directly.
-    """
-    try:
-        # Check if we're running in the unified architecture context
-        import __main__
-
-        if hasattr(__main__, "_playwright_request_queue") and hasattr(
-            __main__, "_playwright_response_queue"
-        ):
-            # We're in the unified architecture, use the queue-based approach
-            import queue
-
-            # Get the queues from the main module
-            request_queue = getattr(__main__, "_playwright_request_queue")
-            response_queue = getattr(__main__, "_playwright_response_queue")
-
-            # Put a request in the queue for the main thread to process
-            request_queue.put("import_expenses", timeout=5)
-
-            # Wait for the main thread to process the request and return a result
-            result = response_queue.get(timeout=30)  # 30 second timeout
-
-            if isinstance(result, Exception):
-                raise result
-
-            return result
-        else:
-            # Fallback to direct call if queues are not available
-            return import_expense_wrapper()
-
-    except queue.Empty:
-        raise RuntimeError("Timeout waiting for Playwright operation to complete")
-    except Exception as e:
-        raise RuntimeError(f"Failed to request import from main thread: {e}")
-
-
 def set_playwright_page(page: Page | None = None) -> None:
     """
     Set the global Playwright page instance for use by the expense importer.

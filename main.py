@@ -1,9 +1,6 @@
-import queue
 import signal
 import sys
-import threading
 import time
-import webbrowser
 from logging import getLogger
 
 from dotenv import load_dotenv
@@ -17,10 +14,6 @@ logger = getLogger(__name__)
 # Global variables for cleanup
 _browser_process = None
 _shutdown_requested = False
-
-# Thread-safe communication for Flask to request Playwright operations
-_playwright_request_queue = queue.Queue()
-_playwright_response_queue = queue.Queue()
 
 
 def signal_handler(signum, frame):
@@ -43,9 +36,6 @@ def signal_handler(signum, frame):
         except Exception as e:
             logger.error(f"Error stopping Playwright: {e}")
             print(f"⚠️  Error stopping Playwright: {e}")
-
-    # Also clean up any remaining connections - no longer needed with unified architecture
-    # since everything runs in the same process
 
     # Clean up browser process
     if _browser_process:
@@ -117,106 +107,36 @@ def get_expense_page_from_browser(browser):
         return page
 
 
-def start_flask_in_same_process():
-    """Start Flask app in the same process using threading"""
-
-    def run_flask():
-        try:
-            from front_end.app import create_app
-
-            app = create_app()
-            print("🚀 Starting Flask application on port 5001...")
-            app.run(host="0.0.0.0", port=5001, debug=False, use_reloader=False, threaded=True)
-        except Exception as e:
-            logger.error(f"Failed to start Flask app: {e}")
-            print(f"❌ Failed to start Flask app: {e}")
-
-    # Start Flask in a daemon thread so it doesn't prevent shutdown
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-
-    # Give Flask a moment to start
-    time.sleep(2)
-
-    # Open browser to the Flask app
+def start_flask_app():
+    """Start Flask app in the main thread (blocking)"""
     try:
-        webbrowser.open("http://127.0.0.1:5001")
-        print("🌐 Opened web interface in browser")
-    except Exception as e:
-        print(f"⚠️  Could not open browser automatically: {e}")
+        from front_end.app import create_app
 
-    return flask_thread
+        app = create_app()
+        print("🚀 Starting Flask application on port 5001...")
+        print("🌐 Access the web interface at http://127.0.0.1:5001")
 
-
-def request_playwright_operation_from_main_thread():
-    """
-    Thread-safe function for Flask to request Playwright operations from the main thread.
-    This ensures all Playwright operations happen on the main thread to avoid threading issues.
-    """
-    try:
-        # Put a request in the queue for the main thread to process
-        _playwright_request_queue.put("import_expenses", timeout=5)
-
-        # Wait for the main thread to process the request and return a result
-        result = _playwright_response_queue.get(timeout=30)  # 30 second timeout
-
-        if isinstance(result, Exception):
-            raise result
-
-        return result
-    except queue.Empty:
-        raise RuntimeError("Timeout waiting for Playwright operation to complete")
-    except Exception as e:
-        raise RuntimeError(f"Failed to execute Playwright operation: {e}")
-
-
-def process_playwright_requests():
-    """
-    Process Playwright requests from Flask threads on the main thread.
-    This should be called periodically from the main thread's event loop.
-    """
-    try:
-        while not _playwright_request_queue.empty():
-            try:
-                request = _playwright_request_queue.get_nowait()
-
-                if request == "import_expenses":
-                    # Import expense_importer here to avoid circular imports
-                    from expense_importer import import_expense_wrapper
-
-                    # Execute the import on the main thread where Playwright is safe
-                    result = import_expense_wrapper()
-
-                    # Send the result back to the Flask thread
-                    _playwright_response_queue.put(result)
-
-            except queue.Empty:
-                break
-            except Exception as e:
-                # Send the exception back to the Flask thread
-                _playwright_response_queue.put(e)
+        # Run Flask in main thread - try with single process, single thread
+        app.run(
+            host="0.0.0.0", port=5001, debug=False, use_reloader=False, threaded=False, processes=1
+        )
 
     except Exception as e:
-        logger.error(f"Error processing Playwright requests: {e}")
+        logger.error(f"Failed to start Flask app: {e}")
+        print(f"❌ Failed to start Flask app: {e}")
 
 
 def run_expense_automation():
-    """Run the expense automation workflow"""
+    """Run the expense automation workflow with simplified architecture"""
     global _shutdown_requested
 
-    # Make the queues accessible from __main__ for cross-module communication
-    import __main__
-
-    __main__._playwright_request_queue = _playwright_request_queue
-    __main__._playwright_response_queue = _playwright_response_queue
-
+    # Setup browser session
     browser_process = setup_browser_session()
-
     if browser_process is None:
         logger.error("❌ Cannot proceed without browser session")
         return
 
-    # Connect to the browser using our helper function
+    # Connect to the browser
     browser = connect_to_browser()
     if not browser:
         print("❌ Failed to connect to browser")
@@ -226,10 +146,10 @@ def run_expense_automation():
         # Get the expense management page
         page = get_expense_page_from_browser(browser)
 
-        # Set the page in the playwright manager (expense_importer will use this too)
+        # Set the page in the playwright manager (Flask routes will use this)
         playwright_manager.set_current_page(page)
 
-        # Wait for the user input
+        # Wait for user to setup the expense report
         print("Press <Enter> after you have created a new expense report, or navigated")
         print("to the expense report you want to fill. Press <Ctrl+C> to exit at any")
         print("time.")
@@ -240,14 +160,10 @@ def run_expense_automation():
             print("\n🛑 User interrupted. Exiting gracefully...")
             return
 
-        start_flask_in_same_process()
+        print("\n✅ Browser setup complete. Starting Flask web interface...")
 
-        print("\n🚀 Automation is running. Access the web interface at http://127.0.0.1:5001")
-        print("Press <Ctrl+C> to stop and exit.")
-        while not _shutdown_requested:
-            # Process any Playwright requests from Flask threads
-            process_playwright_requests()
-            time.sleep(0.1)  # Small sleep to prevent busy waiting
+        # Start Flask in main thread (this will block until server stops)
+        start_flask_app()
 
     except KeyboardInterrupt:
         print("\n🛑 Keyboard interrupt received. Exiting gracefully...")
@@ -258,8 +174,6 @@ def run_expense_automation():
         # Clear the page reference when exiting
         playwright_manager.set_current_page(None)
         if not _shutdown_requested:
-            # Don't stop the playwright instance to keep browser windows open
-            # Only print these messages if we're not shutting down
             print("🌐 Browser windows will remain open")
             print("💡 You can continue using the browser or run more automation scripts")
 
