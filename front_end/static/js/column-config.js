@@ -14,8 +14,8 @@ const COLUMN_CONFIG = {
         'Amount': 110,
         'Expense category': 120,
         'Merchant': 120,
-        'Payment method': 90,
-        'Receipts attached': 90,
+        'Payment method': 100,
+        'Receipts attached': 100,
 
         // Special columns
         'Receipts': 250  // This is handled separately as sticky column
@@ -38,7 +38,8 @@ const COLUMN_CONFIG = {
         centerText: true,
         allowWrapping: true,
         maxLines: 3,  // Maximum number of lines for wrapped headers
-        allowReordering: true  // Enable drag and drop column reordering
+        allowReordering: true,  // Enable drag and drop column reordering
+        allowSorting: true  // Enable column sorting functionality
     }
 };
 

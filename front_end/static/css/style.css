@@ -228,7 +228,8 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    right: 8px;
+    right: 40px;
+    /* Leave space for sort icon (about 40px) */
     height: 100%;
     cursor: grab;
     z-index: 15;
@@ -294,6 +295,61 @@ body {
 .data-table tr.drag-over {
     background-color: #e3f2fd;
     border: 2px dashed #2196f3;
+}
+
+/* Column Header Sorting Styles */
+.column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 0.5rem;
+}
+
+.column-text {
+    flex: 1;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.sort-icon {
+    cursor: pointer;
+    color: #6c757d;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    padding: 0.2rem;
+    border-radius: 3px;
+    position: relative;
+    z-index: 20;
+    /* Higher z-index to ensure it's above the drag handle */
+}
+
+.sort-icon:hover {
+    opacity: 1;
+    color: #495057;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.sort-icon.sort-asc {
+    color: #007bff;
+    opacity: 1;
+}
+
+.sort-icon.sort-desc {
+    color: #007bff;
+    opacity: 1;
+}
+
+.sort-icon.sort-asc i:before {
+    content: "\f0de";
+    /* fa-sort-up */
+}
+
+.sort-icon.sort-desc i:before {
+    content: "\f0dd";
+    /* fa-sort-down */
 }
 
 /* Table Actions */

@@ -552,6 +552,139 @@ class EZExpenseApp {
     }
 
     /**
+     * Initialize column sorting functionality
+     */
+    initColumnSorting() {
+        // Check if sorting is enabled in configuration
+        if (!window.COLUMN_CONFIG?.headerConfig?.allowSorting) return;
+
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        // Add click event listeners to all sort icons
+        const sortIcons = table.querySelectorAll('.sort-icon');
+        sortIcons.forEach(icon => {
+            icon.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const column = icon.getAttribute('data-column');
+                this.sortTable(column);
+            });
+        });
+    }
+
+    /**
+     * Sort table by the specified column
+     */
+    sortTable(columnName) {
+        if (!this.expenses || this.expenses.length === 0) return;
+
+        // Get current sort state for this column
+        const currentSort = this.sortState || {};
+        let sortDirection = 'asc';
+
+        // If already sorting by this column, toggle direction
+        if (currentSort.column === columnName) {
+            sortDirection = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        }
+
+        // Update sort state
+        this.sortState = {
+            column: columnName,
+            direction: sortDirection
+        };
+
+        // Sort the expenses array
+        this.expenses.sort((a, b) => {
+            let valueA = a[columnName] || '';
+            let valueB = b[columnName] || '';
+
+            // Detect and handle different data types
+            const sortResult = this.compareValues(valueA, valueB, sortDirection);
+            return sortResult;
+        });
+
+        // Update sort icons
+        this.updateSortIcons(columnName, sortDirection);
+
+        // Redisplay the table with sorted data
+        this.displayExpensesTable();
+    }
+
+    /**
+     * Compare two values for sorting, handling different data types
+     */
+    compareValues(valueA, valueB, direction) {
+        // Convert to strings for comparison
+        const strA = String(valueA).toLowerCase().trim();
+        const strB = String(valueB).toLowerCase().trim();
+
+        // Check if values are numbers
+        const numA = parseFloat(strA);
+        const numB = parseFloat(strB);
+        const isNumberA = !isNaN(numA) && isFinite(numA);
+        const isNumberB = !isNaN(numB) && isFinite(numB);
+
+        // Check if values are dates (YYYY-MM-DD format or other date formats)
+        const dateA = new Date(strA);
+        const dateB = new Date(strB);
+        const isDateA = !isNaN(dateA.getTime()) && (strA.includes('-') || strA.includes('/'));
+        const isDateB = !isNaN(dateB.getTime()) && (strB.includes('-') || strB.includes('/'));
+
+        let result = 0;
+
+        if (isDateA && isDateB) {
+            // Date comparison
+            result = dateA.getTime() - dateB.getTime();
+        } else if (isNumberA && isNumberB) {
+            // Numeric comparison
+            result = numA - numB;
+        } else {
+            // String comparison
+            result = strA.localeCompare(strB);
+        }
+
+        // Apply sort direction
+        return direction === 'desc' ? -result : result;
+    }
+
+    /**
+     * Update sort icons to show current sort state
+     */
+    updateSortIcons(activeColumn, direction) {
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        // Reset all sort icons
+        const allSortIcons = table.querySelectorAll('.sort-icon');
+        allSortIcons.forEach(icon => {
+            icon.className = 'sort-icon';
+            const faIcon = icon.querySelector('i');
+            if (faIcon) {
+                faIcon.className = 'fas fa-sort';
+            }
+        });
+
+        // Update the active column's sort icon
+        const activeSortIcon = table.querySelector(`.sort-icon[data-column="${activeColumn}"]`);
+        if (activeSortIcon) {
+            if (direction === 'asc') {
+                activeSortIcon.className = 'sort-icon sort-asc';
+                const faIcon = activeSortIcon.querySelector('i');
+                if (faIcon) {
+                    faIcon.className = 'fas fa-sort-up';
+                }
+            } else {
+                activeSortIcon.className = 'sort-icon sort-desc';
+                const faIcon = activeSortIcon.querySelector('i');
+                if (faIcon) {
+                    faIcon.className = 'fas fa-sort-down';
+                }
+            }
+        }
+    }
+
+    /**
      * Bind event listeners
      */
     bindEvents() {
@@ -730,7 +863,23 @@ class EZExpenseApp {
         // Add regular columns
         regularKeys.forEach(key => {
             const th = document.createElement('th');
-            th.textContent = key;
+
+            // Check if sorting is enabled in configuration
+            const sortingEnabled = window.COLUMN_CONFIG?.headerConfig?.allowSorting;
+
+            if (sortingEnabled) {
+                th.innerHTML = `
+                    <div class="column-header">
+                        <span class="column-text">${key}</span>
+                        <span class="sort-icon" data-column="${key}">
+                            <i class="fas fa-sort"></i>
+                        </span>
+                    </div>
+                `;
+            } else {
+                th.textContent = key;
+            }
+
             th.title = key; // Add tooltip with full column name
             headerRow.appendChild(th);
         });
@@ -779,6 +928,9 @@ class EZExpenseApp {
 
         // Initialize column reordering functionality
         this.initColumnReordering();
+
+        // Initialize column sorting functionality
+        this.initColumnSorting();
 
         this.updateStatistics();
     }    /**
