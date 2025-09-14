@@ -37,7 +37,8 @@ const COLUMN_CONFIG = {
     headerConfig: {
         centerText: true,
         allowWrapping: true,
-        maxLines: 3  // Maximum number of lines for wrapped headers
+        maxLines: 3,  // Maximum number of lines for wrapped headers
+        allowReordering: true  // Enable drag and drop column reordering
     }
 };
 

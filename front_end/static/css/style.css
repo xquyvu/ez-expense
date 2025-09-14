@@ -223,6 +223,45 @@ body {
     background-color: rgba(0, 123, 255, 0.3) !important;
 }
 
+/* Column drag handles */
+.column-drag-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 8px;
+    height: 100%;
+    cursor: grab;
+    z-index: 15;
+    transition: background-color 0.2s ease;
+}
+
+.column-drag-handle:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.column-drag-handle:active {
+    cursor: grabbing !important;
+}
+
+/* Visual feedback during column drag */
+.data-table th.drag-source {
+    opacity: 0.5;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.data-table th.drag-target {
+    background-color: rgba(40, 167, 69, 0.2) !important;
+    border-left: 3px solid #28a745 !important;
+}
+
+/* Prevent text selection during drag operations */
+.dragging {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
 /* Sticky right column for receipts */
 .data-table th.receipts-column,
 .data-table td.receipts-column {

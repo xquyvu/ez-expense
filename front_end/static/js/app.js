@@ -280,6 +280,278 @@ class EZExpenseApp {
     }
 
     /**
+     * Initialize column reordering functionality
+     */
+    initColumnReordering() {
+        if (!window.COLUMN_CONFIG?.headerConfig?.allowReordering) return;
+
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        const headers = table.querySelectorAll('thead th');
+        headers.forEach((th, index) => {
+            this.makeColumnDraggable(th, index);
+        });
+    }
+
+    /**
+     * Make a column header draggable for reordering
+     */
+    makeColumnDraggable(th, columnIndex) {
+        // Don't make the receipts column draggable since it's sticky
+        if (th.classList.contains('receipts-column')) {
+            return;
+        }
+
+        // Create drag handle area (separate from resize handle)
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'column-drag-handle';
+        dragHandle.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 8px;
+            height: 100%;
+            cursor: grab;
+            z-index: 15;
+        `;
+
+        th.appendChild(dragHandle);
+
+        // Make the column draggable
+        th.draggable = false; // We'll handle this manually
+
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragThreshold = 5; // Minimum pixels to move before starting drag
+
+        dragHandle.addEventListener('mousedown', (e) => {
+            // Only start drag on left mouse button
+            if (e.button !== 0) return;
+
+            dragStartX = e.clientX;
+            isDragging = false;
+
+            const mouseMoveHandler = (moveEvent) => {
+                const deltaX = Math.abs(moveEvent.clientX - dragStartX);
+
+                if (!isDragging && deltaX > dragThreshold) {
+                    // Start dragging
+                    isDragging = true;
+                    this.startColumnDrag(th, columnIndex, moveEvent);
+                    dragHandle.style.cursor = 'grabbing';
+                    document.body.style.cursor = 'grabbing';
+                }
+            };
+
+            const mouseUpHandler = () => {
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                document.removeEventListener('mouseup', mouseUpHandler);
+
+                if (isDragging) {
+                    this.endColumnDrag();
+                    dragHandle.style.cursor = 'grab';
+                    document.body.style.cursor = '';
+                }
+            };
+
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+
+            e.preventDefault();
+        });
+
+        // Hover effects
+        dragHandle.addEventListener('mouseenter', () => {
+            if (!isDragging) {
+                th.style.backgroundColor = 'rgba(0, 123, 255, 0.05)';
+            }
+        });
+
+        dragHandle.addEventListener('mouseleave', () => {
+            if (!isDragging) {
+                th.style.backgroundColor = '';
+            }
+        });
+    }
+
+    /**
+     * Start dragging a column
+     */
+    startColumnDrag(th, columnIndex, event) {
+        this.dragData = {
+            sourceIndex: columnIndex,
+            sourceTh: th,
+            ghost: null
+        };
+
+        // Create ghost element
+        const ghost = th.cloneNode(true);
+        ghost.style.cssText = `
+            position: fixed;
+            top: ${event.clientY - 20}px;
+            left: ${event.clientX - th.offsetWidth / 2}px;
+            width: ${th.offsetWidth}px;
+            height: ${th.offsetHeight}px;
+            background: rgba(0, 123, 255, 0.9);
+            color: white;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0.8;
+        `;
+
+        document.body.appendChild(ghost);
+        this.dragData.ghost = ghost;
+
+        // Add visual feedback to source column
+        th.style.opacity = '0.5';
+
+        // Set up drop zones
+        this.setupDropZones();
+
+        // Track mouse movement for ghost
+        this.ghostMoveHandler = (e) => {
+            if (this.dragData.ghost) {
+                this.dragData.ghost.style.left = `${e.clientX - th.offsetWidth / 2}px`;
+                this.dragData.ghost.style.top = `${e.clientY - 20}px`;
+            }
+        };
+
+        document.addEventListener('mousemove', this.ghostMoveHandler);
+    }
+
+    /**
+     * Set up drop zones for column reordering
+     */
+    setupDropZones() {
+        const table = document.getElementById('expenses-table');
+        const headers = table.querySelectorAll('thead th:not(.receipts-column)');
+
+        headers.forEach((th, index) => {
+            if (index === this.dragData.sourceIndex) return;
+
+            th.addEventListener('mouseenter', this.handleDropZoneEnter.bind(this, index));
+            th.addEventListener('mouseleave', this.handleDropZoneLeave.bind(this, index));
+        });
+    }
+
+    /**
+     * Handle mouse entering a drop zone
+     */
+    handleDropZoneEnter(targetIndex, event) {
+        const th = event.currentTarget;
+        th.style.backgroundColor = 'rgba(40, 167, 69, 0.2)';
+        th.style.borderLeft = '3px solid #28a745';
+
+        this.dragData.targetIndex = targetIndex;
+    }
+
+    /**
+     * Handle mouse leaving a drop zone
+     */
+    handleDropZoneLeave(targetIndex, event) {
+        const th = event.currentTarget;
+        th.style.backgroundColor = '';
+        th.style.borderLeft = '';
+
+        if (this.dragData.targetIndex === targetIndex) {
+            this.dragData.targetIndex = null;
+        }
+    }
+
+    /**
+     * End column dragging
+     */
+    endColumnDrag() {
+        if (!this.dragData) return;
+
+        // Remove ghost
+        if (this.dragData.ghost) {
+            document.body.removeChild(this.dragData.ghost);
+        }
+
+        // Remove mouse move handler
+        if (this.ghostMoveHandler) {
+            document.removeEventListener('mousemove', this.ghostMoveHandler);
+        }
+
+        // Restore source column appearance
+        this.dragData.sourceTh.style.opacity = '';
+        this.dragData.sourceTh.style.backgroundColor = '';
+
+        // Clean up drop zones
+        this.cleanupDropZones();
+
+        // Perform the reorder if we have a valid target
+        if (this.dragData.targetIndex !== null && this.dragData.targetIndex !== this.dragData.sourceIndex) {
+            this.reorderColumn(this.dragData.sourceIndex, this.dragData.targetIndex);
+        }
+
+        this.dragData = null;
+    }
+
+    /**
+     * Clean up drop zone styling
+     */
+    cleanupDropZones() {
+        const table = document.getElementById('expenses-table');
+        const headers = table.querySelectorAll('thead th:not(.receipts-column)');
+
+        headers.forEach((th) => {
+            th.style.backgroundColor = '';
+            th.style.borderLeft = '';
+            th.removeEventListener('mouseenter', this.handleDropZoneEnter);
+            th.removeEventListener('mouseleave', this.handleDropZoneLeave);
+        });
+    }
+
+    /**
+     * Reorder columns in the table
+     */
+    reorderColumn(fromIndex, toIndex) {
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        console.log(`Reordering column from index ${fromIndex} to ${toIndex}`);
+
+        // Get all rows (header and data)
+        const headerRow = table.querySelector('thead tr');
+        const dataRows = table.querySelectorAll('tbody tr');
+
+        // Move header cell
+        const headerCells = Array.from(headerRow.children);
+        const sourceHeaderCell = headerCells[fromIndex];
+
+        if (toIndex < fromIndex) {
+            headerRow.insertBefore(sourceHeaderCell, headerCells[toIndex]);
+        } else {
+            headerRow.insertBefore(sourceHeaderCell, headerCells[toIndex + 1]);
+        }
+
+        // Move data cells in all rows
+        dataRows.forEach(row => {
+            const cells = Array.from(row.children);
+            const sourceCell = cells[fromIndex];
+
+            if (toIndex < fromIndex) {
+                row.insertBefore(sourceCell, cells[toIndex]);
+            } else {
+                row.insertBefore(sourceCell, cells[toIndex + 1]);
+            }
+        });
+
+        // Reinitialize functionality for the reordered table
+        setTimeout(() => {
+            this.initColumnResizing();
+            this.initColumnReordering();
+        }, 100);
+
+        console.log('Column reorder completed');
+    }
+
+    /**
      * Bind event listeners
      */
     bindEvents() {
@@ -504,6 +776,9 @@ class EZExpenseApp {
 
         // Initialize column resizing functionality
         this.initColumnResizing();
+
+        // Initialize column reordering functionality
+        this.initColumnReordering();
 
         this.updateStatistics();
     }    /**
