@@ -25,8 +25,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import configuration
 from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging for better exception visibility
+logging.basicConfig(
+    level=logging.DEBUG if FLASK_DEBUG else logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),  # Ensure output goes to stdout
+        logging.FileHandler(
+            os.getenv("DEBUG_LOG_TARGET", "ez-expense.log"), mode="a"
+        ),  # Also log to file
+    ],
+)
 logger = logging.getLogger(__name__)
 
 
@@ -125,6 +134,51 @@ def create_app():
         logger.info("Receipt routes registered successfully")
     except ImportError as e:
         logger.warning(f"Could not import receipt routes: {e}")
+
+    # Add global error handlers for better exception visibility
+    @app.errorhandler(500)
+    def handle_internal_error(e):
+        import traceback
+
+        logger.error(f"Internal server error: {e}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+
+        # Return detailed error in debug mode, generic error in production
+        if app.debug:
+            return jsonify(
+                {
+                    "error": "Internal server error",
+                    "message": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+            ), 500
+        else:
+            return jsonify(
+                {"error": "Internal server error", "message": "An unexpected error occurred"}
+            ), 500
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        import traceback
+
+        logger.error(f"Unhandled exception: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+
+        # Return detailed error in debug mode, generic error in production
+        if app.debug:
+            return jsonify(
+                {
+                    "error": "Unhandled exception",
+                    "message": str(e),
+                    "exception_type": type(e).__name__,
+                    "traceback": traceback.format_exc(),
+                }
+            ), 500
+        else:
+            return jsonify(
+                {"error": "An unexpected error occurred", "message": "Please try again later"}
+            ), 500
 
     return app
 
