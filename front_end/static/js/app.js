@@ -186,14 +186,14 @@ class EZExpenseApp {
             isResizing = true;
             startX = e.clientX;
             startWidth = th.offsetWidth;
-            
+
             // Add visual feedback
             resizeHandle.style.background = 'rgba(0, 123, 255, 0.3)';
             document.body.style.cursor = 'col-resize';
-            
+
             // Prevent text selection during resize
             document.body.style.userSelect = 'none';
-            
+
             e.preventDefault();
         });
 
@@ -202,19 +202,19 @@ class EZExpenseApp {
 
             const deltaX = e.clientX - startX;
             const newWidth = Math.max(80, startWidth + deltaX); // Minimum width of 80px
-            
+
             this.resizeColumn(columnIndex, newWidth);
         });
 
         document.addEventListener('mouseup', () => {
             if (isResizing) {
                 isResizing = false;
-                
+
                 // Remove visual feedback
                 resizeHandle.style.background = 'transparent';
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
-                
+
                 // Save the new width to config (optional)
                 this.saveColumnWidth(columnIndex, th.offsetWidth);
             }
@@ -268,12 +268,12 @@ class EZExpenseApp {
         const th = table.querySelector(`thead th:nth-child(${columnIndex + 1})`);
         if (th && window.COLUMN_CONFIG) {
             const columnName = th.textContent.trim();
-            
+
             // Update the runtime config
             window.COLUMN_CONFIG.columnWidths[columnName] = width;
-            
+
             console.log(`Saved column "${columnName}" width: ${width}px`);
-            
+
             // Note: This only saves to memory, not to the actual file
             // To persist changes, you'd need to implement server-side saving
         }
