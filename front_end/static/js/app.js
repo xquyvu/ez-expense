@@ -192,16 +192,25 @@ class EZExpenseApp {
             });
         });
 
-        // Add receipt column
-        allKeys.add('receipt');
+        // Convert to array for regular columns
+        const regularKeys = Array.from(allKeys);
 
         // Create header row
         const headerRow = document.createElement('tr');
-        allKeys.forEach(key => {
+
+        // Add regular columns
+        regularKeys.forEach(key => {
             const th = document.createElement('th');
             th.textContent = key;
             headerRow.appendChild(th);
         });
+
+        // Add receipts column (sticky on the right)
+        const receiptTh = document.createElement('th');
+        receiptTh.textContent = 'Receipts';
+        receiptTh.className = 'receipts-column';
+        headerRow.appendChild(receiptTh);
+
         tableHeader.appendChild(headerRow);
 
         // Create data rows
@@ -210,19 +219,19 @@ class EZExpenseApp {
             row.dataset.expenseId = expense.id;
             row.dataset.rowIndex = index;
 
-            allKeys.forEach(key => {
+            // Add regular columns
+            regularKeys.forEach(key => {
                 const td = document.createElement('td');
-
-                if (key === 'receipt') {
-                    td.className = 'receipt-cell';
-                    td.innerHTML = this.createReceiptCell(expense.id);
-                } else {
-                    const formattedValue = this.formatDateValue(expense[key] || '');
-                    td.innerHTML = `<input type="text" value="${formattedValue}" data-field="${key}" class="table-input">`;
-                }
-
+                const formattedValue = this.formatDateValue(expense[key] || '');
+                td.innerHTML = `<input type="text" value="${formattedValue}" data-field="${key}" class="table-input">`;
                 row.appendChild(td);
             });
+
+            // Add receipts column (sticky on the right)
+            const receiptTd = document.createElement('td');
+            receiptTd.className = 'receipt-cell receipts-column';
+            receiptTd.innerHTML = this.createReceiptCell(expense.id);
+            row.appendChild(receiptTd);
 
             // Make row droppable for receipts
             this.makeRowDroppable(row);
@@ -230,9 +239,7 @@ class EZExpenseApp {
         });
 
         this.updateStatistics();
-    }
-
-    /**
+    }    /**
      * Format date values from JSON to YYYY-MM-DD format
      */
     formatDateValue(value) {
