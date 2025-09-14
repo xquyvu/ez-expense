@@ -217,7 +217,8 @@ class EZExpenseApp {
                     td.className = 'receipt-cell';
                     td.innerHTML = this.createReceiptCell(expense.id);
                 } else {
-                    td.innerHTML = `<input type="text" value="${expense[key] || ''}" data-field="${key}" class="table-input">`;
+                    const formattedValue = this.formatDateValue(expense[key] || '');
+                    td.innerHTML = `<input type="text" value="${formattedValue}" data-field="${key}" class="table-input">`;
                 }
 
                 row.appendChild(td);
@@ -232,6 +233,60 @@ class EZExpenseApp {
     }
 
     /**
+     * Format date values from JSON to YYYY-MM-DD format
+     */
+    formatDateValue(value) {
+        if (!value || typeof value !== 'string') {
+            return value;
+        }
+
+        // Detect various date formats
+        // ISO 8601: "2025-09-14T10:30:00", "2025-09-14T10:30:00.123Z", "2025-09-14"
+        const isoDateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+        const isoDateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+        // JavaScript Date.toString() format: "Tue, 09 Sep 2025 00:00:00 GMT"
+        const jsDateStringRegex = /^[A-Za-z]{3},\s\d{2}\s[A-Za-z]{3}\s\d{4}\s\d{2}:\d{2}:\d{2}\sGMT$/;
+
+        // RFC 2822 format: "Tue Sep 09 2025 00:00:00 GMT+0000"
+        const rfc2822Regex = /^[A-Za-z]{3}\s[A-Za-z]{3}\s\d{2}\s\d{4}\s\d{2}:\d{2}:\d{2}/;
+
+        // Try pattern matching first
+        if (isoDateTimeRegex.test(value) || isoDateOnlyRegex.test(value) ||
+            jsDateStringRegex.test(value) || rfc2822Regex.test(value)) {
+            try {
+                const date = new Date(value);
+                if (!isNaN(date.getTime())) {
+                    // Return in YYYY-MM-DD format
+                    return date.toISOString().split('T')[0];
+                }
+            } catch (error) {
+                console.warn('Error parsing date:', value, error);
+            }
+        }
+
+        // Fallback: Try to parse any string that might be a date
+        // This is more aggressive but helps catch edge cases
+        try {
+            const date = new Date(value);
+            // Check if it's a valid date and the original value looks date-like
+            if (!isNaN(date.getTime()) &&
+                (value.includes('GMT') || value.includes('UTC') ||
+                    value.match(/\d{4}/) || value.includes('Jan') || value.includes('Feb') ||
+                    value.includes('Mar') || value.includes('Apr') || value.includes('May') ||
+                    value.includes('Jun') || value.includes('Jul') || value.includes('Aug') ||
+                    value.includes('Sep') || value.includes('Oct') || value.includes('Nov') ||
+                    value.includes('Dec'))) {
+                // Log for debugging
+                console.log('Date detected and converted:', value, '→', date.toISOString().split('T')[0]);
+                return date.toISOString().split('T')[0];
+            }
+        } catch (error) {
+            // Silent fallback - not a date
+        }
+
+        return value; // Return original if not a date or parsing failed
+    }    /**
      * Create receipt cell HTML
      */
     createReceiptCell(expenseId) {

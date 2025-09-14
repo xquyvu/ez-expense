@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Date Format Test</title>
+</head>
+
+<body>
+    <h1>Date Format Test</h1>
+    <div id="results"></div>
+
+    <script>
+        // Test the date formatting function
+        function formatDateValue(value) {
+            if (!value || typeof value !== 'string') {
+                return value;
+            }
+
+            // Detect ISO 8601 date strings (from Flask jsonify)
+            // Patterns: "2025-09-14T10:30:00", "2025-09-14T10:30:00.123Z", "2025-09-14"
+            const isoDateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+            const isoDateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+            if (isoDateTimeRegex.test(value) || isoDateOnlyRegex.test(value)) {
+                try {
+                    const date = new Date(value);
+                    if (!isNaN(date.getTime())) {
+                        // Return in YYYY-MM-DD format
+                        return date.toISOString().split('T')[0];
+                    }
+                } catch (error) {
+                    console.warn('Error parsing date:', value, error);
+                }
+            }
+
+            return value; // Return original if not a date or parsing failed
+        }
+
+        // Test cases
+        const testCases = [
+            "2025-09-14T10:30:00",
+            "2025-09-14T10:30:00.123Z",
+            "2025-09-14",
+            "2025-12-25T23:59:59Z",
+            "Hello World",
+            "100.50",
+            "",
+            null,
+            undefined
+        ];
+
+        const results = document.getElementById('results');
+
+        testCases.forEach(testCase => {
+            const formatted = formatDateValue(testCase);
+            const result = document.createElement('div');
+            result.innerHTML = `<strong>Input:</strong> ${testCase} → <strong>Output:</strong> ${formatted}`;
+            results.appendChild(result);
+        });
+    </script>
+</body>
+
+</html>
