@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from playwright.sync_api import Page
 
 import playwright_manager
-from config import DEBUG, EXPENSE_LINE_NUMBER_COLUMN
+from config import DEBUG
 
 load_dotenv()
 
@@ -78,26 +78,6 @@ def import_expense_my_expense(page: Page, save_path: Path | None = None) -> pd.D
     created_id_checkbox = expense_line_created_id_column.query_selector("span.dyn-checkbox-span")
     if not created_id_checkbox.is_checked():
         created_id_checkbox.click()
-
-    # endregion
-
-    # region: Show the Line number column, which we will use as the ID for each expense
-    page.fill('input[name="QuickFilterControl_Input"]', EXPENSE_LINE_NUMBER_COLUMN)
-    page.wait_for_timeout(2000)
-    page.keyboard.press("Enter")
-
-    line_number_column = next(
-        row
-        for row in page.query_selector_all("div.fixedDataTableCellGroupLayout_cellGroup")
-        if EXPENSE_LINE_NUMBER_COLUMN in row.inner_html() and "Expense lines" in row.inner_html()
-    )
-
-    line_number_checkbox = line_number_column.query_selector("span.dyn-checkbox-span")
-
-    if not line_number_checkbox.is_checked():
-        line_number_checkbox.click()
-
-    # endregion
 
     page.click('button[data-dyn-controlname="OK"]')
 

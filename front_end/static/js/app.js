@@ -85,12 +85,18 @@ class EZExpenseApp {
 
             if (data.success) {
                 console.log(`Successfully imported ${data.count} expenses from ${data.source} source`);
-                this.expenses = data.data.map((expense, index) => ({
-                    id: expense.id || index + 1,
-                    description: expense.Description || expense.description || '',
-                    amount: expense.Amount || expense.amount || 0,
-                    'Created ID': expense['Created ID'] || expense.id || index + 1
-                }));
+                // Map all expense data, preserving all columns from the imported data
+                this.expenses = data.data.map((expense, index) => {
+                    // Start with all the original data
+                    const mappedExpense = { ...expense };
+
+                    // Ensure we have a consistent id field
+                    if (!mappedExpense.id) {
+                        mappedExpense.id = expense.id || expense['Created ID'] || index + 1;
+                    }
+
+                    return mappedExpense;
+                });
 
                 this.displayExpensesTable();
                 this.showToast(data.message || 'Expenses imported successfully', 'success');

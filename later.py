@@ -104,3 +104,24 @@
 
         existing_expenses_path = INPUT_DATA_PATH / "existing_expenses.csv"
         import_expense_my_expense(page, existing_expenses_path)
+
+
+###########
+
+    # region: Show the Line number column, which we will use as the ID for each expense
+    page.fill('input[name="QuickFilterControl_Input"]', EXPENSE_LINE_NUMBER_COLUMN)
+    page.wait_for_timeout(2000)
+    page.keyboard.press("Enter")
+
+    line_number_column = next(
+        row
+        for row in page.query_selector_all("div.fixedDataTableCellGroupLayout_cellGroup")
+        if EXPENSE_LINE_NUMBER_COLUMN in row.inner_html() and "Expense lines" in row.inner_html()
+    )
+
+    line_number_checkbox = line_number_column.query_selector("span.dyn-checkbox-span")
+
+    if not line_number_checkbox.is_checked():
+        line_number_checkbox.click()
+
+    # endregion
