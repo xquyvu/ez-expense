@@ -1,7 +1,9 @@
 import signal
 import sys
 import time
+import webbrowser
 from logging import getLogger
+from threading import Timer
 
 from dotenv import load_dotenv
 
@@ -116,7 +118,11 @@ def start_flask_app():
         print("🚀 Starting Flask application on port 5001...")
         print("🌐 Access the web interface at http://127.0.0.1:5001")
 
+        def _open_browser():
+            webbrowser.open_new("http://127.0.0.1:5001")
+
         # Run Flask in main thread - try with single process, single thread
+        Timer(1, _open_browser).start()
         app.run(
             host="0.0.0.0", port=5001, debug=False, use_reloader=False, threaded=False, processes=1
         )
