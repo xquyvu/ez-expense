@@ -14,8 +14,8 @@ const COLUMN_CONFIG = {
         'Amount': 110,
         'Expense category': 120,
         'Merchant': 120,
-        'Payment method': 100,
-        'Receipts attached': 100,
+        'Payment method': 110,
+        'Receipts attached': 110,
 
         // Special columns
         'Receipts': 250  // This is handled separately as sticky column
