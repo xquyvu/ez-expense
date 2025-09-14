@@ -19,7 +19,122 @@ class EZExpenseApp {
         this.bindEvents();
         this.checkHealthStatus();
         this.updateExportMethodInfo();
+
+        // Debug: Check if column config is loaded
+        if (window.COLUMN_CONFIG) {
+            console.log('Column config loaded successfully:', window.COLUMN_CONFIG);
+        } else {
+            console.error('Column config not loaded!');
+        }
+
         console.log('EZ Expense App initialized');
+    }
+
+    /**
+     * Get column width from configuration
+     */
+    getColumnWidth(columnName) {
+        if (!window.COLUMN_CONFIG) {
+            return 150; // fallback default
+        }
+
+        const config = window.COLUMN_CONFIG;
+        return config.columnWidths[columnName] || config.defaultWidth;
+    }
+
+    /**
+     * Calculate column width based on content if auto-resize is enabled
+     */
+    calculateColumnWidth(columnName, values) {
+        if (!window.COLUMN_CONFIG || !window.COLUMN_CONFIG.autoResize) {
+            return this.getColumnWidth(columnName);
+        }
+
+        const config = window.COLUMN_CONFIG;
+
+        // Create a temporary element to measure text width
+        const tempElement = document.createElement('span');
+        tempElement.style.visibility = 'hidden';
+        tempElement.style.position = 'absolute';
+        tempElement.style.fontSize = '14px'; // Match table font size
+        tempElement.style.fontFamily = 'inherit';
+        document.body.appendChild(tempElement);
+
+        // Measure column header width
+        tempElement.textContent = columnName;
+        let maxWidth = tempElement.offsetWidth;
+
+        // Measure content widths (sample first 10 values for performance)
+        const sampleValues = values.slice(0, 10);
+        sampleValues.forEach(value => {
+            tempElement.textContent = String(value || '');
+            maxWidth = Math.max(maxWidth, tempElement.offsetWidth);
+        });
+
+        document.body.removeChild(tempElement);
+
+        // Add padding and constrain to min/max
+        const calculatedWidth = maxWidth + config.autoResizePadding;
+        const configuredWidth = this.getColumnWidth(columnName);
+
+        return Math.max(
+            config.minWidth,
+            Math.min(
+                config.maxWidth,
+                Math.max(calculatedWidth, configuredWidth)
+            )
+        );
+    }
+
+    /**
+     * Apply column widths to table
+     */
+    applyColumnWidths(tableElement, columnNames) {
+        if (!tableElement || !window.COLUMN_CONFIG) {
+            console.warn('Cannot apply column widths - missing table or config');
+            return;
+        }
+
+        const headerCells = tableElement.querySelectorAll('thead th');
+        const config = window.COLUMN_CONFIG;
+
+        console.log('Applying column widths:', {
+            autoResize: config.autoResize,
+            columnNames: columnNames,
+            columnWidths: config.columnWidths
+        });
+
+        headerCells.forEach((th, index) => {
+            const columnName = columnNames[index];
+            if (columnName) {
+                let width;
+
+                if (columnName === 'Receipts') {
+                    // Special handling for receipts column
+                    width = config.columnWidths['Receipts'] || 250;
+                } else if (config.autoResize) {
+                    // Get sample values for this column
+                    const values = this.expenses.map(expense => expense[columnName]);
+                    width = this.calculateColumnWidth(columnName, values);
+                } else {
+                    width = this.getColumnWidth(columnName);
+                }
+
+                console.log(`Setting column "${columnName}" to width: ${width}px`);
+
+                th.style.width = `${width}px`;
+                th.style.minWidth = `${width}px`;
+                th.style.maxWidth = `${width}px`;
+
+                // Apply the same width to all cells in this column
+                const columnCells = tableElement.querySelectorAll(`tbody td:nth-child(${index + 1})`);
+                columnCells.forEach(td => {
+                    td.style.width = `${width}px`;
+                    td.style.minWidth = `${width}px`;
+                    td.style.maxWidth = `${width}px`;
+                });
+            }
+        });
     }
 
     /**
@@ -202,12 +317,14 @@ class EZExpenseApp {
         regularKeys.forEach(key => {
             const th = document.createElement('th');
             th.textContent = key;
+            th.title = key; // Add tooltip with full column name
             headerRow.appendChild(th);
         });
 
         // Add receipts column (sticky on the right)
         const receiptTh = document.createElement('th');
         receiptTh.textContent = 'Receipts';
+        receiptTh.title = 'Receipts'; // Add tooltip
         receiptTh.className = 'receipts-column';
         headerRow.appendChild(receiptTh);
 
@@ -237,6 +354,11 @@ class EZExpenseApp {
             this.makeRowDroppable(row);
             tableBody.appendChild(row);
         });
+
+        // Apply column widths after table is created
+        const allColumnNames = [...regularKeys, 'Receipts'];
+        const tableElement = document.getElementById('expenses-table');
+        this.applyColumnWidths(tableElement, allColumnNames);
 
         this.updateStatistics();
     }    /**
