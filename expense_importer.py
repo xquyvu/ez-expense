@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from playwright.sync_api import Page
@@ -34,12 +35,8 @@ def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
     """
     # Logic to interact with the website and fetch expenses
     # This is a placeholder for the actual implementation
-    expenses = [
-        {"Created ID": 4, "Amount": 100.0, "Description": "Office Supplies"},
-        {"Created ID": 2, "Amount": 250.0, "Description": "Travel Expenses"},
-    ]
-
-    expense_df = pd.DataFrame(expenses)
+    expense_df = pd.read_csv("./tests/test_data/test_expense_report.csv")
+    expense_df.replace({np.nan: None}, inplace=True)
 
     # No need to save to file since we return the DataFrame
     # The calling code can decide what to do with the data
