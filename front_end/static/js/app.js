@@ -138,6 +138,148 @@ class EZExpenseApp {
     }
 
     /**
+     * Initialize column resizing functionality
+     */
+    initColumnResizing() {
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        const headers = table.querySelectorAll('thead th');
+        headers.forEach((th, index) => {
+            this.makeColumnResizable(th, index);
+        });
+    }
+
+    /**
+     * Make a column header resizable
+     */
+    makeColumnResizable(th, columnIndex) {
+        // Don't make the receipts column resizable since it's sticky
+        if (th.classList.contains('receipts-column')) {
+            return;
+        }
+
+        // Create resize handle
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'column-resize-handle';
+        resizeHandle.style.cssText = `
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 5px;
+            height: 100%;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 20;
+        `;
+
+        // Make the th position relative so the handle can be positioned absolutely
+        th.style.position = 'relative';
+        th.appendChild(resizeHandle);
+
+        // Add resize functionality
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = th.offsetWidth;
+            
+            // Add visual feedback
+            resizeHandle.style.background = 'rgba(0, 123, 255, 0.3)';
+            document.body.style.cursor = 'col-resize';
+            
+            // Prevent text selection during resize
+            document.body.style.userSelect = 'none';
+            
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const deltaX = e.clientX - startX;
+            const newWidth = Math.max(80, startWidth + deltaX); // Minimum width of 80px
+            
+            this.resizeColumn(columnIndex, newWidth);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                
+                // Remove visual feedback
+                resizeHandle.style.background = 'transparent';
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                
+                // Save the new width to config (optional)
+                this.saveColumnWidth(columnIndex, th.offsetWidth);
+            }
+        });
+
+        // Add hover effect
+        resizeHandle.addEventListener('mouseenter', () => {
+            if (!isResizing) {
+                resizeHandle.style.background = 'rgba(0, 123, 255, 0.1)';
+            }
+        });
+
+        resizeHandle.addEventListener('mouseleave', () => {
+            if (!isResizing) {
+                resizeHandle.style.background = 'transparent';
+            }
+        });
+    }
+
+    /**
+     * Resize a column to a specific width
+     */
+    resizeColumn(columnIndex, newWidth) {
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        // Update header cell
+        const th = table.querySelector(`thead th:nth-child(${columnIndex + 1})`);
+        if (th) {
+            th.style.width = `${newWidth}px`;
+            th.style.minWidth = `${newWidth}px`;
+            th.style.maxWidth = `${newWidth}px`;
+        }
+
+        // Update all data cells in this column
+        const tds = table.querySelectorAll(`tbody td:nth-child(${columnIndex + 1})`);
+        tds.forEach(td => {
+            td.style.width = `${newWidth}px`;
+            td.style.minWidth = `${newWidth}px`;
+            td.style.maxWidth = `${newWidth}px`;
+        });
+    }
+
+    /**
+     * Save column width to config (optional - for persistence)
+     */
+    saveColumnWidth(columnIndex, width) {
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        const th = table.querySelector(`thead th:nth-child(${columnIndex + 1})`);
+        if (th && window.COLUMN_CONFIG) {
+            const columnName = th.textContent.trim();
+            
+            // Update the runtime config
+            window.COLUMN_CONFIG.columnWidths[columnName] = width;
+            
+            console.log(`Saved column "${columnName}" width: ${width}px`);
+            
+            // Note: This only saves to memory, not to the actual file
+            // To persist changes, you'd need to implement server-side saving
+        }
+    }
+
+    /**
      * Bind event listeners
      */
     bindEvents() {
@@ -359,6 +501,9 @@ class EZExpenseApp {
         const allColumnNames = [...regularKeys, 'Receipts'];
         const tableElement = document.getElementById('expenses-table');
         this.applyColumnWidths(tableElement, allColumnNames);
+
+        // Initialize column resizing functionality
+        this.initColumnResizing();
 
         this.updateStatistics();
     }    /**
