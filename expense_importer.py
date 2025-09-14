@@ -10,6 +10,45 @@ from config import DEBUG, EXPENSE_LINE_NUMBER_COLUMN
 load_dotenv()
 
 
+def request_import_from_main_thread():
+    """
+    Thread-safe function for Flask to request import operations from the main thread.
+    This function should be used by Flask routes instead of import_expense_wrapper directly.
+    """
+    try:
+        # Check if we're running in the unified architecture context
+        import __main__
+
+        if hasattr(__main__, "_playwright_request_queue") and hasattr(
+            __main__, "_playwright_response_queue"
+        ):
+            # We're in the unified architecture, use the queue-based approach
+            import queue
+
+            # Get the queues from the main module
+            request_queue = getattr(__main__, "_playwright_request_queue")
+            response_queue = getattr(__main__, "_playwright_response_queue")
+
+            # Put a request in the queue for the main thread to process
+            request_queue.put("import_expenses", timeout=5)
+
+            # Wait for the main thread to process the request and return a result
+            result = response_queue.get(timeout=30)  # 30 second timeout
+
+            if isinstance(result, Exception):
+                raise result
+
+            return result
+        else:
+            # Fallback to direct call if queues are not available
+            return import_expense_wrapper()
+
+    except queue.Empty:
+        raise RuntimeError("Timeout waiting for Playwright operation to complete")
+    except Exception as e:
+        raise RuntimeError(f"Failed to request import from main thread: {e}")
+
+
 def set_playwright_page(page: Page | None = None) -> None:
     """
     Set the global Playwright page instance for use by the expense importer.
@@ -26,12 +65,6 @@ def get_playwright_page() -> Page | None:
     """Get the global Playwright page instance."""
     # All page management is now handled by playwright_manager
     return playwright_manager.get_current_page()
-
-
-def cleanup_playwright_connection():
-    """Clean up the existing Playwright connection."""
-    # All cleanup is now handled by playwright_manager
-    playwright_manager.stop_playwright()
 
 
 def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
@@ -134,70 +167,11 @@ def import_expense_wrapper(page: Page | None = None, save_path: Path | None = No
     if DEBUG:
         return import_expense_mock(page)
 
-    # Get the page from parameter or global state
+    # Use the provided page or get from the shared playwright manager
     playwright_page = page if page is not None else get_playwright_page()
-
-    # If we have a cached page, try to validate it's still usable
-    if playwright_page is not None:
-        try:
-            # Simple check to see if the page is still responsive
-            _ = playwright_page.url
-        except Exception:
-            # Page is no longer valid, clear it and reconnect
-            playwright_page = None
-            cleanup_playwright_connection()
-
-    # If no page is available or the cached page failed, try to connect to the browser session
-    if playwright_page is None:
-        playwright_page = _try_connect_to_browser()
 
     if playwright_page is None:
         raise RuntimeError(
             "Playwright page not available. Make sure the browser session is initialized."
         )
     return import_expense_my_expense(playwright_page, save_path)
-
-
-def _try_connect_to_browser() -> Page | None:
-    """
-    Attempt to connect to an existing browser session running in debug mode.
-    This allows the Flask subprocess to access the browser started by main.py.
-    Uses the centralized playwright_manager to prevent threading issues.
-    """
-    try:
-        from config import EXPENSE_APP_URL
-
-        # Clean up any existing connections first
-        cleanup_playwright_connection()
-
-        # Use playwright manager to create and connect
-        if not playwright_manager.is_playwright_running():
-            playwright_manager.start_playwright()
-
-        browser = playwright_manager.connect_to_browser()
-
-        # Find the expense management page
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
-
-        for page in context.pages:
-            if EXPENSE_APP_URL in page.url:
-                # Set the page using playwright_manager
-                set_playwright_page(page)
-                return page
-
-        # If no existing page found, create a new one
-        page = context.new_page()
-        page.goto(f"https://{EXPENSE_APP_URL}")
-        set_playwright_page(page)
-        return page
-
-    except Exception as e:
-        # Clean up on failure
-        cleanup_playwright_connection()
-
-        # Log the error but don't crash - let the caller handle it
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Failed to connect to browser from Flask process: {e}")
-        return None

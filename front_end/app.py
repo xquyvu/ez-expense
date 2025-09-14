@@ -111,7 +111,7 @@ def create_app():
 
     # Import and register route blueprints
     try:
-        from routes.expense_routes import expense_bp
+        from front_end.routes.expense_routes import expense_bp
 
         app.register_blueprint(expense_bp, url_prefix="/api/expenses")
         logger.info("Expense routes registered successfully")
@@ -119,7 +119,7 @@ def create_app():
         logger.warning(f"Could not import expense routes: {e}")
 
     try:
-        from routes.receipt_routes import receipt_bp
+        from front_end.routes.receipt_routes import receipt_bp
 
         app.register_blueprint(receipt_bp, url_prefix="/api/receipts")
         logger.info("Receipt routes registered successfully")

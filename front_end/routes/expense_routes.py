@@ -26,11 +26,13 @@ try:
     from expense_importer import (
         get_playwright_page,
         import_expense_wrapper,
+        request_import_from_main_thread,
     )
 except ImportError as e:
     logging.error(f"Could not import expense_importer: {e}")
     get_playwright_page = None
     import_expense_wrapper = None
+    request_import_from_main_thread = None
 
 try:
     from expense_matcher import receipt_match_score
@@ -95,7 +97,7 @@ def import_expenses_real():
 
 def _import_real_data():
     """Internal function to handle real browser-based import."""
-    if import_expense_wrapper is None:
+    if request_import_from_main_thread is None:
         return jsonify(
             {
                 "error": "Import function not available",
@@ -104,8 +106,8 @@ def _import_real_data():
         ), 500
 
     try:
-        # Use the wrapper function for real browser import
-        expense_df = import_expense_wrapper()
+        # Use the thread-safe import function to get real browser data
+        expense_df = request_import_from_main_thread()
         expense_df["id"] = range(1, len(expense_df) + 1)
 
         # Convert DataFrame to list of dictionaries for JSON response
