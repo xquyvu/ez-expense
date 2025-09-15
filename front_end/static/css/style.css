@@ -10,6 +10,8 @@ body {
     line-height: 1.6;
     color: #333;
     background-color: #f8f9fa;
+    overflow-x: auto;
+    /* Handle horizontal scrolling at body level */
 }
 
 .container {
@@ -162,15 +164,11 @@ body {
 
 /* Table Styles */
 .table-container {
-    overflow-x: auto;
-    overflow-y: auto;
-    max-height: 90vh;
-    /* Limit table height to 90% of viewport height */
     margin-bottom: 1rem;
-    position: relative;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border: 1px solid #e9ecef;
+    /* Remove overflow to allow sticky headers to work with viewport */
 }
 
 .data-table {
@@ -179,7 +177,8 @@ body {
     border-spacing: 0;
     background: white;
     table-layout: fixed;
-    /* Enable fixed table layout for consistent column widths */
+    min-width: 1000px;
+    /* Ensure table has minimum width to trigger horizontal scrolling */
 }
 
 .data-table th,
@@ -203,7 +202,7 @@ body {
     color: #495057;
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 100;
     white-space: normal;
     text-align: center;
     vertical-align: middle;
@@ -213,9 +212,7 @@ body {
     max-height: 4.5rem;
     overflow: hidden;
     border-bottom: 2px solid #dee2e6;
-    /* Stronger border for sticky header */
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    /* Add shadow to make it stand out when scrolling */
 }
 
 /* Column resize handles */
@@ -330,29 +327,27 @@ body {
     /* Use the general th sticky behavior for top stickiness */
 }
 
-/* Override rules to ensure ALL headers stick to top */
+/* Simple sticky headers - remove all complex overrides */
 .data-table thead th {
     position: sticky !important;
     top: 0 !important;
-    z-index: 20 !important;
-    /* Higher than column sticky elements */
+    z-index: 100 !important;
 }
 
-/* For checkbox and receipts headers, we need special handling to support both directions */
+/* Checkbox column sticks to both top and left */
 .data-table thead th.checkbox-column {
     position: sticky !important;
     top: 0 !important;
     left: 0 !important;
-    z-index: 30 !important;
-    /* Highest priority */
+    z-index: 101 !important;
 }
 
+/* Receipts column sticks to both top and right */
 .data-table thead th.receipts-column {
     position: sticky !important;
     top: 0 !important;
     right: 0 !important;
-    z-index: 30 !important;
-    /* Highest priority */
+    z-index: 101 !important;
 }
 
 .data-table tr:hover {
