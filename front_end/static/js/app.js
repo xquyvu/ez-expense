@@ -8,6 +8,8 @@ class EZExpenseApp {
         this.expenses = [];
         this.receipts = new Map(); // Map of expense ID to array of receipt data
         this.selectedExpenses = new Set(); // Track selected expense IDs
+        this.deleteConfirmationState = false; // Track if delete button is in confirmation mode
+        this.confirmationTimeout = null; // Track timeout for resetting confirmation
         this.currentStep = 1;
 
         this.init();
@@ -757,6 +759,12 @@ class EZExpenseApp {
         }
 
         console.log('Selected expenses after change:', Array.from(this.selectedExpenses));
+
+        // Reset confirmation mode when selection changes
+        if (this.deleteConfirmationState) {
+            this.resetDeleteConfirmationMode();
+        }
+
         this.updateSelectAllCheckbox();
         this.updateDeleteButton();
     }
@@ -782,6 +790,12 @@ class EZExpenseApp {
         });
 
         console.log('Selected expenses after select all:', this.selectedExpenses.size);
+
+        // Reset confirmation mode when selection changes
+        if (this.deleteConfirmationState) {
+            this.resetDeleteConfirmationMode();
+        }
+
         this.updateDeleteButton();
     }
 
@@ -818,6 +832,14 @@ class EZExpenseApp {
             if (deleteButton) {
                 deleteButton.style.display = 'none';
             }
+            // Reset confirmation state when no items selected
+            if (this.deleteConfirmationState) {
+                this.deleteConfirmationState = false;
+                if (this.confirmationTimeout) {
+                    clearTimeout(this.confirmationTimeout);
+                    this.confirmationTimeout = null;
+                }
+            }
         } else {
             if (!deleteButton) {
                 this.createDeleteButton();
@@ -825,10 +847,24 @@ class EZExpenseApp {
             }
 
             deleteButton.style.display = 'block';
-            deleteButton.innerHTML = `
-                <i class="fas fa-trash"></i>
-                Delete Selected (${this.selectedExpenses.size})
-            `;
+
+            // Always update button text to current selection count
+            if (this.deleteConfirmationState) {
+                // Confirmation mode
+                const count = this.selectedExpenses.size;
+                deleteButton.innerHTML = `
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Click Again to Confirm (${count})
+                `;
+                deleteButton.classList.add('delete-confirmation-mode');
+            } else {
+                // Normal delete button state
+                deleteButton.innerHTML = `
+                    <i class="fas fa-trash"></i>
+                    Delete Selected (${this.selectedExpenses.size})
+                `;
+                deleteButton.classList.remove('delete-confirmation-mode');
+            }
         }
     }
 
@@ -849,14 +885,66 @@ class EZExpenseApp {
     }
 
     /**
-     * Show confirmation dialog before deleting selected expenses
+     * Handle delete button confirmation flow
      */
     confirmDeleteSelected() {
-        const count = this.selectedExpenses.size;
-        const message = `Are you sure you want to delete ${count} expense${count > 1 ? 's' : ''}? This action cannot be undone.`;
-
-        if (confirm(message)) {
+        if (!this.deleteConfirmationState) {
+            // First click - enter confirmation mode
+            this.enterDeleteConfirmationMode();
+        } else {
+            // Second click - proceed with deletion
             this.deleteSelectedExpenses();
+        }
+    }
+
+    /**
+     * Enter delete confirmation mode
+     */
+    enterDeleteConfirmationMode() {
+        this.deleteConfirmationState = true;
+
+        // Update button text and styling
+        const deleteButton = document.getElementById('delete-selected-btn');
+        if (deleteButton) {
+            const count = this.selectedExpenses.size;
+            deleteButton.innerHTML = `
+                <i class="fas fa-exclamation-triangle"></i>
+                Click Again to Confirm (${count})
+            `;
+            deleteButton.classList.add('delete-confirmation-mode');
+        }
+
+        // Reset confirmation mode after 5 seconds
+        if (this.confirmationTimeout) {
+            clearTimeout(this.confirmationTimeout);
+        }
+
+        this.confirmationTimeout = setTimeout(() => {
+            this.resetDeleteConfirmationMode();
+        }, 5000);
+    }
+
+    /**
+     * Reset delete confirmation mode
+     */
+    resetDeleteConfirmationMode() {
+        this.deleteConfirmationState = false;
+
+        if (this.confirmationTimeout) {
+            clearTimeout(this.confirmationTimeout);
+            this.confirmationTimeout = null;
+        }
+
+        // Update button back to normal state
+        const deleteButton = document.getElementById('delete-selected-btn');
+        if (deleteButton) {
+            deleteButton.classList.remove('delete-confirmation-mode');
+            if (this.selectedExpenses.size > 0) {
+                deleteButton.innerHTML = `
+                    <i class="fas fa-trash"></i>
+                    Delete Selected (${this.selectedExpenses.size})
+                `;
+            }
         }
     }
 
@@ -913,6 +1001,9 @@ class EZExpenseApp {
 
             // Clear selected expenses
             this.selectedExpenses.clear();
+
+            // Reset confirmation state
+            this.resetDeleteConfirmationMode();
 
             // Update the table
             console.log('About to call displayExpensesTable...');

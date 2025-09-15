@@ -1269,6 +1269,23 @@ body {
     transform: translateY(0) scale(0.98) !important;
 }
 
+.delete-selected-btn.delete-confirmation-mode {
+    background-color: #fd7e14 !important;
+    box-shadow: 0 4px 12px rgba(253, 126, 20, 0.4) !important;
+    animation: pulse-warning 1.5s infinite;
+}
+
+.delete-selected-btn.delete-confirmation-mode:hover {
+    background-color: #e8680c !important;
+    box-shadow: 0 6px 16px rgba(253, 126, 20, 0.6) !important;
+}
+
+@keyframes pulse-warning {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
 .delete-selected-btn i {
     margin-right: 0.5rem;
 }
