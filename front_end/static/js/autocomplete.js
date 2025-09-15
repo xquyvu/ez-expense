@@ -246,11 +246,24 @@ class CategoryAutocomplete {
             }
 
             item.addEventListener('mouseenter', () => {
+                // Remove active class from all items first
+                const allItems = this.currentDropdown.querySelectorAll('.autocomplete-item');
+                allItems.forEach(i => {
+                    i.classList.remove('active');
+                    i.style.backgroundColor = 'white';
+                });
+                // Set this item as active
+                item.classList.add('active');
                 item.style.backgroundColor = '#e3f2fd'; // Light blue on hover
             });
 
             item.addEventListener('mouseleave', () => {
-                item.style.backgroundColor = 'white'; // White when not hovered
+                // Check if item should remain active (keyboard navigation might have set it)
+                if (item.classList.contains('active')) {
+                    item.style.backgroundColor = '#e3f2fd'; // Keep active styling
+                } else {
+                    item.style.backgroundColor = 'white'; // White when not active
+                }
             });
 
             item.addEventListener('click', () => {
@@ -379,12 +392,16 @@ class CategoryAutocomplete {
     }
 
     setActiveItem(items, activeIndex) {
-        // Remove active class from all items
-        items.forEach(item => item.classList.remove('active'));
+        // Remove active class from all items and reset background
+        items.forEach(item => {
+            item.classList.remove('active');
+            item.style.backgroundColor = 'white'; // Reset to default
+        });
 
-        // Add active class to selected item
+        // Add active class to selected item and set background
         if (activeIndex >= 0 && activeIndex < items.length) {
             items[activeIndex].classList.add('active');
+            items[activeIndex].style.backgroundColor = '#e3f2fd'; // Light blue for active state
             items[activeIndex].scrollIntoView({ block: 'nearest' });
         }
     }
