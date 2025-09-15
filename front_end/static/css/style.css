@@ -127,6 +127,16 @@ body {
     transform: translateY(-1px);
 }
 
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    transform: translateY(-1px);
+}
+
 .btn-outline {
     background-color: transparent;
     color: #667eea;
@@ -261,6 +271,29 @@ body {
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+}
+
+/* Sticky left column for checkboxes */
+.data-table th.checkbox-column,
+.data-table td.checkbox-column {
+    position: sticky;
+    left: 0;
+    background-color: white;
+    border-right: 2px solid #dee2e6;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+    z-index: 5;
+}
+
+.data-table th.checkbox-column {
+    background-color: #f8f9fa;
+    font-weight: 700;
+    z-index: 15;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.data-table tr:hover td.checkbox-column {
+    background-color: #f8f9fa;
 }
 
 /* Sticky right column for receipts */
@@ -1140,4 +1173,133 @@ body {
     font-weight: 600;
     color: #28a745;
     z-index: 10;
+}
+
+/* Checkbox Column Styles */
+.checkbox-column {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    text-align: center !important;
+    padding: 0.5rem !important;
+}
+
+/* Custom Checkbox Styles */
+.row-checkbox,
+.select-all-checkbox {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #ddd;
+    border-radius: 50%;
+    background: white;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+    margin: 0;
+}
+
+.row-checkbox:hover,
+.select-all-checkbox:hover {
+    border-color: #667eea;
+    transform: scale(1.1);
+}
+
+.row-checkbox:checked,
+.select-all-checkbox:checked {
+    background: #667eea;
+    border-color: #667eea;
+}
+
+.row-checkbox:checked::after,
+.select-all-checkbox:checked::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.select-all-checkbox:indeterminate {
+    background: #667eea;
+    border-color: #667eea;
+}
+
+.select-all-checkbox:indeterminate::after {
+    content: '−';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+/* Floating Delete Button */
+.delete-selected-btn {
+    position: fixed !important;
+    bottom: 30px;
+    left: 30px;
+    z-index: 1000;
+    background-color: #dc3545 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 50px !important;
+    padding: 1rem 1.5rem !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4) !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    display: none;
+    white-space: nowrap;
+}
+
+.delete-selected-btn:hover {
+    background-color: #c82333 !important;
+    transform: translateY(-2px) scale(1.05) !important;
+    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.6) !important;
+}
+
+.delete-selected-btn:active {
+    transform: translateY(0) scale(0.98) !important;
+}
+
+.delete-selected-btn i {
+    margin-right: 0.5rem;
+}
+
+/* Responsive adjustments for delete button */
+@media (max-width: 768px) {
+    .delete-selected-btn {
+        bottom: 20px !important;
+        left: 20px !important;
+        padding: 0.8rem 1.2rem !important;
+        font-size: 0.9rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .delete-selected-btn {
+        bottom: 15px !important;
+        left: 15px !important;
+        padding: 0.7rem 1rem !important;
+        font-size: 0.85rem !important;
+    }
+
+    .checkbox-column {
+        width: 40px !important;
+        min-width: 40px !important;
+        max-width: 40px !important;
+    }
+
+    .row-checkbox,
+    .select-all-checkbox {
+        width: 16px;
+        height: 16px;
+    }
 }

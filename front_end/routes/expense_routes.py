@@ -1113,3 +1113,52 @@ def list_receipts():
     except Exception as e:
         logger.error(f"Error listing receipts: {e}")
         return jsonify({"error": "List failed", "message": str(e)}), 500
+
+
+@expense_bp.route("/delete", methods=["POST"])
+def delete_expenses():
+    """
+    Delete specified expenses from the current working set.
+
+    Expected JSON data:
+    - expense_ids: Array of expense IDs to delete
+
+    Returns:
+    - JSON response indicating success/failure
+    """
+    try:
+        # Get the request data
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request", "message": "No JSON data provided"}), 400
+
+        expense_ids = data.get("expense_ids", [])
+        if not expense_ids:
+            return jsonify({"error": "Invalid request", "message": "No expense IDs provided"}), 400
+
+        if not isinstance(expense_ids, list):
+            return jsonify(
+                {"error": "Invalid request", "message": "expense_ids must be an array"}
+            ), 400
+
+        # Convert IDs to strings for consistent comparison
+        expense_ids = [str(id) for id in expense_ids]
+
+        logger.info(f"Delete request for expense IDs: {expense_ids}")
+
+        # Note: Since this application doesn't have persistent storage,
+        # the actual deletion happens on the frontend by filtering the expenses array.
+        # This endpoint serves as a validation and logging point.
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Successfully processed deletion of {len(expense_ids)} expense(s)",
+                "deleted_ids": expense_ids,
+                "count": len(expense_ids),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error deleting expenses: {e}")
+        return jsonify({"error": "Delete failed", "message": str(e)}), 500

@@ -9,6 +9,9 @@ const COLUMN_CONFIG = {
 
     // Specific column widths - customize these as needed
     columnWidths: {
+        // Special columns
+        'Select': 50,  // Checkbox column
+
         // Common expense fields
         'Date': 130,
         'Amount': 110,

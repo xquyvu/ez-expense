@@ -7,6 +7,7 @@ class EZExpenseApp {
     constructor() {
         this.expenses = [];
         this.receipts = new Map(); // Map of expense ID to array of receipt data
+        this.selectedExpenses = new Set(); // Track selected expense IDs
         this.currentStep = 1;
 
         this.init();
@@ -19,6 +20,7 @@ class EZExpenseApp {
         this.bindEvents();
         this.checkHealthStatus();
         this.updateExportMethodInfo();
+        this.createDeleteButton(); // Initialize the delete button
 
         // Debug: Check if column config is loaded
         if (window.COLUMN_CONFIG) {
@@ -154,8 +156,8 @@ class EZExpenseApp {
      * Make a column header resizable
      */
     makeColumnResizable(th, columnIndex) {
-        // Don't make the receipts column resizable since it's sticky
-        if (th.classList.contains('receipts-column')) {
+        // Don't make the receipts column or checkbox column resizable since they're sticky
+        if (th.classList.contains('receipts-column') || th.classList.contains('checkbox-column')) {
             return;
         }
 
@@ -298,8 +300,8 @@ class EZExpenseApp {
      * Make a column header draggable for reordering
      */
     makeColumnDraggable(th, columnIndex) {
-        // Don't make the receipts column draggable since it's sticky
-        if (th.classList.contains('receipts-column')) {
+        // Don't make the receipts column or checkbox column draggable since they're sticky
+        if (th.classList.contains('receipts-column') || th.classList.contains('checkbox-column')) {
             return;
         }
 
@@ -714,6 +716,15 @@ class EZExpenseApp {
         // Global drag and drop events
         document.addEventListener('dragover', this.handleDragOver.bind(this));
         document.addEventListener('drop', this.handleDrop.bind(this));
+
+        // Checkbox events (using event delegation for dynamically created checkboxes)
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('row-checkbox')) {
+                this.handleRowCheckboxChange(e.target);
+            } else if (e.target.id === 'select-all-checkbox') {
+                this.handleSelectAllChange(e.target);
+            }
+        });
     }
 
     /**
@@ -729,6 +740,195 @@ class EZExpenseApp {
         } catch (error) {
             console.error('Backend connection failed:', error);
             this.showToast('Unable to connect to backend server', 'error');
+        }
+    }
+
+    /**
+     * Handle individual row checkbox change
+     */
+    handleRowCheckboxChange(checkbox) {
+        const expenseId = checkbox.dataset.expenseId;
+        console.log('Row checkbox changed:', expenseId, 'checked:', checkbox.checked);
+
+        if (checkbox.checked) {
+            this.selectedExpenses.add(expenseId);
+        } else {
+            this.selectedExpenses.delete(expenseId);
+        }
+
+        console.log('Selected expenses after change:', Array.from(this.selectedExpenses));
+        this.updateSelectAllCheckbox();
+        this.updateDeleteButton();
+    }
+
+    /**
+     * Handle select all checkbox change
+     */
+    handleSelectAllChange(selectAllCheckbox) {
+        console.log('Select all checkbox changed:', selectAllCheckbox.checked);
+
+        const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+        console.log('Found row checkboxes:', rowCheckboxes.length);
+
+        rowCheckboxes.forEach(checkbox => {
+            const expenseId = checkbox.dataset.expenseId;
+            checkbox.checked = selectAllCheckbox.checked;
+
+            if (selectAllCheckbox.checked) {
+                this.selectedExpenses.add(expenseId);
+            } else {
+                this.selectedExpenses.delete(expenseId);
+            }
+        });
+
+        console.log('Selected expenses after select all:', this.selectedExpenses.size);
+        this.updateDeleteButton();
+    }
+
+    /**
+     * Update the select all checkbox state based on individual checkboxes
+     */
+    updateSelectAllCheckbox() {
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+
+        if (!selectAllCheckbox || rowCheckboxes.length === 0) return;
+
+        const checkedCount = Array.from(rowCheckboxes).filter(cb => cb.checked).length;
+
+        if (checkedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedCount === rowCheckboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+
+    /**
+     * Update the delete button visibility and text
+     */
+    updateDeleteButton() {
+        let deleteButton = document.getElementById('delete-selected-btn');
+
+        if (this.selectedExpenses.size === 0) {
+            if (deleteButton) {
+                deleteButton.style.display = 'none';
+            }
+        } else {
+            if (!deleteButton) {
+                this.createDeleteButton();
+                deleteButton = document.getElementById('delete-selected-btn');
+            }
+
+            deleteButton.style.display = 'block';
+            deleteButton.innerHTML = `
+                <i class="fas fa-trash"></i>
+                Delete Selected (${this.selectedExpenses.size})
+            `;
+        }
+    }
+
+    /**
+     * Create the floating delete button
+     */
+    createDeleteButton() {
+        const deleteButton = document.createElement('button');
+        deleteButton.id = 'delete-selected-btn';
+        deleteButton.className = 'btn btn-danger delete-selected-btn';
+        deleteButton.style.display = 'none';
+
+        deleteButton.addEventListener('click', () => {
+            this.confirmDeleteSelected();
+        });
+
+        document.body.appendChild(deleteButton);
+    }
+
+    /**
+     * Show confirmation dialog before deleting selected expenses
+     */
+    confirmDeleteSelected() {
+        const count = this.selectedExpenses.size;
+        const message = `Are you sure you want to delete ${count} expense${count > 1 ? 's' : ''}? This action cannot be undone.`;
+
+        if (confirm(message)) {
+            this.deleteSelectedExpenses();
+        }
+    }
+
+    /**
+     * Delete the selected expenses
+     */
+    async deleteSelectedExpenses() {
+        try {
+            this.showLoading('Deleting selected expenses...');
+
+            const expenseIds = Array.from(this.selectedExpenses);
+
+            console.log('Selected expense IDs to delete:', expenseIds);
+            console.log('Current expenses:', this.expenses.map(e => ({ id: e.id, type: typeof e.id })));
+
+            const response = await fetch('/api/expenses/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ expense_ids: expenseIds })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to delete expenses');
+            }
+
+            // Remove deleted expenses from local state
+            console.log('Expenses before filtering:', this.expenses.length);
+            console.log('Selected expenses set:', Array.from(this.selectedExpenses));
+
+            // Debug the filtering process
+            const expensesToKeep = [];
+            const expensesToDelete = [];
+
+            this.expenses.forEach(expense => {
+                const expenseIdString = String(expense.id);
+                const shouldDelete = this.selectedExpenses.has(expenseIdString);
+                console.log(`Expense ID: ${expense.id} (${typeof expense.id}) -> String: ${expenseIdString} -> Should delete: ${shouldDelete}`);
+
+                if (shouldDelete) {
+                    expensesToDelete.push(expense);
+                } else {
+                    expensesToKeep.push(expense);
+                }
+            });
+
+            console.log('Expenses to delete:', expensesToDelete.length);
+            console.log('Expenses to keep:', expensesToKeep.length);
+
+            this.expenses = expensesToKeep;
+            console.log('Expenses after filtering:', this.expenses.length);
+
+            // Clear selected expenses
+            this.selectedExpenses.clear();
+
+            // Update the table
+            console.log('About to call displayExpensesTable...');
+            this.displayExpensesTable();
+            console.log('displayExpensesTable completed');
+
+            // Hide delete button
+            this.updateDeleteButton();
+
+            this.showToast(`Successfully deleted ${expenseIds.length} expense${expenseIds.length > 1 ? 's' : ''}`, 'success');
+
+        } catch (error) {
+            console.error('Error deleting expenses:', error);
+            this.showToast(`Error deleting expenses: ${error.message}`, 'error');
+        } finally {
+            this.hideLoading();
         }
     }
 
@@ -837,7 +1037,7 @@ class EZExpenseApp {
      * Display expenses in the table
      */
     displayExpensesTable() {
-        if (this.expenses.length === 0) return;
+        console.log('displayExpensesTable called with', this.expenses.length, 'expenses');
 
         const tableHeader = document.getElementById('table-header');
         const tableBody = document.getElementById('table-body');
@@ -845,6 +1045,22 @@ class EZExpenseApp {
         // Clear existing content
         tableHeader.innerHTML = '';
         tableBody.innerHTML = '';
+
+        if (this.expenses.length === 0) {
+            console.log('No expenses to display, showing empty state');
+            // Show empty state instead of returning early
+            const emptyRow = document.createElement('tr');
+            const emptyCell = document.createElement('td');
+            emptyCell.textContent = 'No expenses to display';
+            emptyCell.style.textAlign = 'center';
+            emptyCell.style.padding = '2rem';
+            emptyCell.style.color = '#6c757d';
+            emptyCell.setAttribute('colspan', '100%');
+            emptyRow.appendChild(emptyCell);
+            tableBody.appendChild(emptyRow);
+            this.updateStatistics();
+            return;
+        }
 
         // Get all unique keys from expenses
         const allKeys = new Set();
@@ -859,6 +1075,22 @@ class EZExpenseApp {
 
         // Create header row
         const headerRow = document.createElement('tr');
+
+        // Add checkbox column header
+        const checkboxTh = document.createElement('th');
+        checkboxTh.className = 'checkbox-column';
+        checkboxTh.innerHTML = `
+            <input type="checkbox" id="select-all-checkbox" class="select-all-checkbox" title="Select All">
+        `;
+
+        // Add direct event handler for select-all checkbox to prevent conflicts
+        const selectAllCheckbox = checkboxTh.querySelector('#select-all-checkbox');
+        selectAllCheckbox.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent column reordering/sorting conflicts
+            console.log('Select all checkbox clicked directly');
+        });
+
+        headerRow.appendChild(checkboxTh);
 
         // Add regular columns
         regularKeys.forEach(key => {
@@ -899,6 +1131,14 @@ class EZExpenseApp {
             row.dataset.expenseId = expense.id;
             row.dataset.rowIndex = index;
 
+            // Add checkbox column
+            const checkboxTd = document.createElement('td');
+            checkboxTd.className = 'checkbox-column';
+            checkboxTd.innerHTML = `
+                <input type="checkbox" class="row-checkbox" data-expense-id="${expense.id}">
+            `;
+            row.appendChild(checkboxTd);
+
             // Add regular columns
             regularKeys.forEach(key => {
                 const td = document.createElement('td');
@@ -919,7 +1159,7 @@ class EZExpenseApp {
         });
 
         // Apply column widths after table is created
-        const allColumnNames = [...regularKeys, 'Receipts'];
+        const allColumnNames = ['Select', ...regularKeys, 'Receipts'];
         const tableElement = document.getElementById('expenses-table');
         this.applyColumnWidths(tableElement, allColumnNames);
 
