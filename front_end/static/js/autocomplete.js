@@ -81,10 +81,10 @@ class CategoryAutocomplete {
     }
 
     isExpenseCategoryInput(element) {
-        const result = element.tagName === 'INPUT' &&
+        const result = (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') &&
             element.dataset.field === 'Expense category';
-        if (element.tagName === 'INPUT') {
-            console.log('CategoryAutocomplete: Input field detected:', {
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+            console.log('CategoryAutocomplete: Input/Textarea field detected:', {
                 tag: element.tagName,
                 dataField: element.dataset.field,
                 isExpenseCategory: result

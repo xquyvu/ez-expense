@@ -1234,7 +1234,7 @@ class EZExpenseApp {
             regularKeys.forEach(key => {
                 const td = document.createElement('td');
                 const formattedValue = this.formatDateValue(expense[key] || '');
-                td.innerHTML = `<input type="text" value="${formattedValue}" data-field="${key}" class="table-input">`;
+                td.innerHTML = `<textarea data-field="${key}" class="table-input" rows="1">${formattedValue}</textarea>`;
                 row.appendChild(td);
             });
 

@@ -394,7 +394,7 @@ body {
     border-top: 1px solid #e9ecef;
 }
 
-/* Table Input Fields */
+/* Table Input Fields - now using textarea for auto-expansion */
 .table-input {
     width: 100%;
     border: 1px solid #ddd;
@@ -405,11 +405,26 @@ body {
     color: inherit;
     outline: none;
     box-sizing: border-box;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     border-radius: 3px;
     transition: all 0.2s ease;
+    resize: none;
+    overflow: hidden;
+
+    /* Auto-sizing properties */
+    min-height: 1.5em;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* When input has long text, allow it to expand */
+.table-input.expanded {
+    white-space: pre-wrap;
+    height: auto;
+    min-height: 2.5em;
+    overflow: visible;
+    word-wrap: break-word;
+    line-height: 1.4;
 }
 
 .table-input:focus {
@@ -418,13 +433,56 @@ body {
     border-radius: 3px;
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     white-space: normal;
+    word-wrap: break-word;
     /* Allow text wrapping when focused */
     overflow: visible;
     z-index: 100;
     position: relative;
+    height: auto;
+    min-height: 2.5em;
 }
 
 .table-input:hover {
+    background-color: #f8f9fa;
+    border-color: #adb5bd;
+}
+
+/* Table cells should expand to accommodate input content */
+.data-table td {
+    vertical-align: top;
+    height: auto;
+    position: relative;
+}
+
+/* Table rows should expand automatically */
+.data-table tr {
+    height: auto;
+}
+
+/* Textarea inputs in table */
+.table-input[type="textarea"],
+textarea.table-input {
+    overflow: hidden;
+    resize: none;
+    line-height: 1.4;
+    min-height: 2.5em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    display: block;
+}
+
+/* Focus state for textareas */
+textarea.table-input:focus {
+    background-color: #fff;
+    border: 2px solid #007bff;
+    border-radius: 3px;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    z-index: 100;
+    position: relative;
+}
+
+/* Hover state for textareas */
+textarea.table-input:hover {
     background-color: #f8f9fa;
     border-color: #adb5bd;
 }
