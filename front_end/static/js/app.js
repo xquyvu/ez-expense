@@ -611,6 +611,9 @@ class EZExpenseApp {
         // Update sort icons
         this.updateSortIcons(columnName, sortDirection);
 
+        // Update expenses data from current table before refreshing display
+        this.updateExpensesFromTable();
+
         // Redisplay the table with sorted data
         this.displayExpensesTable();
     }
@@ -954,6 +957,9 @@ class EZExpenseApp {
     async deleteSelectedExpenses() {
         try {
             this.showLoading('Deleting selected expenses...');
+
+            // Update expenses data from current table before deleting
+            this.updateExpensesFromTable();
 
             const expenseIds = Array.from(this.selectedExpenses);
 
@@ -1459,6 +1465,44 @@ class EZExpenseApp {
     }
 
     /**
+     * Collect current table data and update the expenses array
+     */
+    updateExpensesFromTable() {
+        console.log('Updating expenses from current table data...');
+
+        const tableBody = document.getElementById('table-body');
+        if (!tableBody) {
+            console.warn('Table body not found');
+            return;
+        }
+
+        const rows = tableBody.querySelectorAll('tr[data-expense-id]');
+
+        rows.forEach(row => {
+            const expenseId = parseInt(row.dataset.expenseId);
+            const expense = this.expenses.find(e => e.id === expenseId);
+
+            if (!expense) {
+                console.warn(`Expense with ID ${expenseId} not found`);
+                return;
+            }
+
+            // Get all textarea inputs in this row
+            const textareas = row.querySelectorAll('textarea.table-input[data-field]');
+
+            textareas.forEach(textarea => {
+                const fieldName = textarea.dataset.field;
+                const currentValue = textarea.value.trim();
+
+                // Update the expense data with current table value
+                expense[fieldName] = currentValue;
+            });
+        });
+
+        console.log('Expenses updated from table data');
+    }
+
+    /**
      * Select receipt file for an expense
      */
     selectReceipt(expenseId) {
@@ -1617,6 +1661,9 @@ class EZExpenseApp {
                 this.receipts.set(expenseId, existingReceipts);
             }
 
+            // Update expenses data from current table before refreshing display
+            this.updateExpensesFromTable();
+
             // Refresh the table display
             this.displayExpensesTable();
             this.showStep(2);
@@ -1694,6 +1741,9 @@ class EZExpenseApp {
 
             // Store updated receipts array
             this.receipts.set(expenseId, existingReceipts);
+
+            // Update expenses data from current table before refreshing display
+            this.updateExpensesFromTable();
 
             // Refresh the table display
             this.displayExpensesTable();
@@ -1817,6 +1867,9 @@ class EZExpenseApp {
             this.receipts.delete(expenseId);
             this.showToast('All receipts removed', 'info');
         }
+
+        // Update expenses data from current table before refreshing display
+        this.updateExpensesFromTable();
 
         this.displayExpensesTable();
     }
@@ -2088,6 +2141,9 @@ class EZExpenseApp {
         this.showLoading('Exporting expenses...');
 
         try {
+            // Update expenses data from current table before exporting
+            this.updateExpensesFromTable();
+
             // Prepare data for export
             const exportData = this.expenses.map(expense => {
                 const exportRow = { ...expense };
@@ -2302,6 +2358,9 @@ class EZExpenseApp {
 
         try {
             this.showLoading('Preparing enhanced export...');
+
+            // Update expenses data from current table before exporting
+            this.updateExpensesFromTable();
 
             // Prepare data for export
             const exportData = this.expenses.map(expense => {
