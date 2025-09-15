@@ -1801,40 +1801,48 @@ textarea.table-input.non-editable:focus {
 
 /* Receipt Validation Cell Background Styles */
 .receipt-cell.validation-valid {
-    background-color: #d4edda !important; /* Light green background */
+    background-color: #d4edda !important;
+    /* Light green background */
     border-color: #c3e6cb !important;
 }
 
 .receipt-cell.validation-invalid {
-    background-color: #f8d7da !important; /* Light red background */
+    background-color: #f8d7da !important;
+    /* Light red background */
     border-color: #f5c6cb !important;
 }
 
 /* Maintain background colors on hover */
 .data-table tr:hover .receipt-cell.validation-valid {
-    background-color: #c3e6cb !important; /* Slightly darker green on hover */
+    background-color: #c3e6cb !important;
+    /* Slightly darker green on hover */
 }
 
 .data-table tr:hover .receipt-cell.validation-invalid {
-    background-color: #f5c6cb !important; /* Slightly darker red on hover */
+    background-color: #f5c6cb !important;
+    /* Slightly darker red on hover */
 }
 
 /* Date and Category Validation Cell Background Styles */
 .data-table td.validation-valid {
-    background-color: #d4edda !important; /* Light green background */
+    background-color: #d4edda !important;
+    /* Light green background */
     border-color: #c3e6cb !important;
 }
 
 .data-table td.validation-invalid {
-    background-color: #f8d7da !important; /* Light red background */
+    background-color: #f8d7da !important;
+    /* Light red background */
     border-color: #f5c6cb !important;
 }
 
 /* Maintain background colors on hover for date and category cells */
 .data-table tr:hover td.validation-valid {
-    background-color: #c3e6cb !important; /* Slightly darker green on hover */
+    background-color: #c3e6cb !important;
+    /* Slightly darker green on hover */
 }
 
 .data-table tr:hover td.validation-invalid {
-    background-color: #f5c6cb !important; /* Slightly darker red on hover */
+    background-color: #f5c6cb !important;
+    /* Slightly darker red on hover */
 }
