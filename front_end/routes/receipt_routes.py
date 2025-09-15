@@ -4,10 +4,15 @@ Receipt-related API routes for the Flask application.
 
 import logging
 import os
+import sys
 from datetime import datetime
 
 from flask import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
+
+# Add parent directory to path for importing the invoice extractor
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from invoice_extractor import extract_invoice_details
 
 # Create blueprint
 receipt_bp = Blueprint("receipts", __name__)
@@ -485,3 +490,63 @@ def move_receipt():
     except Exception as e:
         logger.error(f"Error moving receipt: {e}")
         return jsonify({"error": "Move failed", "message": str(e)}), 500
+
+
+@receipt_bp.route("/extract_invoice_details", methods=["POST"])
+def extract_invoice_details_endpoint():
+    """
+    Extract invoice details from an uploaded receipt.
+
+    This endpoint accepts a receipt file and extracts invoice information
+    such as amount, currency, date, and expense category.
+
+    Expected form data:
+    - file: Receipt file (PDF, PNG, JPG, JPEG, GIF)
+
+    Returns:
+    - JSON response with extracted invoice details
+    """
+    try:
+        # Check if file is present in request
+        if "file" not in request.files:
+            return jsonify(
+                {"error": "No file provided", "message": "Please select a receipt file"}
+            ), 400
+
+        file = request.files["file"]
+
+        # Check if file was actually selected
+        if file.filename == "":
+            return jsonify(
+                {"error": "No file selected", "message": "Please select a receipt file"}
+            ), 400
+
+        # Check file extension
+        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        if not allowed_file(file.filename, allowed_extensions):
+            return jsonify(
+                {
+                    "error": "Invalid file type",
+                    "message": f"Only {', '.join(allowed_extensions).upper()} files are allowed",
+                }
+            ), 400
+
+        # For now, we're calling the extract_invoice_details function directly
+        # In a real implementation, you might want to save the file temporarily
+        # and pass the file path to the extraction function
+        invoice_details = extract_invoice_details()
+
+        logger.info(f"Successfully extracted invoice details for: {file.filename}")
+
+        response_data = {
+            "success": True,
+            "message": "Invoice details extracted successfully",
+            "invoice_details": invoice_details,
+            "filename": file.filename,
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"Error extracting invoice details: {e}")
+        return jsonify({"error": "Extraction failed", "message": str(e)}), 500

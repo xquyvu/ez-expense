@@ -799,6 +799,54 @@ textarea.table-input.non-editable:focus {
     font-size: 0.8rem;
 }
 
+/* Invoice Details Styles */
+.invoice-details {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    font-size: 0.75rem;
+}
+
+.invoice-details-header {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.invoice-details-header i {
+    color: #667eea;
+    font-size: 0.8rem;
+}
+
+.invoice-details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 0;
+    gap: 0.5rem;
+}
+
+.detail-label {
+    font-weight: 500;
+    color: #6c757d;
+    min-width: fit-content;
+}
+
+.detail-value {
+    font-weight: 600;
+    color: #495057;
+}
+
 .attach-receipt-btn {
     padding: 0.4rem 0.6rem;
     font-size: 0.75rem;

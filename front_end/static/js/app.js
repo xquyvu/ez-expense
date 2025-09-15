@@ -905,6 +905,36 @@ class EZExpenseApp {
     }
 
     /**
+     * Extract invoice details from a receipt file
+     */
+    async extractInvoiceDetails(file) {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch('/api/receipts/extract_invoice_details', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                return result.invoice_details;
+            } else {
+                throw new Error(result.message || 'Failed to extract invoice details');
+            }
+        } catch (error) {
+            console.error('Error extracting invoice details:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Validate date format (YYYY-MM-DD)
      */
     validateDateFormat(dateString) {
@@ -3637,13 +3667,23 @@ class EZExpenseApp {
                     type = 'pdf';
                 }
 
+                // Extract invoice details for this receipt
+                let invoiceDetails = null;
+                try {
+                    invoiceDetails = await this.extractInvoiceDetails(file);
+                } catch (error) {
+                    console.warn(`Failed to extract invoice details for ${file.name}:`, error);
+                    // Continue processing even if extraction fails
+                }
+
                 const receipt = {
                     name: file.name,
                     file_path: file.name, // This would normally be a server path
                     preview: preview,
                     type: type,
                     confidence: 0, // No confidence for bulk imports
-                    file: file // Keep the file object for potential later upload
+                    file: file, // Keep the file object for potential later upload
+                    invoiceDetails: invoiceDetails // Add extracted invoice details
                 };
 
                 this.bulkReceipts.push(receipt);
@@ -3706,6 +3746,24 @@ class EZExpenseApp {
                             <div class="receipt-name">${receipt.name}</div>
                             <div class="receipt-confidence">Bulk Import</div>
                         </div>
+                        ${receipt.invoiceDetails ? `
+                        <div class="invoice-details">
+                            <div class="invoice-details-content">
+                                <div class="detail-item">
+                                    <span class="detail-label">Amount:</span>
+                                    <span class="detail-value">${receipt.invoiceDetails.Amount} ${receipt.invoiceDetails.Currency || ''}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Date:</span>
+                                    <span class="detail-value">${receipt.invoiceDetails.Date}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Category:</span>
+                                    <span class="detail-value">${receipt.invoiceDetails['Expense category']}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
                         <button onclick="app.removeBulkReceipt(${index})" class="btn btn-sm">
                             <i class="fas fa-trash"></i>
                         </button>
