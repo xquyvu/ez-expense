@@ -15,7 +15,7 @@ const COLUMN_CONFIG = {
         // Common expense fields
         'Date': 130,
         'Amount': 135,
-        'Expense category': 120,
+        'Expense category': 140,
         'Merchant': 120,
         'Payment method': 110,
         'Receipts attached': 110,
@@ -48,7 +48,7 @@ const COLUMN_CONFIG = {
     // Autocomplete configuration
     autocompleteConfig: {
         maxDropdownWidth: 400,  // Maximum width for autocomplete dropdowns in pixels
-        minDropdownWidth: 150,  // Minimum width for autocomplete dropdowns in pixels
+        minDropdownWidth: 250,  // Minimum width for autocomplete dropdowns in pixels
         allowExtendBeyondColumn: true  // Allow dropdown to extend beyond column boundaries
     }
 };

@@ -189,7 +189,7 @@ class CategoryAutocomplete {
 
         // For focus events, show all categories; for typing, filter them
         const query = input.value.toLowerCase().trim();
-        const categoriesToShow = query ? this.filterCategories(query) : this.categories.slice(0, 10);
+        const categoriesToShow = query ? this.filterCategories(query) : this.categories;
         console.log('CategoryAutocomplete: Showing categories:', categoriesToShow.length, categoriesToShow.slice(0, 3));
 
         // Hide existing dropdown
@@ -367,8 +367,8 @@ class CategoryAutocomplete {
         console.log('CategoryAutocomplete: filterCategories called with query:', query);
 
         if (!query) {
-            console.log('CategoryAutocomplete: No query, returning first 10 categories');
-            return this.categories.slice(0, 10); // Show first 10 items when no query
+            console.log('CategoryAutocomplete: No query, returning all categories');
+            return this.categories; // Show all items when no query
         }
 
         const filtered = this.categories
@@ -384,8 +384,7 @@ class CategoryAutocomplete {
                 if (!aStarts && bStarts) return 1;
 
                 return a.localeCompare(b);
-            })
-            .slice(0, 10); // Limit to 10 results
+            }); // Show all filtered results
 
         console.log('CategoryAutocomplete: Filtered results:', filtered.length, filtered.slice(0, 3));
         return filtered;
