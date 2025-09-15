@@ -43,6 +43,13 @@ const COLUMN_CONFIG = {
         maxLines: 3,  // Maximum number of lines for wrapped headers
         allowReordering: true,  // Enable drag and drop column reordering
         allowSorting: true  // Enable column sorting functionality
+    },
+
+    // Autocomplete configuration
+    autocompleteConfig: {
+        maxDropdownWidth: 400,  // Maximum width for autocomplete dropdowns in pixels
+        minDropdownWidth: 150,  // Minimum width for autocomplete dropdowns in pixels
+        allowExtendBeyondColumn: true  // Allow dropdown to extend beyond column boundaries
     }
 };
 
