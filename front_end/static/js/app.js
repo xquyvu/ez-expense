@@ -1018,13 +1018,42 @@ class EZExpenseApp {
         if (!table) return;
 
         const errorFields = table.querySelectorAll('.validation-error');
+        
+        // Count receipt validation errors
+        let receiptValidationErrors = 0;
+        const receiptErrorExpenses = [];
+        
+        this.expenses.forEach(expense => {
+            // Find the "Receipts attached" column value
+            let receiptsAttachedValue = null;
+            for (const [key, value] of Object.entries(expense)) {
+                const normalizedKey = key.toLowerCase().trim();
+                if (normalizedKey.includes('receipts') && normalizedKey.includes('attached')) {
+                    receiptsAttachedValue = value;
+                    break;
+                }
+            }
+            
+            // Only validate if there's a "Receipts attached" column
+            if (receiptsAttachedValue !== null) {
+                const isValid = this.validateReceiptAttachment(expense.id, receiptsAttachedValue);
+                if (!isValid) {
+                    receiptValidationErrors++;
+                    receiptErrorExpenses.push(expense.id);
+                }
+            }
+        });
 
-        if (errorFields.length === 0) {
+        const totalErrors = errorFields.length + receiptValidationErrors;
+
+        if (totalErrors === 0) {
             this.showToast('All fields are valid! ✓', 'success');
             return;
         }
 
         const errorTypes = new Set();
+        
+        // Check field validation errors
         errorFields.forEach(field => {
             const columnName = field.dataset.column || '';
             if (columnName.toLowerCase().includes('date')) {
@@ -1033,10 +1062,22 @@ class EZExpenseApp {
                 errorTypes.add('Expense categories must be from the approved list');
             }
         });
+        
+        // Add receipt validation errors if any
+        if (receiptValidationErrors > 0) {
+            errorTypes.add('Receipt attachment status does not match actual receipts');
+        }
 
-        const errorMessage = `Found ${errorFields.length} validation error(s):\n\n` +
-            Array.from(errorTypes).join('\n') +
-            '\n\nFields with errors are highlighted in red.';
+        let errorMessage = `Found ${totalErrors} validation error(s):\n\n` +
+            Array.from(errorTypes).join('\n');
+            
+        if (errorFields.length > 0) {
+            errorMessage += '\n\nFields with errors are highlighted in red.';
+        }
+        
+        if (receiptValidationErrors > 0) {
+            errorMessage += '\n\nReceipt validation errors are shown with red X icons in the Receipts column.';
+        }
 
         this.showToast(errorMessage, 'warning');
     }
