@@ -397,8 +397,8 @@ body {
 /* Table Input Fields */
 .table-input {
     width: 100%;
-    border: none;
-    background: transparent;
+    border: 1px solid #ddd;
+    background: #fafafa;
     padding: 0.25rem;
     font-family: inherit;
     font-size: inherit;
@@ -408,11 +408,13 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    border-radius: 3px;
+    transition: all 0.2s ease;
 }
 
 .table-input:focus {
     background-color: #fff;
-    border: 1px solid #007bff;
+    border: 2px solid #007bff;
     border-radius: 3px;
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     white-space: normal;
@@ -420,6 +422,11 @@ body {
     overflow: visible;
     z-index: 100;
     position: relative;
+}
+
+.table-input:hover {
+    background-color: #f8f9fa;
+    border-color: #adb5bd;
 }
 
 /* Autocomplete Styles */
