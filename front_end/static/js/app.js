@@ -26,6 +26,7 @@ class EZExpenseApp {
         this.updateExportMethodInfo();
         this.createDeleteButton(); // Initialize the delete button
         this.loadValidCategories(); // Load valid expense categories
+        this.initModalEventListeners(); // Initialize modal event listeners
 
         // Debug: Check if column config is loaded
         if (window.COLUMN_CONFIG) {
@@ -35,6 +36,161 @@ class EZExpenseApp {
         }
 
         console.log('EZ Expense App initialized');
+    }
+
+    /**
+     * Initialize modal event listeners for closing with Escape key and click outside
+     */
+    initModalEventListeners() {
+        console.log('Initializing modal event listeners...');
+
+        // Global keyboard event listener for Escape key
+        document.addEventListener('keydown', (e) => {
+            console.log('Key pressed:', e.key);
+            if (e.key === 'Escape') {
+                console.log('Escape key detected');
+                // Don't close modals if user is actively typing in an input field
+                const activeElement = document.activeElement;
+                const isTyping = activeElement && (
+                    activeElement.tagName === 'INPUT' ||
+                    activeElement.tagName === 'TEXTAREA' ||
+                    activeElement.isContentEditable
+                );
+
+                console.log('Is typing:', isTyping, 'Active element:', activeElement?.tagName);
+
+                if (!isTyping) {
+                    console.log('Calling closeAllModals from escape key');
+                    this.closeAllModals();
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }
+        }, true); // Use capture phase to ensure we get the event first
+
+        // Click outside modal to close (event delegation)
+        document.addEventListener('click', (e) => {
+            console.log('Click detected on:', e.target.className, e.target.tagName, 'ID:', e.target.id);
+
+            // Check if we have any open modals or tooltips
+            const openModals = document.querySelectorAll('.modal[style*="block"], .modal:not([style*="none"])');
+            const openTooltips = document.querySelectorAll('#receipt-tooltip, .receipt-tooltip');
+
+            console.log('Open modals found:', openModals.length);
+            console.log('Open tooltips found:', openTooltips.length);
+
+            // If no modals or tooltips are open, don't interfere
+            if (openModals.length === 0 && openTooltips.length === 0) {
+                return;
+            }
+
+            // Check if clicked element is a modal backdrop (has class 'modal')
+            if (e.target.classList.contains('modal')) {
+                console.log('Clicked on modal backdrop, closing all modals');
+                this.closeAllModals();
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+
+            // Check if we clicked inside any modal content or tooltip
+            let clickedInsideModalOrTooltip = false;
+
+            // Check modals
+            for (let modal of openModals) {
+                const modalContent = modal.querySelector('.modal-content');
+                if (modalContent && modalContent.contains(e.target)) {
+                    clickedInsideModalOrTooltip = true;
+                    console.log('Clicked inside modal content');
+                    break;
+                }
+            }
+
+            // Check tooltips if we haven't found a modal click
+            if (!clickedInsideModalOrTooltip) {
+                for (let tooltip of openTooltips) {
+                    if (tooltip.contains(e.target)) {
+                        clickedInsideModalOrTooltip = true;
+                        console.log('Clicked inside tooltip');
+                        break;
+                    }
+                }
+            }
+
+            // If we clicked outside all modals and tooltips, close them
+            if (!clickedInsideModalOrTooltip) {
+                console.log('Clicked outside all modals and tooltips, closing all');
+                this.closeAllModals();
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true); // Use capture phase to ensure we get the event first
+
+        console.log('Modal event listeners initialized');
+    }
+
+    /**
+     * Close all open modals and popups
+     */
+    closeAllModals() {
+        console.log('Closing all modals and popups...');
+
+        // Close all elements with class 'modal'
+        const allModals = document.querySelectorAll('.modal');
+        allModals.forEach(modal => {
+            if (modal.style.display !== 'none') {
+                console.log('Closing modal:', modal.id || modal.className);
+                modal.style.display = 'none';
+            }
+        });
+
+        // Close receipt modal specifically (in case it's not caught above)
+        const receiptModal = document.getElementById('receipt-modal');
+        if (receiptModal && receiptModal.style.display !== 'none') {
+            console.log('Closing receipt modal specifically');
+            receiptModal.style.display = 'none';
+        }
+
+        // Hide any tooltips using the hideTooltip method
+        this.hideTooltip();
+
+        // Close any tooltip elements by ID and class
+        const tooltipById = document.getElementById('receipt-tooltip');
+        if (tooltipById) {
+            console.log('Removing tooltip by ID');
+            if (tooltipById.parentNode) {
+                tooltipById.parentNode.removeChild(tooltipById);
+            }
+        }
+
+        // Close any other tooltip-like elements
+        const allTooltips = document.querySelectorAll('.receipt-tooltip, [id*="tooltip"]');
+        allTooltips.forEach(tooltip => {
+            console.log('Removing tooltip:', tooltip.id || tooltip.className);
+            if (tooltip.parentNode) {
+                tooltip.parentNode.removeChild(tooltip);
+            }
+        });
+
+        // Remove any elements with tooltip-visible class
+        const visibleTooltips = document.querySelectorAll('.tooltip-visible');
+        visibleTooltips.forEach(tooltip => {
+            console.log('Removing visible tooltip:', tooltip.id || tooltip.className);
+            tooltip.classList.remove('tooltip-visible');
+            if (tooltip.parentNode) {
+                tooltip.parentNode.removeChild(tooltip);
+            }
+        });
+
+        console.log('All modals and popups closed.');
+    }
+
+    /**
+     * Test function to manually close all modals (can be called from console)
+     */
+    testCloseAllModals() {
+        console.log('=== Manual test: closing all modals ===');
+        this.closeAllModals();
     }
 
     /**
@@ -2371,10 +2527,7 @@ class EZExpenseApp {
      * Close receipt modal
      */
     closeReceiptModal() {
-        const modal = document.getElementById('receipt-modal');
-        if (modal) {
-            modal.style.display = 'none';
-        }
+        this.closeAllModals();
     }
 
     /**
@@ -3569,7 +3722,15 @@ class EZExpenseApp {
 
 // Global functions for HTML onclick handlers
 function closeReceiptModal() {
-    document.getElementById('receipt-modal').style.display = 'none';
+    if (window.app) {
+        window.app.closeAllModals();
+    } else {
+        // Fallback if app is not initialized yet
+        const modal = document.getElementById('receipt-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
 }
 
 // Initialize the application when DOM is loaded
