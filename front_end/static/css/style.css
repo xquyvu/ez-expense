@@ -838,6 +838,22 @@ textarea.table-input.non-editable:focus {
     background-color: #f0fdff;
 }
 
+.receipts-import-container.receipt-drag-over {
+    border-color: #ffc107;
+    background-color: #fffbf0;
+}
+
+.drag-instructions {
+    text-align: center;
+    color: #6c757d;
+    margin-top: 0.5rem;
+    font-style: italic;
+}
+
+.drag-instructions i {
+    margin-right: 0.3rem;
+}
+
 #bulk-receipt-cell {
     min-height: 120px;
     max-width: none;

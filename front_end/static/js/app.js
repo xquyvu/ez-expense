@@ -3256,6 +3256,7 @@ class EZExpenseApp {
     handleReceiptDragStart(event, expenseId, receiptIndex) {
         const receipt = this.receipts.get(expenseId)[receiptIndex];
         const dragData = {
+            sourceType: 'expense',
             receipt: receipt,
             fromExpenseId: expenseId,
             receiptIndex: receiptIndex
@@ -3432,6 +3433,56 @@ class EZExpenseApp {
         }, autoRemoveTime);
     }
 
+    /**
+     * Handle dropping a receipt back to the bulk receipt area
+     */
+    async handleReceiptDropToBulkArea(draggedReceipt) {
+        const { sourceType, sourceIndex, receipt, fromExpenseId, receiptIndex } = draggedReceipt;
+
+        // Only handle receipts coming from expense rows (not bulk to bulk)
+        if (sourceType === 'bulk') {
+            this.showToast('Receipt is already in the bulk area', 'info');
+            return;
+        }
+
+        // Handle receipts from expense rows
+        if (sourceType === 'expense' && fromExpenseId !== undefined && receiptIndex !== undefined) {
+            console.log('Moving receipt from expense back to bulk area:', receipt.name);
+
+            try {
+                this.showLoading('Moving receipt to bulk area...');
+
+                // Remove from the expense
+                const sourceReceipts = this.receipts.get(fromExpenseId) || [];
+                sourceReceipts.splice(receiptIndex, 1);
+                this.receipts.set(fromExpenseId, sourceReceipts);
+
+                // Add to bulk receipts (create a copy without expense-specific data)
+                const bulkReceipt = {
+                    name: receipt.name || receipt.filename,
+                    type: receipt.type,
+                    preview: receipt.preview,
+                    file: receipt.file,
+                    originalFilename: receipt.originalFilename || receipt.name || receipt.filename
+                };
+
+                this.bulkReceipts.push(bulkReceipt);
+
+                // Update displays
+                this.updateBulkReceiptCell();
+                this.displayExpensesTable();
+
+                this.showToast(`Receipt "${bulkReceipt.name}" moved to bulk area`, 'success');
+
+            } catch (error) {
+                console.error('Error moving receipt to bulk area:', error);
+                this.showToast(`Failed to move receipt to bulk area: ${error.message}`, 'error');
+            } finally {
+                this.hideLoading();
+            }
+        }
+    }
+
     // ===== BULK RECEIPTS IMPORT FUNCTIONALITY =====
 
     /**
@@ -3450,30 +3501,49 @@ class EZExpenseApp {
     }
 
     /**
-     * Make the bulk receipt container droppable for files
+     * Make the bulk receipt container droppable for files and receipts
      */
     makeBulkReceiptContainerDroppable(container) {
         container.addEventListener('dragover', (e) => {
             e.preventDefault();
             const isDraggingFile = e.dataTransfer.types.includes('Files');
+            const isDraggingReceipt = e.dataTransfer.types.includes('application/x-receipt-data');
+
+            console.log('Drag over bulk container - File:', isDraggingFile, 'Receipt:', isDraggingReceipt);
 
             if (isDraggingFile) {
                 container.classList.add('drag-over', 'file-drag-over');
+            } else if (isDraggingReceipt) {
+                container.classList.add('drag-over', 'receipt-drag-over');
             }
         });
 
         container.addEventListener('dragleave', (e) => {
             if (!container.contains(e.relatedTarget)) {
-                container.classList.remove('drag-over', 'file-drag-over');
+                container.classList.remove('drag-over', 'file-drag-over', 'receipt-drag-over');
             }
         });
 
         container.addEventListener('drop', (e) => {
             e.preventDefault();
-            container.classList.remove('drag-over', 'file-drag-over');
+            e.stopPropagation();
+            container.classList.remove('drag-over', 'file-drag-over', 'receipt-drag-over');
 
+            console.log('Drop event on bulk container');
+
+            // Handle receipt drops first
+            const receiptData = e.dataTransfer.getData('application/x-receipt-data');
+            if (receiptData) {
+                console.log('Receipt drop detected:', receiptData);
+                const draggedReceipt = JSON.parse(receiptData);
+                this.handleReceiptDropToBulkArea(draggedReceipt);
+                return;
+            }
+
+            // Handle file drops
             const files = e.dataTransfer.files;
             if (files.length > 0) {
+                console.log('File drop detected:', files.length, 'files');
                 this.handleBulkReceiptSelection(files);
             }
         });
@@ -3626,6 +3696,15 @@ class EZExpenseApp {
             <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
                    onchange="app.handleBulkReceiptSelection(this.files)">
         `;
+
+        // Show drag instructions when no receipts are present
+        if (receipts.length === 0) {
+            html += `
+                <div class="drag-instructions">
+                    <small><i class="fas fa-arrows-alt"></i> Drag receipts here from table or drop files to import</small>
+                </div>
+            `;
+        }
 
         cell.innerHTML = html;
     }
