@@ -845,6 +845,7 @@ class EZExpenseApp {
         });
 
         document.getElementById('validate-data-btn').addEventListener('click', () => {
+            this.validateAllFields(); // Trigger validation of all fields first
             this.showValidationSummary();
         });
 
@@ -974,6 +975,7 @@ class EZExpenseApp {
         }
 
         let isValid = true;
+        let hasValidation = false; // Track if this column has validation rules
         const normalizedColumnName = String(columnName).toLowerCase().trim();
 
         // Convert value to string and handle null/undefined
@@ -987,6 +989,7 @@ class EZExpenseApp {
             normalizedColumnName === 'expense date' ||
             normalizedColumnName === 'transaction date' ||
             normalizedColumnName === 'purchase date') {
+            hasValidation = true;
             isValid = this.validateDateFormat(value);
         }
         // Check for Expense category column (multiple possible variations)
@@ -994,14 +997,32 @@ class EZExpenseApp {
             normalizedColumnName === 'expense category' ||
             normalizedColumnName === 'expense type' ||
             normalizedColumnName.includes('expense category')) {
+            hasValidation = true;
             isValid = this.validateExpenseCategory(value);
         }
 
-        // Apply visual feedback
-        if (isValid) {
-            input.classList.remove('validation-error');
+        // Apply visual feedback to both input and cell - only for columns with validation
+        const cell = input.closest('td');
+        if (hasValidation) {
+            if (isValid) {
+                input.classList.remove('validation-error');
+                if (cell) {
+                    cell.classList.remove('validation-invalid');
+                    cell.classList.add('validation-valid');
+                }
+            } else {
+                input.classList.add('validation-error');
+                if (cell) {
+                    cell.classList.remove('validation-valid');
+                    cell.classList.add('validation-invalid');
+                }
+            }
         } else {
-            input.classList.add('validation-error');
+            // For columns without validation, remove any existing validation classes
+            input.classList.remove('validation-error');
+            if (cell) {
+                cell.classList.remove('validation-valid', 'validation-invalid');
+            }
         }
 
         // Check if this is a "Receipts attached" column and update receipt validation
@@ -1090,23 +1111,22 @@ class EZExpenseApp {
         // Find and update the receipt cell
         const receiptCell = document.querySelector(`[data-expense-id="${expenseId}"].receipt-cell`);
         if (receiptCell) {
-            // Remove existing validation indicator
+            // Remove existing validation indicator (if any)
             const existingIndicator = receiptCell.querySelector('.receipt-validation-indicator');
             if (existingIndicator) {
                 existingIndicator.remove();
             }
 
-            // Add new validation indicator
-            const indicator = document.createElement('div');
-            indicator.className = `receipt-validation-indicator ${isValid ? 'valid' : 'invalid'}`;
-            indicator.innerHTML = isValid ?
-                '<i class="fas fa-check"></i>' :
-                '<i class="fas fa-times"></i>';
-            indicator.title = isValid ?
+            // Remove existing validation classes
+            receiptCell.classList.remove('validation-valid', 'validation-invalid');
+
+            // Add appropriate validation class for background highlighting
+            receiptCell.classList.add(isValid ? 'validation-valid' : 'validation-invalid');
+
+            // Update the title for accessibility
+            receiptCell.title = isValid ?
                 'Receipt attachment status matches actual receipts' :
                 'Receipt attachment status does not match actual receipts';
-
-            receiptCell.appendChild(indicator);
         }
     }
 
@@ -1207,7 +1227,7 @@ class EZExpenseApp {
         }
 
         if (receiptValidationErrors > 0) {
-            errorMessage += '\n\nReceipt validation errors are shown with red X icons in the Receipts column.';
+            errorMessage += '\n\nReceipt validation errors are highlighted in red in the Receipts column.';
         }
 
         this.showToast(errorMessage, 'warning');
@@ -1778,6 +1798,9 @@ class EZExpenseApp {
 
         // Update receipt validation indicators
         this.updateAllReceiptValidationIndicators();
+
+        // Validate all fields for date and category validation
+        this.validateAllFields();
 
         // Dispatch event to notify autocomplete that table has been created
         document.dispatchEvent(new CustomEvent('expensesTableCreated'));
