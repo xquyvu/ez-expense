@@ -725,6 +725,9 @@ class EZExpenseApp {
             this.exportEnhanced();
         });
 
+        // Receipts import events
+        this.initBulkReceiptsImport();
+
         // Global drag and drop events
         document.addEventListener('dragover', this.handleDragOver.bind(this));
         document.addEventListener('drop', this.handleDrop.bind(this));
@@ -3135,8 +3138,45 @@ class EZExpenseApp {
      * Handle receipt drop onto an expense row
      */
     async handleReceiptDrop(draggedReceipt, targetExpenseId) {
-        const { receipt, fromExpenseId, receiptIndex } = draggedReceipt;
+        const { sourceType, sourceIndex, receipt, fromExpenseId, receiptIndex } = draggedReceipt;
 
+        // Handle bulk receipt drops
+        if (sourceType === 'bulk') {
+            console.log('Moving bulk receipt:', receipt.name, 'to expense:', targetExpenseId);
+
+            try {
+                this.showLoading('Attaching receipt...');
+
+                // Add bulk receipt to target expense
+                const targetReceipts = this.receipts.get(targetExpenseId) || [];
+
+                // Create a copy of the receipt for the expense
+                const newReceipt = {
+                    ...receipt,
+                    confidence: 85 // Default confidence for bulk receipts
+                };
+
+                targetReceipts.push(newReceipt);
+                this.receipts.set(targetExpenseId, targetReceipts);
+
+                // Remove from bulk receipts
+                this.bulkReceipts.splice(sourceIndex, 1);
+                this.updateBulkReceiptCell();
+
+                // Refresh the table display
+                this.displayExpensesTable();
+
+                this.showToast(`Receipt "${receipt.name}" attached to expense`, 'success');
+            } catch (error) {
+                console.error('Error attaching bulk receipt:', error);
+                this.showToast(`Failed to attach receipt: ${error.message}`, 'error');
+            } finally {
+                this.hideLoading();
+            }
+            return;
+        }
+
+        // Handle regular receipt moves between expenses
         // Don't allow dropping on the same expense
         if (fromExpenseId === targetExpenseId) {
             this.showToast('Cannot move receipt to the same expense', 'warning');
@@ -3240,6 +3280,272 @@ class EZExpenseApp {
             }
         }, autoRemoveTime);
     }
+
+    // ===== BULK RECEIPTS IMPORT FUNCTIONALITY =====
+
+    /**
+     * Initialize bulk receipts import functionality (similar to receipts column)
+     */
+    initBulkReceiptsImport() {
+        this.bulkReceipts = []; // Store bulk imported receipts using same structure as receipts column
+
+        const container = document.getElementById('receipts-import-container');
+
+        // Make the container droppable for files
+        this.makeBulkReceiptContainerDroppable(container);
+
+        // Initialize the display
+        this.updateBulkReceiptCell();
+    }
+
+    /**
+     * Make the bulk receipt container droppable for files
+     */
+    makeBulkReceiptContainerDroppable(container) {
+        container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const isDraggingFile = e.dataTransfer.types.includes('Files');
+
+            if (isDraggingFile) {
+                container.classList.add('drag-over', 'file-drag-over');
+            }
+        });
+
+        container.addEventListener('dragleave', (e) => {
+            if (!container.contains(e.relatedTarget)) {
+                container.classList.remove('drag-over', 'file-drag-over');
+            }
+        });
+
+        container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            container.classList.remove('drag-over', 'file-drag-over');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.handleBulkReceiptSelection(files);
+            }
+        });
+    }
+
+    /**
+     * Select bulk receipts (triggered by button click)
+     */
+    selectBulkReceipts() {
+        document.getElementById('bulk-receipt-input').click();
+    }
+
+    /**
+     * Handle bulk receipt file selection (follows same pattern as handleMultipleReceiptSelection)
+     */
+    async handleBulkReceiptSelection(files) {
+        if (!files || files.length === 0) return;
+
+        const filesArray = Array.from(files);
+        const validFiles = [];
+        const invalidFiles = [];
+
+        // Validate files using same logic as receipts column
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
+        const maxFileSize = 16 * 1024 * 1024; // 16MB
+
+        for (const file of filesArray) {
+            if (!allowedTypes.includes(file.type)) {
+                invalidFiles.push(`${file.name}: Invalid file type`);
+            } else if (file.size > maxFileSize) {
+                invalidFiles.push(`${file.name}: File too large (max 16MB)`);
+            } else {
+                validFiles.push(file);
+            }
+        }
+
+        // Show validation errors
+        if (invalidFiles.length > 0) {
+            this.showToast(`Skipped ${invalidFiles.length} invalid files: ${invalidFiles.join(', ')}`, 'warning');
+        }
+
+        if (validFiles.length === 0) {
+            this.showToast('No valid files to upload', 'error');
+            return;
+        }
+
+        this.showLoading(`Processing ${validFiles.length} receipts...`);
+
+        try {
+            // Process each file and add to bulk receipts
+            for (const file of validFiles) {
+                // Create receipt object using same structure as receipts column
+                let preview = '';
+                let type = 'pdf';
+
+                if (file.type.startsWith('image/')) {
+                    preview = await this.createImagePreview(file);
+                    type = 'image';
+                } else if (file.type === 'application/pdf') {
+                    preview = await this.createPDFPreview(file);
+                    type = 'pdf';
+                }
+
+                const receipt = {
+                    name: file.name,
+                    file_path: file.name, // This would normally be a server path
+                    preview: preview,
+                    type: type,
+                    confidence: 0, // No confidence for bulk imports
+                    file: file // Keep the file object for potential later upload
+                };
+
+                this.bulkReceipts.push(receipt);
+            }
+
+            this.showToast(`Successfully imported ${validFiles.length} receipts`, 'success');
+            this.updateBulkReceiptCell();
+        } catch (error) {
+            console.error('Error processing receipts:', error);
+            this.showToast('Error processing some receipts', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Update bulk receipt cell display (follows same pattern as createReceiptCell)
+     */
+    updateBulkReceiptCell() {
+        const cell = document.getElementById('bulk-receipt-cell');
+        if (!cell) return;
+
+        const receipts = this.bulkReceipts;
+        let html = '';
+
+        // Display existing receipts using same pattern as createReceiptCell
+        if (receipts.length > 0) {
+            html += '<div class="receipts-container">';
+            receipts.forEach((receipt, index) => {
+                // Escape quotes in preview URL for HTML attributes
+                const escapedPreview = receipt.preview ? receipt.preview.replace(/'/g, '&#39;') : '';
+                const escapedName = receipt.name ? receipt.name.replace(/'/g, '&#39;') : '';
+
+                html += `
+                    <div class="receipt-preview"
+                         data-receipt-index="${index}"
+                         data-bulk-receipt="true"
+                         draggable="true"
+                         ondragstart="app.handleBulkReceiptDragStart(event, ${index})"
+                         ondragend="app.handleReceiptDragEnd(event)">
+                        ${receipt.type === 'image' ?
+                        `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
+                              onclick="app.showBulkReceiptModal(${index})"
+                              onmouseenter="app.showTooltip(event, '${escapedPreview}', 'image')"
+                              onmouseleave="app.hideTooltip()">` :
+                        receipt.preview && receipt.preview.startsWith('data:image') ?
+                            `<img src="${receipt.preview}" alt="PDF Preview" class="receipt-thumbnail"
+                                  onclick="app.showBulkReceiptModal(${index})"
+                                  onmouseenter="app.showTooltip(event, '${escapedPreview}', 'pdf')"
+                                  onmouseleave="app.hideTooltip()">` :
+                            `<div class="pdf-preview receipt-thumbnail"
+                                  onclick="app.showBulkReceiptModal(${index})"
+                                  onmouseenter="app.showTooltip(event, null, 'pdf', '${escapedName}')"
+                                  onmouseleave="app.hideTooltip()">
+                            <i class="fas fa-file-pdf"></i>
+                            <div class="pdf-label">PDF</div>
+                        </div>`
+                    }
+                        <div class="receipt-info">
+                            <div class="receipt-name">${receipt.name}</div>
+                            <div class="receipt-confidence">Bulk Import</div>
+                        </div>
+                        <button onclick="app.removeBulkReceipt(${index})" class="btn btn-sm">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <div class="drag-indicator">
+                            <i class="fas fa-arrows-alt"></i>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        // Always show the attach receipt button (same as receipts column)
+        html += `
+            <button onclick="app.selectBulkReceipts()" class="attach-receipt-btn">
+                <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Add More Receipts' : 'Attach Receipts'}
+            </button>
+            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
+                   onchange="app.handleBulkReceiptSelection(this.files)">
+        `;
+
+        cell.innerHTML = html;
+    }
+
+    /**
+     * Handle bulk receipt drag start (similar to handleReceiptDragStart)
+     */
+    handleBulkReceiptDragStart(event, receiptIndex) {
+        const receipt = this.bulkReceipts[receiptIndex];
+        if (!receipt) return;
+
+        // Set drag data using same format as receipts column
+        const dragData = {
+            sourceType: 'bulk',
+            sourceIndex: receiptIndex,
+            receipt: receipt
+        };
+
+        event.dataTransfer.setData('application/x-receipt-data', JSON.stringify(dragData));
+        event.dataTransfer.effectAllowed = 'move';
+
+        // Add visual feedback
+        event.target.closest('.receipt-preview').style.opacity = '0.5';
+    }
+
+    /**
+     * Remove a bulk receipt
+     */
+    removeBulkReceipt(index) {
+        if (index >= 0 && index < this.bulkReceipts.length) {
+            const receipt = this.bulkReceipts[index];
+            this.bulkReceipts.splice(index, 1);
+            this.updateBulkReceiptCell();
+            this.showToast(`Removed ${receipt.name}`, 'info');
+        }
+    }
+
+    /**
+     * Show bulk receipt in modal (similar to showReceiptModal)
+     */
+    showBulkReceiptModal(receiptIndex) {
+        const receipt = this.bulkReceipts[receiptIndex];
+        if (!receipt) return;
+
+        // Use existing modal functionality
+        this.showReceiptInModal(receipt);
+    }
+
+    /**
+     * Show receipt in modal (reusable for both bulk and expense receipts)
+     */
+    showReceiptInModal(receipt) {
+        const modal = document.getElementById('receipt-modal');
+        const modalBody = modal.querySelector('.modal-body #receipt-preview');
+
+        if (receipt.type === 'image' || (receipt.preview && receipt.preview.startsWith('data:image'))) {
+            modalBody.innerHTML = `<img src="${receipt.preview}" alt="Receipt" style="max-width: 100%; height: auto;">`;
+        } else {
+            modalBody.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-file-pdf" style="font-size: 4rem; color: #dc3545; margin-bottom: 1rem;"></i>
+                    <h4>${receipt.name}</h4>
+                    <p>PDF preview not available in modal</p>
+                </div>
+            `;
+        }
+
+        modal.style.display = 'block';
+    }
+
+    // ===== END BULK RECEIPTS IMPORT FUNCTIONALITY =====
 
     /**
      * Read file as text

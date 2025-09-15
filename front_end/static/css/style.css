@@ -812,6 +812,64 @@ textarea.table-input.non-editable:focus {
     background-color: #138496;
 }
 
+/* Receipts Import Section */
+.receipts-import-container {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border: 2px dashed #6c757d;
+    transition: all 0.3s ease;
+}
+
+.receipts-import-container:hover {
+    border-color: #007bff;
+    background-color: #f8f9ff;
+}
+
+.receipts-import-container.drag-over {
+    border-color: #28a745;
+    background-color: #f8fff8;
+    transform: scale(1.01);
+}
+
+.receipts-import-container.file-drag-over {
+    border-color: #17a2b8;
+    background-color: #f0fdff;
+}
+
+#bulk-receipt-cell {
+    min-height: 120px;
+    max-width: none;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+#bulk-receipt-cell .receipts-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+#bulk-receipt-cell .receipt-preview {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 0.75rem;
+    min-width: 200px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#bulk-receipt-cell .attach-receipt-btn {
+    width: auto;
+    align-self: flex-start;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+}
+
 /* Info Card */
 .receipts-info {
     margin-bottom: 1.5rem;
