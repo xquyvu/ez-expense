@@ -104,6 +104,28 @@ def create_app():
         """Health check endpoint."""
         return jsonify({"status": "healthy", "message": "EZ Expense app is running"})
 
+    @app.route("/api/category-list")
+    def get_category_list():
+        """Get the list of valid expense categories."""
+        try:
+            # Path to category list file (relative to the project root)
+            category_file_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "assets",
+                "category_list.txt",
+            )
+
+            with open(category_file_path, "r", encoding="utf-8") as f:
+                categories = [line.strip() for line in f if line.strip()]
+
+            return jsonify({"categories": categories})
+        except FileNotFoundError:
+            logger.error(f"Category list file not found: {category_file_path}")
+            return jsonify({"error": "Category list file not found"}), 404
+        except Exception as e:
+            logger.error(f"Error reading category list: {e}")
+            return jsonify({"error": "Failed to load category list"}), 500
+
     # Error handlers
     @app.errorhandler(404)
     def not_found_error(error):

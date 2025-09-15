@@ -1586,3 +1586,15 @@ textarea.table-input:hover {
         height: 16px;
     }
 }
+
+/* Validation Error Styles */
+.validation-error {
+    background-color: #ffe6e6 !important;
+    border: 1px solid #ff9999 !important;
+}
+
+.validation-error:focus {
+    background-color: #ffcccc !important;
+    border-color: #ff6666 !important;
+    box-shadow: 0 0 0 2px rgba(255, 102, 102, 0.2) !important;
+}

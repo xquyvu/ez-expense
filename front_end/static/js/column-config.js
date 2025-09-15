@@ -14,7 +14,7 @@ const COLUMN_CONFIG = {
 
         // Common expense fields
         'Date': 130,
-        'Amount': 110,
+        'Amount': 135,
         'Expense category': 120,
         'Merchant': 120,
         'Payment method': 110,

@@ -11,6 +11,8 @@ class EZExpenseApp {
         this.deleteConfirmationState = false; // Track if delete button is in confirmation mode
         this.confirmationTimeout = null; // Track timeout for resetting confirmation
         this.currentStep = 1;
+        this.validCategories = new Set(); // Valid expense categories
+        this.validationEnabled = true; // Enable/disable validation
 
         this.init();
     }
@@ -23,6 +25,7 @@ class EZExpenseApp {
         this.checkHealthStatus();
         this.updateExportMethodInfo();
         this.createDeleteButton(); // Initialize the delete button
+        this.loadValidCategories(); // Load valid expense categories
 
         // Debug: Check if column config is loaded
         if (window.COLUMN_CONFIG) {
@@ -713,6 +716,10 @@ class EZExpenseApp {
             this.addNewRow();
         });
 
+        document.getElementById('validate-data-btn').addEventListener('click', () => {
+            this.showValidationSummary();
+        });
+
         // Export events
         document.getElementById('export-enhanced-btn').addEventListener('click', () => {
             this.exportEnhanced();
@@ -746,6 +753,180 @@ class EZExpenseApp {
             console.error('Backend connection failed:', error);
             this.showToast('Unable to connect to backend server', 'error');
         }
+    }
+
+    /**
+     * Load valid expense categories from the server
+     */
+    async loadValidCategories() {
+        try {
+            const response = await fetch('/api/category-list');
+            const data = await response.json();
+            if (data.categories) {
+                this.validCategories = new Set(data.categories);
+                console.log('Loaded', this.validCategories.size, 'valid expense categories');
+            }
+        } catch (error) {
+            console.error('Failed to load category list:', error);
+            this.showToast('Warning: Could not load expense category validation list', 'warning');
+        }
+    }
+
+    /**
+     * Validate date format (YYYY-MM-DD)
+     */
+    validateDateFormat(dateString) {
+        // Handle non-string values
+        if (dateString === null || dateString === undefined) {
+            return false;
+        }
+
+        // Convert to string if not already
+        const dateStr = String(dateString).trim();
+
+        if (dateStr === '') {
+            return false;
+        }
+
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(dateStr)) {
+            return false;
+        }
+
+        // Check if it's a valid date
+        const date = new Date(dateStr);
+        const [year, month, day] = dateStr.split('-').map(num => parseInt(num, 10));
+
+        return date.getFullYear() === year &&
+               date.getMonth() === month - 1 &&
+               date.getDate() === day;
+    }
+
+    /**
+     * Validate expense category against the valid categories list
+     */
+    validateExpenseCategory(category) {
+        // Handle non-string values
+        if (category === null || category === undefined) {
+            return false;
+        }
+
+        // Convert to string if not already
+        const categoryStr = String(category).trim();
+
+        if (categoryStr === '') {
+            return false; // Empty category is invalid
+        }
+
+        // Check exact match first
+        if (this.validCategories.has(categoryStr)) {
+            return true;
+        }
+
+        // Check case-insensitive match
+        const lowerCategory = categoryStr.toLowerCase();
+        for (const validCategory of this.validCategories) {
+            if (validCategory.toLowerCase() === lowerCategory) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Validate an input field and apply visual feedback
+     */
+    validateField(input, columnName, value) {
+        if (!this.validationEnabled || !input || !columnName) {
+            return true;
+        }
+
+        let isValid = true;
+        const normalizedColumnName = String(columnName).toLowerCase().trim();
+
+        // Convert value to string and handle null/undefined
+        let trimmedValue = '';
+        if (value !== null && value !== undefined) {
+            trimmedValue = String(value).trim();
+        }
+
+        // Check for Date column (multiple possible variations)
+        if (normalizedColumnName.includes('date') ||
+            normalizedColumnName === 'expense date' ||
+            normalizedColumnName === 'transaction date' ||
+            normalizedColumnName === 'purchase date') {
+            isValid = this.validateDateFormat(value);
+        }
+        // Check for Expense category column (multiple possible variations)
+        else if (normalizedColumnName.includes('category') ||
+                 normalizedColumnName === 'expense category' ||
+                 normalizedColumnName === 'expense type' ||
+                 normalizedColumnName.includes('expense category')) {
+            isValid = this.validateExpenseCategory(value);
+        }
+
+        // Apply visual feedback
+        if (isValid) {
+            input.classList.remove('validation-error');
+        } else {
+            input.classList.add('validation-error');
+        }
+
+        return isValid;
+    }
+
+    /**
+     * Validate all visible fields in the table
+     */
+    validateAllFields() {
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        const inputs = table.querySelectorAll('input[type="text"], textarea, select');
+        let allValid = true;
+
+        inputs.forEach(input => {
+            const columnName = input.dataset.column || '';
+            const value = input.value;
+            const isValid = this.validateField(input, columnName, value);
+            if (!isValid) {
+                allValid = false;
+            }
+        });
+
+        return allValid;
+    }
+
+    /**
+     * Show validation summary to user
+     */
+    showValidationSummary() {
+        const table = document.getElementById('expenses-table');
+        if (!table) return;
+
+        const errorFields = table.querySelectorAll('.validation-error');
+
+        if (errorFields.length === 0) {
+            this.showToast('All fields are valid! ✓', 'success');
+            return;
+        }
+
+        const errorTypes = new Set();
+        errorFields.forEach(field => {
+            const columnName = field.dataset.column || '';
+            if (columnName.toLowerCase().includes('date')) {
+                errorTypes.add('Date fields must be in YYYY-MM-DD format');
+            } else if (columnName.toLowerCase().includes('category')) {
+                errorTypes.add('Expense categories must be from the approved list');
+            }
+        });
+
+        const errorMessage = `Found ${errorFields.length} validation error(s):\n\n` +
+                           Array.from(errorTypes).join('\n') +
+                           '\n\nFields with errors are highlighted in red.';
+
+        this.showToast(errorMessage, 'warning');
     }
 
     /**
@@ -1240,7 +1421,27 @@ class EZExpenseApp {
             regularKeys.forEach(key => {
                 const td = document.createElement('td');
                 const formattedValue = this.formatDateValue(expense[key] || '');
-                td.innerHTML = `<textarea data-field="${key}" class="table-input" rows="1">${formattedValue}</textarea>`;
+                const textarea = document.createElement('textarea');
+                textarea.setAttribute('data-field', key);
+                textarea.setAttribute('data-column', key);
+                textarea.className = 'table-input';
+                textarea.rows = 1;
+                textarea.value = formattedValue;
+
+                // Add validation on input
+                textarea.addEventListener('input', (e) => {
+                    this.validateField(e.target, key, e.target.value);
+                });
+
+                // Add validation on blur
+                textarea.addEventListener('blur', (e) => {
+                    this.validateField(e.target, key, e.target.value);
+                });
+
+                // Initial validation
+                this.validateField(textarea, key, formattedValue);
+
+                td.appendChild(textarea);
                 row.appendChild(td);
             });
 
