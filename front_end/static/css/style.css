@@ -860,28 +860,34 @@ textarea.table-input.non-editable:focus {
     width: 100%;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.5rem;
 }
 
 #bulk-receipt-cell .receipts-container {
     display: flex;
+    flex-direction: row;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-bottom: 1rem;
+    justify-content: center;
+    width: 100%;
 }
 
 #bulk-receipt-cell .receipt-preview {
     background: white;
     border: 1px solid #dee2e6;
     border-radius: 8px;
-    padding: 0.75rem;
-    min-width: 200px;
+    padding: 0.5rem;
+    min-width: 120px;
+    max-width: 150px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    flex: 0 0 auto;
 }
 
 #bulk-receipt-cell .attach-receipt-btn {
     width: auto;
-    align-self: flex-start;
+    align-self: center;
     padding: 0.75rem 1.5rem;
     font-size: 1rem;
 }
@@ -910,6 +916,42 @@ textarea.table-input.non-editable:focus {
 .info-card ul {
     margin-left: 1rem;
     margin-top: 0.5rem;
+}
+
+/* No Expenses Display */
+.no-expenses-container {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.no-expenses-container .info-card {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.no-expenses-container .info-card i {
+    color: #6c757d;
+    font-size: 2rem;
+}
+
+.no-expenses-container .info-card p {
+    color: #6c757d;
+    margin: 0;
+}
+
+/* Bulk Receipts Section */
+.bulk-receipts-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
 }
 
 .info-card li {
@@ -1306,6 +1348,13 @@ textarea.table-input.non-editable:focus {
     flex-direction: column;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
+}
+
+/* Bulk receipt container overrides for horizontal layout */
+#bulk-receipt-cell .receipts-container {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 0.75rem;
 }
 
 /* Override receipt-preview for multiple receipts */

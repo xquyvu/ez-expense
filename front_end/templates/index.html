@@ -39,44 +39,41 @@
                 <div id="import-status" class="status-message"></div>
             </section>
 
-            <!-- Step 2: Import Receipts -->
-            <section class="section" id="receipts-import-section">
+            <!-- Step 2: Review, Edit, and Attach Receipts -->
+            <section class="section" id="expenses-section" style="display: none;">
                 <div class="section-header">
-                    <h2><i class="fas fa-receipt"></i> Step 2: Import Receipts</h2>
-                    <p>Upload your receipt files by dragging and dropping or clicking to browse</p>
+                    <h2><i class="fas fa-table"></i> Step 2: Review, Edit, and Attach Receipts</h2>
+                    <p>Verify your expense data, make edits, and attach receipt files to each expense</p>
                 </div>
-                <div class="receipts-info">
+                
+                <!-- No expenses message -->
+                <div id="no-expenses-message" class="no-expenses-container">
                     <div class="info-card">
-                        <i class="fas fa-info-circle"></i>
+                        <i class="fas fa-table"></i>
                         <div>
-                            <strong>How to import receipts:</strong>
-                            <ul>
-                                <li>Click "Attach Receipts" button to browse files, or</li>
-                                <li>Drag and drop files directly onto this area</li>
-                                <li>Preview and manage your receipts before matching them to expenses</li>
-                                <li>Supported formats: JPG, PNG, GIF, PDF (Max 16MB each)</li>
-                            </ul>
+                            <strong>No expenses to display</strong>
+                            <p>Please import your expense data using Step 1 above to get started.</p>
                         </div>
                     </div>
                 </div>
-                <div class="receipts-import-container" id="receipts-import-container">
-                    <div class="receipt-cell" id="bulk-receipt-cell">
-                        <!-- Receipt previews will be added here dynamically using the same pattern as table receipts -->
-                        <button onclick="app.selectBulkReceipts()" class="attach-receipt-btn">
-                            <i class="fas fa-paperclip"></i> Attach Receipts
-                        </button>
-                        <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
-                            onchange="app.handleBulkReceiptSelection(this.files)">
+                
+                <!-- Bulk Receipt Upload Area -->
+                <div class="bulk-receipts-section" id="bulk-receipts-section" style="display: none;">
+                    <div class="section-header" style="margin-bottom: 1rem;">
+                        <h3><i class="fas fa-receipt"></i> Bulk Receipt Upload</h3>
+                        <p>Upload multiple receipts that you'll match to expenses below</p>
                     </div>
-                </div>
-                <div id="receipts-import-status" class="status-message"></div>
-            </section>
-
-            <!-- Step 3: Review, Edit, and Attach Receipts -->
-            <section class="section" id="expenses-section" style="display: none;">
-                <div class="section-header">
-                    <h2><i class="fas fa-table"></i> Step 3: Review, Edit, and Attach Receipts</h2>
-                    <p>Verify your expense data, make edits, and attach receipt files to each expense</p>
+                    <div class="receipts-import-container" id="receipts-import-container">
+                        <div class="receipt-cell" id="bulk-receipt-cell">
+                            <!-- Receipt previews will be added here dynamically using the same pattern as table receipts -->
+                            <button onclick="app.selectBulkReceipts()" class="attach-receipt-btn">
+                                <i class="fas fa-paperclip"></i> Attach Receipts
+                            </button>
+                            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
+                                onchange="app.handleBulkReceiptSelection(this.files)">
+                        </div>
+                    </div>
+                    <div id="receipts-import-status" class="status-message"></div>
                 </div>
                 <div class="receipts-info">
                     <div class="info-card">

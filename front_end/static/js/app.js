@@ -1524,7 +1524,7 @@ class EZExpenseApp {
 
                 this.displayExpensesTable();
                 this.showToast(data.message || 'Expenses imported successfully', 'success');
-                this.showStep(3);
+                this.showStep(2);
             } else {
                 throw new Error(data.message || 'Import failed');
             }
@@ -1559,7 +1559,7 @@ class EZExpenseApp {
             this.expenses = expenses;
             this.displayExpensesTable();
             this.showToast(`Loaded ${expenses.length} expenses from CSV`, 'success');
-            this.showStep(3);
+            this.showStep(2);
 
         } catch (error) {
             console.error('Error processing CSV:', error);
@@ -1603,6 +1603,8 @@ class EZExpenseApp {
 
         const tableHeader = document.getElementById('table-header');
         const tableBody = document.getElementById('table-body');
+        const noExpensesMessage = document.getElementById('no-expenses-message');
+        const bulkReceiptsSection = document.getElementById('bulk-receipts-section');
 
         // Clear existing content
         tableHeader.innerHTML = '';
@@ -1610,19 +1612,25 @@ class EZExpenseApp {
 
         if (this.expenses.length === 0) {
             console.log('No expenses to display, showing empty state');
-            // Show empty state instead of returning early
-            const emptyRow = document.createElement('tr');
-            const emptyCell = document.createElement('td');
-            emptyCell.textContent = 'No expenses to display';
-            emptyCell.style.textAlign = 'center';
-            emptyCell.style.padding = '2rem';
-            emptyCell.style.color = '#6c757d';
-            emptyCell.setAttribute('colspan', '100%');
-            emptyRow.appendChild(emptyCell);
-            tableBody.appendChild(emptyRow);
+            // Show no expenses message and hide bulk receipts section
+            if (noExpensesMessage) noExpensesMessage.style.display = 'block';
+            if (bulkReceiptsSection) bulkReceiptsSection.style.display = 'none';
+            
+            // Hide the table container
+            const tableContainer = document.querySelector('.table-container');
+            if (tableContainer) tableContainer.style.display = 'none';
+            
             this.updateStatistics();
             return;
         }
+
+        // Hide no expenses message and show bulk receipts section when we have expenses
+        if (noExpensesMessage) noExpensesMessage.style.display = 'none';
+        if (bulkReceiptsSection) bulkReceiptsSection.style.display = 'block';
+        
+        // Show the table container
+        const tableContainer = document.querySelector('.table-container');
+        if (tableContainer) tableContainer.style.display = 'block';
 
         // Get all unique keys from expenses
         const allKeys = new Set();
@@ -2166,7 +2174,7 @@ class EZExpenseApp {
 
             // Refresh the table display
             this.displayExpensesTable();
-            this.showStep(3);
+            this.showStep(2);
 
             // Show summary message
             if (successCount > 0 && failCount === 0) {
@@ -2248,7 +2256,7 @@ class EZExpenseApp {
             // Refresh the table display
             this.displayExpensesTable();
             this.showToast('Receipt attached successfully', 'success');
-            this.showStep(3);
+            this.showStep(2);
 
         } catch (error) {
             console.error('Error processing receipt:', error);
@@ -3217,12 +3225,11 @@ class EZExpenseApp {
      * Show specific step section
      */
     showStep(step) {
-        // With the new structure, we only have 3 steps:
+        // With the new structure, we only have 2 steps:
         // Step 1: Import (always visible)
-        // Step 2: Import receipts (optional)
-        // Step 3: Review, Edit, and Export (expenses-section)
+        // Step 2: Review, Edit, and Export (expenses-section)
 
-        if (step >= 3) {
+        if (step >= 2) {
             const expensesSection = document.getElementById('expenses-section');
             if (expensesSection) {
                 expensesSection.style.display = 'block';
