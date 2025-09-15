@@ -1428,18 +1428,29 @@ class EZExpenseApp {
                 textarea.rows = 1;
                 textarea.value = formattedValue;
 
-                // Add validation on input
-                textarea.addEventListener('input', (e) => {
-                    this.validateField(e.target, key, e.target.value);
-                });
+                // Check if this column is editable
+                const isEditable = !window.COLUMN_CONFIG || 
+                                 !window.COLUMN_CONFIG.editableColumns || 
+                                 window.COLUMN_CONFIG.editableColumns.includes(key);
 
-                // Add validation on blur
-                textarea.addEventListener('blur', (e) => {
-                    this.validateField(e.target, key, e.target.value);
-                });
+                if (!isEditable) {
+                    textarea.className += ' non-editable';
+                    textarea.readOnly = true;
+                    textarea.tabIndex = -1; // Remove from tab order
+                } else {
+                    // Add validation on input only for editable columns
+                    textarea.addEventListener('input', (e) => {
+                        this.validateField(e.target, key, e.target.value);
+                    });
 
-                // Initial validation
-                this.validateField(textarea, key, formattedValue);
+                    // Add validation on blur only for editable columns
+                    textarea.addEventListener('blur', (e) => {
+                        this.validateField(e.target, key, e.target.value);
+                    });
+
+                    // Initial validation only for editable columns
+                    this.validateField(textarea, key, formattedValue);
+                }
 
                 td.appendChild(textarea);
                 row.appendChild(td);

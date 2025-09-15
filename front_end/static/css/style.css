@@ -487,6 +487,28 @@ textarea.table-input:hover {
     border-color: #adb5bd;
 }
 
+/* Non-editable columns styling */
+textarea.table-input.non-editable {
+    border: none !important;
+    background: transparent !important;
+    cursor: default !important;
+    pointer-events: none;
+    user-select: none;
+    resize: none;
+    outline: none !important;
+    box-shadow: none !important;
+    color: #6c757d; /* Slightly muted text color */
+}
+
+/* Ensure non-editable columns don't show hover or focus states */
+textarea.table-input.non-editable:hover,
+textarea.table-input.non-editable:focus {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
 /* Autocomplete Styles */
 .autocomplete-container {
     position: relative;

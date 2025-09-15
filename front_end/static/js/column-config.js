@@ -50,7 +50,17 @@ const COLUMN_CONFIG = {
         maxDropdownWidth: 400,  // Maximum width for autocomplete dropdowns in pixels
         minDropdownWidth: 250,  // Minimum width for autocomplete dropdowns in pixels
         allowExtendBeyondColumn: true  // Allow dropdown to extend beyond column boundaries
-    }
+    },
+
+    // Editable columns configuration
+    // Only these columns can be edited by the user
+    editableColumns: [
+        'Additional information',
+        'Date',
+        'Amount',
+        'Expense category',
+        'Merchant'
+    ]
 };
 
 // Export for use in main app
