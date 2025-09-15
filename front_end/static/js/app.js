@@ -151,36 +151,8 @@ class EZExpenseApp {
             receiptModal.style.display = 'none';
         }
 
-        // Hide any tooltips using the hideTooltip method
-        this.hideTooltip();
-
-        // Close any tooltip elements by ID and class
-        const tooltipById = document.getElementById('receipt-tooltip');
-        if (tooltipById) {
-            console.log('Removing tooltip by ID');
-            if (tooltipById.parentNode) {
-                tooltipById.parentNode.removeChild(tooltipById);
-            }
-        }
-
-        // Close any other tooltip-like elements
-        const allTooltips = document.querySelectorAll('.receipt-tooltip, [id*="tooltip"]');
-        allTooltips.forEach(tooltip => {
-            console.log('Removing tooltip:', tooltip.id || tooltip.className);
-            if (tooltip.parentNode) {
-                tooltip.parentNode.removeChild(tooltip);
-            }
-        });
-
-        // Remove any elements with tooltip-visible class
-        const visibleTooltips = document.querySelectorAll('.tooltip-visible');
-        visibleTooltips.forEach(tooltip => {
-            console.log('Removing visible tooltip:', tooltip.id || tooltip.className);
-            tooltip.classList.remove('tooltip-visible');
-            if (tooltip.parentNode) {
-                tooltip.parentNode.removeChild(tooltip);
-            }
-        });
+        // Hide any tooltips using immediate hide to avoid delays
+        this.hideTooltipImmediate();
 
         console.log('All modals and popups closed.');
     }
@@ -2534,8 +2506,8 @@ class EZExpenseApp {
      * Show tooltip with larger image preview
      */
     showTooltip(event, imageSrc, type, fileName = '') {
-        // Remove any existing tooltip
-        this.hideTooltip();
+        // Immediately remove any existing tooltip without delay to prevent multiple tooltips
+        this.hideTooltipImmediate();
 
         // Create tooltip element
         const tooltip = document.createElement('div');
@@ -2622,12 +2594,38 @@ class EZExpenseApp {
         const tooltip = document.getElementById('receipt-tooltip');
         if (tooltip) {
             tooltip.classList.remove('tooltip-visible');
-            setTimeout(() => {
+
+            // Clear any existing timeout to prevent conflicts
+            if (this.tooltipTimeout) {
+                clearTimeout(this.tooltipTimeout);
+            }
+
+            this.tooltipTimeout = setTimeout(() => {
                 if (tooltip.parentNode) {
                     tooltip.parentNode.removeChild(tooltip);
                 }
+                this.tooltipTimeout = null;
             }, 200);
         }
+    }
+
+    /**
+     * Immediately hide tooltip without delay (used when showing new tooltip)
+     */
+    hideTooltipImmediate() {
+        // Clear any pending timeout
+        if (this.tooltipTimeout) {
+            clearTimeout(this.tooltipTimeout);
+            this.tooltipTimeout = null;
+        }
+
+        // Remove any existing tooltips immediately
+        const existingTooltips = document.querySelectorAll('#receipt-tooltip, .receipt-tooltip');
+        existingTooltips.forEach(tooltip => {
+            if (tooltip.parentNode) {
+                tooltip.parentNode.removeChild(tooltip);
+            }
+        });
     }
 
     /**
