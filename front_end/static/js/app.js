@@ -118,7 +118,7 @@ class EZExpenseApp {
 
                 if (columnName === 'Receipts') {
                     // Special handling for receipts column
-                    width = config.columnWidths['Receipts'] || 250;
+                    width = config.columnWidths['Receipts'] || 280;
                 } else if (config.autoResize) {
                     // Get sample values for this column
                     const values = this.expenses.map(expense => expense[columnName]);

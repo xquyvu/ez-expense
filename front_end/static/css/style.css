@@ -168,7 +168,9 @@ body {
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border: 1px solid #e9ecef;
-    /* Remove overflow to allow sticky headers to work with viewport */
+    overflow-x: auto;
+    max-width: 100%;
+    /* Add overflow handling to prevent table from expanding beyond container */
 }
 
 .data-table {
@@ -177,8 +179,8 @@ body {
     border-spacing: 0;
     background: white;
     table-layout: fixed;
-    min-width: 1000px;
-    /* Ensure table has minimum width to trigger horizontal scrolling */
+    min-width: 800px;
+    /* Reduced min-width to account for smaller receipts column */
 }
 
 .data-table th,
@@ -313,6 +315,9 @@ body {
     box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
     z-index: 5;
     white-space: normal;
+    max-width: 150px;
+    width: 150px;
+    overflow: hidden;
     /* Allow text wrapping in receipts column */
 }
 
@@ -740,9 +745,11 @@ textarea.table-input.non-editable:focus {
 .receipt-cell {
     position: relative;
     min-height: 60px;
-    width: 100%;
-    padding: 0.5rem;
+    max-width: 150px;
+    width: 150px;
+    padding: 0.4rem;
     overflow: hidden;
+    box-sizing: border-box;
 }
 
 .receipts-container {
@@ -758,9 +765,11 @@ textarea.table-input.non-editable:focus {
 }
 
 .attach-receipt-btn {
-    font-size: 0.8rem;
-    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .receipt-thumbnail {
@@ -787,13 +796,16 @@ textarea.table-input.non-editable:focus {
 }
 
 .attach-receipt-btn {
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
     background-color: #17a2b8;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
 }
 
 .attach-receipt-btn:hover {

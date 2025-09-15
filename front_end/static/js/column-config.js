@@ -21,7 +21,7 @@ const COLUMN_CONFIG = {
         'Receipts attached': 110,
 
         // Special columns
-        'Receipts': 250  // This is handled separately as sticky column
+        'Receipts': 280  // This is handled separately as sticky column
     },
 
     // Minimum column width
