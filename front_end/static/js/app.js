@@ -1396,7 +1396,7 @@ class EZExpenseApp {
 
                 this.displayExpensesTable();
                 this.showToast(data.message || 'Expenses imported successfully', 'success');
-                this.showStep(2);
+                this.showStep(3);
             } else {
                 throw new Error(data.message || 'Import failed');
             }
@@ -1431,7 +1431,7 @@ class EZExpenseApp {
             this.expenses = expenses;
             this.displayExpensesTable();
             this.showToast(`Loaded ${expenses.length} expenses from CSV`, 'success');
-            this.showStep(2);
+            this.showStep(3);
 
         } catch (error) {
             console.error('Error processing CSV:', error);
@@ -2038,7 +2038,7 @@ class EZExpenseApp {
 
             // Refresh the table display
             this.displayExpensesTable();
-            this.showStep(2);
+            this.showStep(3);
 
             // Show summary message
             if (successCount > 0 && failCount === 0) {
@@ -2120,7 +2120,7 @@ class EZExpenseApp {
             // Refresh the table display
             this.displayExpensesTable();
             this.showToast('Receipt attached successfully', 'success');
-            this.showStep(2);
+            this.showStep(3);
 
         } catch (error) {
             console.error('Error processing receipt:', error);
