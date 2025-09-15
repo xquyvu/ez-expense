@@ -497,7 +497,8 @@ textarea.table-input.non-editable {
     resize: none;
     outline: none !important;
     box-shadow: none !important;
-    color: #6c757d; /* Slightly muted text color */
+    color: #6c757d;
+    /* Slightly muted text color */
 }
 
 /* Ensure non-editable columns don't show hover or focus states */

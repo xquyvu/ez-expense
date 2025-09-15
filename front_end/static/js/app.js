@@ -798,8 +798,8 @@ class EZExpenseApp {
         const [year, month, day] = dateStr.split('-').map(num => parseInt(num, 10));
 
         return date.getFullYear() === year &&
-               date.getMonth() === month - 1 &&
-               date.getDate() === day;
+            date.getMonth() === month - 1 &&
+            date.getDate() === day;
     }
 
     /**
@@ -860,9 +860,9 @@ class EZExpenseApp {
         }
         // Check for Expense category column (multiple possible variations)
         else if (normalizedColumnName.includes('category') ||
-                 normalizedColumnName === 'expense category' ||
-                 normalizedColumnName === 'expense type' ||
-                 normalizedColumnName.includes('expense category')) {
+            normalizedColumnName === 'expense category' ||
+            normalizedColumnName === 'expense type' ||
+            normalizedColumnName.includes('expense category')) {
             isValid = this.validateExpenseCategory(value);
         }
 
@@ -923,8 +923,8 @@ class EZExpenseApp {
         });
 
         const errorMessage = `Found ${errorFields.length} validation error(s):\n\n` +
-                           Array.from(errorTypes).join('\n') +
-                           '\n\nFields with errors are highlighted in red.';
+            Array.from(errorTypes).join('\n') +
+            '\n\nFields with errors are highlighted in red.';
 
         this.showToast(errorMessage, 'warning');
     }
@@ -1429,9 +1429,9 @@ class EZExpenseApp {
                 textarea.value = formattedValue;
 
                 // Check if this column is editable
-                const isEditable = !window.COLUMN_CONFIG || 
-                                 !window.COLUMN_CONFIG.editableColumns || 
-                                 window.COLUMN_CONFIG.editableColumns.includes(key);
+                const isEditable = !window.COLUMN_CONFIG ||
+                    !window.COLUMN_CONFIG.editableColumns ||
+                    window.COLUMN_CONFIG.editableColumns.includes(key);
 
                 if (!isEditable) {
                     textarea.className += ' non-editable';
