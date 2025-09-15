@@ -53,23 +53,23 @@ def get_categories():
         category_file_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "assets",
-            "category_list.txt"
+            "category_list.txt",
         )
-        
+
         if not os.path.exists(category_file_path):
             logger.error(f"Category file not found: {category_file_path}")
             return jsonify({"error": "Category file not found"}), 404
-        
+
         categories = []
-        with open(category_file_path, 'r', encoding='utf-8') as file:
+        with open(category_file_path, "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if line:  # Skip empty lines
                     categories.append(line)
-        
+
         logger.info(f"Loaded {len(categories)} categories from {category_file_path}")
         return jsonify({"categories": categories})
-        
+
     except Exception as e:
         logger.error(f"Error loading categories: {e}")
         return jsonify({"error": "Failed to load categories"}), 500

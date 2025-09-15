@@ -1264,7 +1264,7 @@ class EZExpenseApp {
         this.initColumnSorting();
 
         this.updateStatistics();
-        
+
         // Dispatch event to notify autocomplete that table has been created
         document.dispatchEvent(new CustomEvent('expensesTableCreated'));
     }    /**
