@@ -1615,11 +1615,11 @@ class EZExpenseApp {
             // Show no expenses message and hide bulk receipts section
             if (noExpensesMessage) noExpensesMessage.style.display = 'block';
             if (bulkReceiptsSection) bulkReceiptsSection.style.display = 'none';
-            
+
             // Hide the table container
             const tableContainer = document.querySelector('.table-container');
             if (tableContainer) tableContainer.style.display = 'none';
-            
+
             this.updateStatistics();
             return;
         }
@@ -1627,7 +1627,7 @@ class EZExpenseApp {
         // Hide no expenses message and show bulk receipts section when we have expenses
         if (noExpensesMessage) noExpensesMessage.style.display = 'none';
         if (bulkReceiptsSection) bulkReceiptsSection.style.display = 'block';
-        
+
         // Show the table container
         const tableContainer = document.querySelector('.table-container');
         if (tableContainer) tableContainer.style.display = 'block';

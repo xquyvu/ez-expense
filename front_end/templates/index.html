@@ -43,9 +43,25 @@
             <section class="section" id="expenses-section" style="display: none;">
                 <div class="section-header">
                     <h2><i class="fas fa-table"></i> Step 2: Review, Edit, and Attach Receipts</h2>
-                    <p>Verify your expense data, make edits, and attach receipt files to each expense</p>
                 </div>
-                
+                <div class="receipts-info">
+                    <div class="info-card">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <strong>How to manage expenses and receipts:</strong>
+                            <ul>
+                                <li>Edit any expense data directly in the table</li>
+                                <li>Match receipts to expenses by:</li>
+                                <ul>
+                                    <li>Clicking "Attach Receipt" button in each row </li>
+                                    <li>Dragging and dropping files from the file explorer or from the
+                                        section below directly onto the table rows</li>
+                                </ul>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- No expenses message -->
                 <div id="no-expenses-message" class="no-expenses-container">
                     <div class="info-card">
@@ -56,7 +72,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Bulk Receipt Upload Area -->
                 <div class="bulk-receipts-section" id="bulk-receipts-section" style="display: none;">
                     <div class="section-header" style="margin-bottom: 1rem;">
@@ -74,20 +90,6 @@
                         </div>
                     </div>
                     <div id="receipts-import-status" class="status-message"></div>
-                </div>
-                <div class="receipts-info">
-                    <div class="info-card">
-                        <i class="fas fa-info-circle"></i>
-                        <div>
-                            <strong>How to manage expenses and receipts:</strong>
-                            <ul>
-                                <li>Edit any expense data directly in the table</li>
-                                <li>Click "Attach Receipt" button in each row, or</li>
-                                <li>Drag and drop files directly onto the table rows</li>
-                                <li>Ensure all fields match approved list (fields with errors are highlighted in red)</li>
-                            </ul>
-                        </div>
-                    </div>
                 </div>
                 <div class="table-container">
                     <table id="expenses-table" class="data-table">

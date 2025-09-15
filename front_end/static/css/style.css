@@ -168,9 +168,13 @@ body {
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border: 1px solid #e9ecef;
-    overflow-x: auto;
+    overflow: auto;
     max-width: 100%;
+    max-height: 60vh;
+    /* Restrict table height to 60% of viewport height */
     /* Add overflow handling to prevent table from expanding beyond container */
+    position: relative;
+    /* Ensure proper positioning for sticky elements */
 }
 
 .data-table {
