@@ -1933,6 +1933,24 @@ class EZExpenseApp {
                             <div class="receipt-name">${receipt.name}</div>
                             <div class="receipt-confidence">Match: ${receipt.confidence}%</div>
                         </div>
+                        ${receipt.invoiceDetails ? `
+                        <div class="invoice-details">
+                            <div class="invoice-details-content">
+                                <div class="detail-item">
+                                    <span class="detail-label">Amount:</span>
+                                    <span class="detail-value">${receipt.invoiceDetails.Amount} ${receipt.invoiceDetails.Currency || ''}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Date:</span>
+                                    <span class="detail-value">${receipt.invoiceDetails.Date}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Category:</span>
+                                    <span class="detail-value">${receipt.invoiceDetails['Expense category']}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
                         <button onclick="app.removeReceipt(${expenseId}, ${index})" class="btn btn-sm">
                             <i class="fas fa-trash"></i>
                         </button>
@@ -3517,12 +3535,10 @@ class EZExpenseApp {
                 sourceReceipts.splice(receiptIndex, 1);
                 this.receipts.set(fromExpenseId, sourceReceipts);
 
-                // Add to bulk receipts (create a copy without expense-specific data)
+                // Add to bulk receipts (create a copy preserving all properties including invoiceDetails)
                 const bulkReceipt = {
+                    ...receipt, // Copy all properties including invoiceDetails
                     name: receipt.name || receipt.filename,
-                    type: receipt.type,
-                    preview: receipt.preview,
-                    file: receipt.file,
                     originalFilename: receipt.originalFilename || receipt.name || receipt.filename
                 };
 
