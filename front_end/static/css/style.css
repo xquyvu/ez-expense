@@ -334,7 +334,8 @@ body {
 .data-table thead th {
     position: sticky !important;
     top: 0 !important;
-    z-index: 20 !important; /* Higher than column sticky elements */
+    z-index: 20 !important;
+    /* Higher than column sticky elements */
 }
 
 /* For checkbox and receipts headers, we need special handling to support both directions */
@@ -342,14 +343,16 @@ body {
     position: sticky !important;
     top: 0 !important;
     left: 0 !important;
-    z-index: 30 !important; /* Highest priority */
+    z-index: 30 !important;
+    /* Highest priority */
 }
 
 .data-table thead th.receipts-column {
     position: sticky !important;
     top: 0 !important;
     right: 0 !important;
-    z-index: 30 !important; /* Highest priority */
+    z-index: 30 !important;
+    /* Highest priority */
 }
 
 .data-table tr:hover {
