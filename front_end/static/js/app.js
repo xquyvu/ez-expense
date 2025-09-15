@@ -873,7 +873,106 @@ class EZExpenseApp {
             input.classList.add('validation-error');
         }
 
+        // Check if this is a "Receipts attached" column and update receipt validation
+        if (normalizedColumnName.includes('receipts') && normalizedColumnName.includes('attached')) {
+            // Find the expense ID from the table row
+            const row = input.closest('tr');
+            if (row && row.dataset.expenseId) {
+                const expenseId = parseInt(row.dataset.expenseId);
+                // Update the receipt validation indicator for this expense
+                setTimeout(() => {
+                    this.updateReceiptValidationIndicator(expenseId);
+                }, 0);
+            }
+        }
+
         return isValid;
+    }
+
+    /**
+     * Validate receipt attachment status
+     * Checks if "Receipts attached" column matches actual receipts in "Receipts" column
+     */
+    validateReceiptAttachment(expenseId, receiptsAttachedValue) {
+        if (!this.validationEnabled) {
+            return true;
+        }
+
+        // Get the actual receipts for this expense
+        const actualReceipts = this.receipts.get(expenseId) || [];
+        const hasActualReceipts = actualReceipts.length > 0;
+
+        // Normalize the receipts attached value
+        let receiptsAttachedNormalized = '';
+        if (receiptsAttachedValue !== null && receiptsAttachedValue !== undefined) {
+            receiptsAttachedNormalized = String(receiptsAttachedValue).toLowerCase().trim();
+        }
+
+        // Check if the status matches reality
+        const shouldHaveReceipts = receiptsAttachedNormalized === 'yes' || receiptsAttachedNormalized === 'true' || receiptsAttachedNormalized === '1';
+        const shouldNotHaveReceipts = receiptsAttachedNormalized === 'no' || receiptsAttachedNormalized === 'false' || receiptsAttachedNormalized === '0';
+
+        // Validation passes if:
+        // - "Receipts attached" is "No" and no actual receipts are attached
+        // - "Receipts attached" is "Yes" and actual receipts are attached
+        const isValid = (shouldNotHaveReceipts && !hasActualReceipts) || (shouldHaveReceipts && hasActualReceipts);
+
+        return isValid;
+    }
+
+    /**
+     * Update receipt validation indicator for a specific expense
+     */
+    updateReceiptValidationIndicator(expenseId) {
+        // Find the expense to get the "Receipts attached" value
+        const expense = this.expenses.find(e => e.id === expenseId);
+        if (!expense) return;
+
+        // Find the "Receipts attached" column value (case-insensitive search)
+        let receiptsAttachedValue = null;
+        for (const [key, value] of Object.entries(expense)) {
+            const normalizedKey = key.toLowerCase().trim();
+            if (normalizedKey.includes('receipts') && normalizedKey.includes('attached')) {
+                receiptsAttachedValue = value;
+                break;
+            }
+        }
+
+        // If no "Receipts attached" column found, don't show validation
+        if (receiptsAttachedValue === null) return;
+
+        const isValid = this.validateReceiptAttachment(expenseId, receiptsAttachedValue);
+
+        // Find and update the receipt cell
+        const receiptCell = document.querySelector(`[data-expense-id="${expenseId}"].receipt-cell`);
+        if (receiptCell) {
+            // Remove existing validation indicator
+            const existingIndicator = receiptCell.querySelector('.receipt-validation-indicator');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+
+            // Add new validation indicator
+            const indicator = document.createElement('div');
+            indicator.className = `receipt-validation-indicator ${isValid ? 'valid' : 'invalid'}`;
+            indicator.innerHTML = isValid ?
+                '<i class="fas fa-check"></i>' :
+                '<i class="fas fa-times"></i>';
+            indicator.title = isValid ?
+                'Receipt attachment status matches actual receipts' :
+                'Receipt attachment status does not match actual receipts';
+
+            receiptCell.appendChild(indicator);
+        }
+    }
+
+    /**
+     * Update receipt validation indicators for all expenses
+     */
+    updateAllReceiptValidationIndicators() {
+        this.expenses.forEach(expense => {
+            this.updateReceiptValidationIndicator(expense.id);
+        });
     }
 
     /**
@@ -1459,6 +1558,7 @@ class EZExpenseApp {
             // Add receipts column (sticky on the right)
             const receiptTd = document.createElement('td');
             receiptTd.className = 'receipt-cell receipts-column';
+            receiptTd.dataset.expenseId = expense.id;
             receiptTd.innerHTML = this.createReceiptCell(expense.id);
             row.appendChild(receiptTd);
 
@@ -1482,6 +1582,9 @@ class EZExpenseApp {
         this.initColumnSorting();
 
         this.updateStatistics();
+
+        // Update receipt validation indicators
+        this.updateAllReceiptValidationIndicators();
 
         // Dispatch event to notify autocomplete that table has been created
         document.dispatchEvent(new CustomEvent('expensesTableCreated'));

@@ -1654,3 +1654,38 @@ textarea.table-input.non-editable:focus {
     border-color: #ff6666 !important;
     box-shadow: 0 0 0 2px rgba(255, 102, 102, 0.2) !important;
 }
+
+/* Receipt Validation Indicator Styles */
+.receipt-validation-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.receipt-validation-indicator.valid {
+    background-color: #28a745;
+    color: white;
+}
+
+.receipt-validation-indicator.invalid {
+    background-color: #dc3545;
+    color: white;
+}
+
+.receipt-validation-indicator i {
+    font-size: 10px;
+}
+
+/* Ensure receipt cell has relative positioning for absolute positioning of indicator */
+.receipt-cell {
+    position: relative;
+}
