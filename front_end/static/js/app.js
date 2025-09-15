@@ -1018,11 +1018,11 @@ class EZExpenseApp {
         if (!table) return;
 
         const errorFields = table.querySelectorAll('.validation-error');
-        
+
         // Count receipt validation errors
         let receiptValidationErrors = 0;
         const receiptErrorExpenses = [];
-        
+
         this.expenses.forEach(expense => {
             // Find the "Receipts attached" column value
             let receiptsAttachedValue = null;
@@ -1033,7 +1033,7 @@ class EZExpenseApp {
                     break;
                 }
             }
-            
+
             // Only validate if there's a "Receipts attached" column
             if (receiptsAttachedValue !== null) {
                 const isValid = this.validateReceiptAttachment(expense.id, receiptsAttachedValue);
@@ -1052,7 +1052,7 @@ class EZExpenseApp {
         }
 
         const errorTypes = new Set();
-        
+
         // Check field validation errors
         errorFields.forEach(field => {
             const columnName = field.dataset.column || '';
@@ -1062,7 +1062,7 @@ class EZExpenseApp {
                 errorTypes.add('Expense categories must be from the approved list');
             }
         });
-        
+
         // Add receipt validation errors if any
         if (receiptValidationErrors > 0) {
             errorTypes.add('Receipt attachment status does not match actual receipts');
@@ -1070,11 +1070,11 @@ class EZExpenseApp {
 
         let errorMessage = `Found ${totalErrors} validation error(s):\n\n` +
             Array.from(errorTypes).join('\n');
-            
+
         if (errorFields.length > 0) {
             errorMessage += '\n\nFields with errors are highlighted in red.';
         }
-        
+
         if (receiptValidationErrors > 0) {
             errorMessage += '\n\nReceipt validation errors are shown with red X icons in the Receipts column.';
         }
@@ -3063,11 +3063,12 @@ class EZExpenseApp {
      * Show specific step section
      */
     showStep(step) {
-        // With the new structure, we only have 2 steps:
+        // With the new structure, we only have 3 steps:
         // Step 1: Import (always visible)
-        // Step 2: Review, Edit, and Export (expenses-section)
+        // Step 2: Import receipts (optional)
+        // Step 3: Review, Edit, and Export (expenses-section)
 
-        if (step >= 2) {
+        if (step >= 3) {
             const expensesSection = document.getElementById('expenses-section');
             if (expensesSection) {
                 expensesSection.style.display = 'block';
