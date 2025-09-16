@@ -3380,10 +3380,127 @@ class EZExpenseApp {
                 // Add bulk receipt to target expense
                 const targetReceipts = this.receipts.get(targetExpenseId) || [];
 
+                // Get the original receipt with file object from bulk receipts array
+                const originalReceipt = this.bulkReceipts[sourceIndex];
+                if (!originalReceipt) {
+                    throw new Error('Original bulk receipt not found');
+                }
+
+                // Calculate actual confidence score using receipt_match_score function
+                let confidence = 85; // Default fallback
+                let receiptData = { ...originalReceipt };
+
+                try {
+                    // Check if receipt already has a filePath (was previously uploaded)
+                    if (originalReceipt.filePath) {
+                        console.log('Receipt already uploaded, using existing file path:', originalReceipt.filePath);
+
+                        // Get expense data for this expense ID
+                        const expense = this.expenses.find(e => e.id === targetExpenseId);
+                        if (!expense) {
+                            throw new Error('Expense not found');
+                        }
+
+                        // Call the match-receipt endpoint directly
+                        const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                expense_data: expense,
+                                receipt_path: originalReceipt.filePath
+                            })
+                        });
+
+                        if (matchResponse.ok) {
+                            const matchData = await matchResponse.json();
+                            if (matchData.success) {
+                                confidence = matchData.confidence_score;
+                                if (confidence <= 1) {
+                                    confidence *= 100;
+                                }
+                                confidence = Math.round(confidence);
+                                console.log('Calculated confidence score for existing file:', confidence);
+                            }
+                        }
+
+                    } else if (originalReceipt.file) {
+                        // Debug the file object
+                        console.log('Original receipt object:', originalReceipt);
+                        console.log('File object:', originalReceipt.file);
+                        console.log('File name:', originalReceipt.file.name);
+                        console.log('File type:', originalReceipt.file.type);
+                        console.log('File size:', originalReceipt.file.size);
+
+                        // For bulk receipts, we need to upload the file first
+                        console.log('Uploading bulk receipt file for match scoring:', originalReceipt.file.name);
+
+                        const formData = new FormData();
+                        formData.append('file', originalReceipt.file);
+                        formData.append('expense_id', targetExpenseId);
+
+                        const uploadResponse = await fetch('/api/receipts/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!uploadResponse.ok) {
+                            const errorText = await uploadResponse.text();
+                            console.error('Upload failed:', uploadResponse.status, errorText);
+                            throw new Error(`Upload failed: ${uploadResponse.status}`);
+                        }
+
+                        const uploadData = await uploadResponse.json();
+                        console.log('Upload successful, now calculating match score');
+
+                        // Get expense data for this expense ID
+                        const expense = this.expenses.find(e => e.id === targetExpenseId);
+                        if (!expense) {
+                            throw new Error('Expense not found');
+                        }
+
+                        // Call the match-receipt endpoint
+                        const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                expense_data: expense,
+                                receipt_path: uploadData.file_info.file_path
+                            })
+                        });
+
+                        if (matchResponse.ok) {
+                            const matchData = await matchResponse.json();
+                            if (matchData.success) {
+                                confidence = matchData.confidence_score;
+                                if (confidence <= 1) {
+                                    confidence *= 100;
+                                }
+                                confidence = Math.round(confidence);
+                                console.log('Calculated confidence score:', confidence);
+                            }
+                        }
+
+                        // Update receipt data with file upload information
+                        receiptData.filePath = uploadData.file_info.file_path;
+                        receiptData.filename = uploadData.file_info.saved_filename;
+                        receiptData.originalFilename = uploadData.file_info.original_filename;
+                    } else {
+                        console.log('No file object or file path available for receipt:', originalReceipt.name);
+                        // Use default confidence and existing receipt data
+                    }
+                } catch (error) {
+                    console.warn('Failed to calculate match score for bulk receipt:', error);
+                    // Continue with default confidence
+                }
+
                 // Create a copy of the receipt for the expense
                 const newReceipt = {
-                    ...receipt,
-                    confidence: 85 // Default confidence for bulk receipts
+                    ...receiptData,
+                    confidence: confidence
                 };
 
                 targetReceipts.push(newReceipt);
@@ -3820,11 +3937,14 @@ class EZExpenseApp {
         const receipt = this.bulkReceipts[receiptIndex];
         if (!receipt) return;
 
-        // Set drag data using same format as receipts column
+        // Set drag data but exclude the file object since it can't be serialized
         const dragData = {
             sourceType: 'bulk',
             sourceIndex: receiptIndex,
-            receipt: receipt
+            receipt: {
+                ...receipt,
+                file: null // Remove file object since it can't be JSON stringified
+            }
         };
 
         event.dataTransfer.setData('application/x-receipt-data', JSON.stringify(dragData));
