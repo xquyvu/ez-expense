@@ -497,52 +497,61 @@ def extract_invoice_details_endpoint():
     """
     Extract invoice details from an uploaded receipt.
 
-    This endpoint accepts a receipt file and extracts invoice information
-    such as amount, currency, date, and expense category.
+    This endpoint accepts either a new receipt file upload (form data with 'file')
 
-    Expected form data:
-    - file: Receipt file (PDF, PNG, JPG, JPEG, GIF)
-
-    Returns:
-    - JSON response with extracted invoice details
+    Returns: JSON response with extracted invoice details
     """
     try:
-        # Check if file is present in request
-        if "file" not in request.files:
-            return jsonify(
-                {"error": "No file provided", "message": "Please select a receipt file"}
-            ), 400
+        # Handle different input methods
+        if request.files and "file" in request.files:
+            file = request.files["file"]
 
-        file = request.files["file"]
+            # Check if file was actually selected
+            if not file.filename:
+                return jsonify(
+                    {"error": "No file selected", "message": "Please select a receipt file"}
+                ), 400
 
-        # Check if file was actually selected
-        if file.filename == "":
-            return jsonify(
-                {"error": "No file selected", "message": "Please select a receipt file"}
-            ), 400
+            # Check file extension
+            allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+            if not allowed_file(file.filename, allowed_extensions):
+                return jsonify(
+                    {
+                        "error": "Invalid file type",
+                        "message": f"Only {', '.join(allowed_extensions).upper()} files are allowed",
+                    }
+                ), 400
 
-        # Check file extension
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
-        if not allowed_file(file.filename, allowed_extensions):
+            # Save file temporarily for processing
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            name, ext = os.path.splitext(filename)
+            unique_filename = f"{name}_temp_{timestamp}{ext}"
+
+            upload_folder = current_app.config.get("UPLOAD_FOLDER", "uploads")
+            os.makedirs(upload_folder, exist_ok=True)
+            file_path = os.path.join(upload_folder, unique_filename)
+            file.save(file_path)
+
+        else:
             return jsonify(
                 {
-                    "error": "Invalid file type",
-                    "message": f"Only {', '.join(allowed_extensions).upper()} files are allowed",
+                    "error": "No file provided",
+                    "message": "Provide either a file upload or file reference",
                 }
             ), 400
 
-        # For now, we're calling the extract_invoice_details function directly
-        # In a real implementation, you might want to save the file temporarily
-        # and pass the file path to the extraction function
-        invoice_details = extract_invoice_details()
+        # Extract invoice details using the file path
+        invoice_details = extract_invoice_details(file_path)
 
-        logger.info(f"Successfully extracted invoice details for: {file.filename}")
+        logger.info(f"Successfully extracted invoice details for: {filename}")
 
         response_data = {
             "success": True,
             "message": "Invoice details extracted successfully",
             "invoice_details": invoice_details,
-            "filename": file.filename,
+            "filename": filename,
+            "file_path": file_path,
         }
 
         return jsonify(response_data)
