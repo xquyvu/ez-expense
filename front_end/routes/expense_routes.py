@@ -10,6 +10,7 @@ import sys
 import tempfile
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
@@ -488,16 +489,16 @@ def match_receipt():
         # Calculate confidence score using existing receipt_matcher
         if receipt_match_score is None:
             # Fallback to mock score if function not available
-            confidence_score = 0.85
+            confidence_score = np.nan
             logger.warning(
-                "Using mock confidence score as receipt_match_score function is not available"
+                "Using NaN as confidence score as receipt_match_score function is not available"
             )
         else:
             try:
                 confidence_score = receipt_match_score()
             except Exception as e:
-                logger.warning(f"Error calling receipt_match_score: {e}, using mock score")
-                confidence_score = 0.75
+                logger.warning(f"Error calling receipt_match_score: {e}")
+                confidence_score = np.nan
 
         logger.info(
             f"Calculated match confidence: {confidence_score} for expense {expense_data.get('id', 'unknown')}"
