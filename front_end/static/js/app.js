@@ -3868,7 +3868,12 @@ class EZExpenseApp {
                 return;
             }
 
-            this.showLoading(`Processing ${filesToProcess.length} new receipts...`);
+            const aiExtractionEnabled = this.isAIExtractionEnabled();
+            const loadingMessage = aiExtractionEnabled 
+                ? `Processing ${filesToProcess.length} new receipts with AI extraction...`
+                : `Processing ${filesToProcess.length} new receipts...`;
+            
+            this.showLoading(loadingMessage);
 
             // Process each non-duplicate file and add to bulk receipts
             for (const file of filesToProcess) {
@@ -3884,13 +3889,19 @@ class EZExpenseApp {
                     type = 'pdf';
                 }
 
-                // Extract invoice details for this receipt
+                // Extract invoice details for this receipt (only if AI extraction is enabled)
                 let invoiceDetails = null;
-                try {
-                    invoiceDetails = await this.extractInvoiceDetails(file);
-                } catch (error) {
-                    console.warn(`Failed to extract invoice details for ${file.name}:`, error);
-                    // Continue processing even if extraction fails
+                const aiExtractionEnabled = this.isAIExtractionEnabled();
+                
+                if (aiExtractionEnabled) {
+                    try {
+                        invoiceDetails = await this.extractInvoiceDetails(file);
+                    } catch (error) {
+                        console.warn(`Failed to extract invoice details for ${file.name}:`, error);
+                        // Continue processing even if extraction fails
+                    }
+                } else {
+                    console.log(`Skipping AI extraction for ${file.name} - AI extraction disabled`);
                 }
 
                 const receipt = {
@@ -3907,6 +3918,9 @@ class EZExpenseApp {
             }
 
             let successMessage = `Successfully imported ${filesToProcess.length} receipts`;
+            if (!aiExtractionEnabled) {
+                successMessage += ' (without AI extraction)';
+            }
             if (duplicateFiles.length > 0) {
                 successMessage += ` (${duplicateFiles.length} duplicates skipped)`;
             }
@@ -4088,6 +4102,18 @@ class EZExpenseApp {
     }
 
     // ===== END BULK RECEIPTS IMPORT FUNCTIONALITY =====
+
+    // ===== AI EXTRACTION CONTROL =====
+
+    /**
+     * Check if AI extraction is enabled based on checkbox state
+     */
+    isAIExtractionEnabled() {
+        const checkbox = document.getElementById('ai-extraction-checkbox');
+        return checkbox ? checkbox.checked : true; // Default to true if checkbox not found
+    }
+
+    // ===== END AI EXTRACTION CONTROL =====
 
     // ===== DUPLICATE DETECTION FUNCTIONALITY =====
 

@@ -76,8 +76,19 @@
                 <!-- Bulk Receipt Upload Area -->
                 <div class="bulk-receipts-section" id="bulk-receipts-section" style="display: none;">
                     <div class="section-header" style="margin-bottom: 1rem;">
-                        <h3><i class="fas fa-receipt"></i> Bulk Receipt Upload</h3>
-                        <p>Upload multiple receipts that you'll match to expenses below</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3><i class="fas fa-receipt"></i> Bulk Receipt Upload</h3>
+                                <p>Upload multiple receipts that you'll match to expenses below</p>
+                            </div>
+                            <div class="ai-extraction-control">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #666;">
+                                    <input type="checkbox" id="ai-extraction-checkbox" checked style="cursor: pointer;">
+                                    <i class="fas fa-brain" style="color: #4CAF50;"></i>
+                                    Extract invoice details with AI
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     <div class="receipts-import-container" id="receipts-import-container">
                         <div class="receipt-cell" id="bulk-receipt-cell">

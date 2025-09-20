@@ -1018,6 +1018,35 @@ textarea.table-input.non-editable:focus {
     border: 1px solid #dee2e6;
 }
 
+/* AI Extraction Control */
+.ai-extraction-control {
+    background-color: #fff;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ai-extraction-control label {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease;
+}
+
+.ai-extraction-control label:hover {
+    color: #333 !important;
+}
+
+.ai-extraction-control input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #4CAF50;
+}
+
+.ai-extraction-control i.fa-brain {
+    font-size: 0.9rem;
+}
+
 .info-card li {
     margin-bottom: 0.25rem;
 }
