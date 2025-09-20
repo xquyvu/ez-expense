@@ -3869,10 +3869,10 @@ class EZExpenseApp {
             }
 
             const aiExtractionEnabled = this.isAIExtractionEnabled();
-            const loadingMessage = aiExtractionEnabled 
+            const loadingMessage = aiExtractionEnabled
                 ? `Processing ${filesToProcess.length} new receipts with AI extraction...`
                 : `Processing ${filesToProcess.length} new receipts...`;
-            
+
             this.showLoading(loadingMessage);
 
             // Process each non-duplicate file and add to bulk receipts
@@ -3892,7 +3892,7 @@ class EZExpenseApp {
                 // Extract invoice details for this receipt (only if AI extraction is enabled)
                 let invoiceDetails = null;
                 const aiExtractionEnabled = this.isAIExtractionEnabled();
-                
+
                 if (aiExtractionEnabled) {
                     try {
                         invoiceDetails = await this.extractInvoiceDetails(file);
