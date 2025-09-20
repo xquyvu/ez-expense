@@ -2097,6 +2097,8 @@ class EZExpenseApp {
         const filesArray = Array.from(files);
         const validFiles = [];
         const invalidFiles = [];
+        const filesToProcess = [];
+        const duplicateFiles = [];
 
         // Validate all files first
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
@@ -2127,14 +2129,45 @@ class EZExpenseApp {
             return this.handleReceiptSelection(expenseId, validFiles[0]);
         }
 
-        this.showLoading(`Processing ${validFiles.length} receipts...`);
+        this.showLoading(`Checking for duplicates in ${validFiles.length} receipts...`);
 
         try {
+            // Check each file for duplicates and remove them first
+            let totalRemovedCount = 0;
+            const allRemovedFiles = [];
+
+            for (const file of validFiles) {
+                const duplicates = this.findAllDuplicates(file.name);
+
+                if (duplicates.length > 0) {
+                    const { removedCount, removedFiles } = this.removeDuplicates(duplicates);
+                    totalRemovedCount += removedCount;
+                    allRemovedFiles.push(...removedFiles);
+                    duplicateFiles.push(file.name);
+                }
+
+                filesToProcess.push(file); // Always process the current file, even if we removed its duplicates
+            }
+
+            // Show notification about removed duplicates
+            if (totalRemovedCount > 0) {
+                this.showDuplicateNotification(
+                    `Removed ${totalRemovedCount} duplicate file(s) (${allRemovedFiles.join(', ')}) and proceeding with upload to expense table.`,
+                    'info'
+                );
+
+                // Update displays after removing duplicates
+                this.updateBulkReceiptCell();
+                this.displayExpensesTable();
+            }
+
+            this.showLoading(`Processing ${filesToProcess.length} receipts...`);
+
             // Use bulk upload endpoint for multiple files
             const formData = new FormData();
 
-            // Add all valid files
-            validFiles.forEach(file => {
+            // Add all files to process
+            filesToProcess.forEach(file => {
                 formData.append('files', file);
             });
 
@@ -2166,7 +2199,7 @@ class EZExpenseApp {
                 if (result.success) {
                     try {
                         // Find the original file object
-                        const originalFile = validFiles.find(f => f.name === result.file_info.original_filename);
+                        const originalFile = filesToProcess.find(f => f.name === result.file_info.original_filename);
 
                         if (originalFile) {
                             // Create preview
@@ -2283,9 +2316,30 @@ class EZExpenseApp {
             return;
         }
 
-        this.showLoading('Processing receipt...');
+        this.showLoading('Checking for duplicates...');
 
         try {
+            // Check for duplicates across both areas
+            const duplicates = this.findAllDuplicates(file.name);
+
+            if (duplicates.length > 0) {
+                // Remove all existing duplicates
+                const { removedCount, removedFiles } = this.removeDuplicates(duplicates);
+
+                if (removedCount > 0) {
+                    this.showDuplicateNotification(
+                        `Removed ${removedCount} duplicate file(s) (${removedFiles.join(', ')}) and proceeding with upload to expense table.`,
+                        'info'
+                    );
+
+                    // Update displays after removing duplicates
+                    this.updateBulkReceiptCell();
+                    this.displayExpensesTable();
+                }
+            }
+
+            this.showLoading('Processing receipt...');
+
             // Create preview
             let preview = '';
             let type = 'pdf';
@@ -3758,6 +3812,8 @@ class EZExpenseApp {
         const filesArray = Array.from(files);
         const validFiles = [];
         const invalidFiles = [];
+        const duplicateFiles = [];
+        const skippedFiles = [];
 
         // Validate files using same logic as receipts column
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
@@ -3783,11 +3839,39 @@ class EZExpenseApp {
             return;
         }
 
-        this.showLoading(`Processing ${validFiles.length} receipts...`);
+        this.showLoading(`Checking for duplicates in ${validFiles.length} receipts...`);
 
         try {
-            // Process each file and add to bulk receipts
+            // Check for duplicates before processing
+            const filesToProcess = [];
+
             for (const file of validFiles) {
+                const duplicates = this.findAllDuplicates(file.name);
+                if (duplicates.length > 0) {
+                    duplicateFiles.push(file.name);
+                    skippedFiles.push(file);
+                } else {
+                    filesToProcess.push(file);
+                }
+            }
+
+            // Show duplicate notification
+            if (duplicateFiles.length > 0) {
+                this.showDuplicateNotification(
+                    `Skipped ${duplicateFiles.length} duplicate file(s): ${duplicateFiles.join(', ')}. These files are already present in the bulk upload area or expense table.`,
+                    'warning'
+                );
+            }
+
+            if (filesToProcess.length === 0) {
+                this.showToast('All files were duplicates - no new files to process', 'info');
+                return;
+            }
+
+            this.showLoading(`Processing ${filesToProcess.length} new receipts...`);
+
+            // Process each non-duplicate file and add to bulk receipts
+            for (const file of filesToProcess) {
                 // Create receipt object using same structure as receipts column
                 let preview = '';
                 let type = 'pdf';
@@ -3822,7 +3906,11 @@ class EZExpenseApp {
                 this.bulkReceipts.push(receipt);
             }
 
-            this.showToast(`Successfully imported ${validFiles.length} receipts`, 'success');
+            let successMessage = `Successfully imported ${filesToProcess.length} receipts`;
+            if (duplicateFiles.length > 0) {
+                successMessage += ` (${duplicateFiles.length} duplicates skipped)`;
+            }
+            this.showToast(successMessage, 'success');
             this.updateBulkReceiptCell();
         } catch (error) {
             console.error('Error processing receipts:', error);
@@ -4000,6 +4088,109 @@ class EZExpenseApp {
     }
 
     // ===== END BULK RECEIPTS IMPORT FUNCTIONALITY =====
+
+    // ===== DUPLICATE DETECTION FUNCTIONALITY =====
+
+    /**
+     * Check if a file is a duplicate based on filename only
+     */
+    isDuplicateFile(newFileName, existingFile) {
+        // Simple filename comparison
+        return newFileName === existingFile.name;
+    }
+
+    /**
+     * Find duplicates in bulk receipts area
+     */
+    findDuplicatesInBulkReceipts(newFileName) {
+        const duplicates = [];
+        for (let i = 0; i < this.bulkReceipts.length; i++) {
+            const existingReceipt = this.bulkReceipts[i];
+            if (this.isDuplicateFile(newFileName, existingReceipt)) {
+                duplicates.push({ type: 'bulk', index: i, receipt: existingReceipt });
+            }
+        }
+        return duplicates;
+    }
+
+    /**
+     * Find duplicates in expense table receipts
+     */
+    findDuplicatesInExpenseReceipts(newFileName) {
+        const duplicates = [];
+        for (const [expenseId, receipts] of this.receipts.entries()) {
+            for (let i = 0; i < receipts.length; i++) {
+                const existingReceipt = receipts[i];
+                if (this.isDuplicateFile(newFileName, existingReceipt)) {
+                    duplicates.push({
+                        type: 'expense',
+                        expenseId: expenseId,
+                        index: i,
+                        receipt: existingReceipt
+                    });
+                }
+            }
+        }
+        return duplicates;
+    }
+
+    /**
+     * Find all duplicates of a file across both areas
+     */
+    findAllDuplicates(newFileName) {
+        const bulkDuplicates = this.findDuplicatesInBulkReceipts(newFileName);
+        const expenseDuplicates = this.findDuplicatesInExpenseReceipts(newFileName);
+        return [...bulkDuplicates, ...expenseDuplicates];
+    }    /**
+     * Remove duplicates from both areas
+     */
+    removeDuplicates(duplicates) {
+        // Sort by type and index in reverse order to maintain correct indices while removing
+        const sortedDuplicates = duplicates.sort((a, b) => {
+            if (a.type !== b.type) {
+                return a.type === 'bulk' ? -1 : 1; // Remove bulk first
+            }
+            return b.index - a.index; // Remove from end to beginning
+        });
+
+        let removedCount = 0;
+        const removedFiles = [];
+
+        for (const duplicate of sortedDuplicates) {
+            if (duplicate.type === 'bulk') {
+                if (duplicate.index < this.bulkReceipts.length) {
+                    const removed = this.bulkReceipts.splice(duplicate.index, 1)[0];
+                    removedFiles.push(removed.name);
+                    removedCount++;
+                }
+            } else if (duplicate.type === 'expense') {
+                const receipts = this.receipts.get(duplicate.expenseId);
+                if (receipts && duplicate.index < receipts.length) {
+                    const removed = receipts.splice(duplicate.index, 1)[0];
+                    removedFiles.push(removed.name);
+                    removedCount++;
+
+                    // Update the receipts map
+                    if (receipts.length === 0) {
+                        this.receipts.delete(duplicate.expenseId);
+                    } else {
+                        this.receipts.set(duplicate.expenseId, receipts);
+                    }
+                }
+            }
+        }
+
+        return { removedCount, removedFiles };
+    }
+
+    /**
+     * Show notification for duplicate handling
+     */
+    showDuplicateNotification(message, type = 'info') {
+        this.showToast(message, type);
+    }
+
+    // ===== END DUPLICATE DETECTION FUNCTIONALITY =====
 
     /**
      * Read file as text
