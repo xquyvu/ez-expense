@@ -17,13 +17,14 @@ from dotenv import load_dotenv
 from flask import Flask, g, jsonify, render_template
 from flask_cors import CORS
 
+from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY
+
 load_dotenv()
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import configuration
-from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY
 
 # Configure logging for better exception visibility
 logging.basicConfig(
