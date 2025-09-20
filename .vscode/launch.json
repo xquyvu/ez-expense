@@ -17,5 +17,11 @@
             "request": "launch",
             "module": "main",
         },
+        {
+            "name": "Front end",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "front_end.app",
+        },
     ]
 }
