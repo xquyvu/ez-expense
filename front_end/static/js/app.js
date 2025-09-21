@@ -1928,6 +1928,9 @@ class EZExpenseApp {
                          draggable="true"
                          ondragstart="app.handleReceiptDragStart(event, ${expenseId}, ${index})"
                          ondragend="app.handleReceiptDragEnd(event)">
+                        <button onclick="app.removeReceipt(${expenseId}, ${index})" class="btn btn-sm">
+                            <i class="fas fa-trash"></i>
+                        </button>
                         ${receipt.type === 'image' ?
                         `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
                               onclick="app.showReceiptModal(${expenseId}, ${index})"
@@ -1968,9 +1971,6 @@ class EZExpenseApp {
                             </div>
                         </div>
                         ` : ''}
-                        <button onclick="app.removeReceipt(${expenseId}, ${index})" class="btn btn-sm">
-                            <i class="fas fa-trash"></i>
-                        </button>
                         <div class="drag-indicator">
                             <i class="fas fa-arrows-alt"></i>
                         </div>
@@ -4198,6 +4198,9 @@ class EZExpenseApp {
                          draggable="true"
                          ondragstart="app.handleBulkReceiptDragStart(event, ${index})"
                          ondragend="app.handleReceiptDragEnd(event)">
+                        <button onclick="app.removeBulkReceipt(${index})" class="btn btn-sm">
+                            <i class="fas fa-trash"></i>
+                        </button>
                         ${receipt.type === 'image' ?
                         `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
                               onclick="app.showBulkReceiptModal(${index})"
@@ -4238,9 +4241,6 @@ class EZExpenseApp {
                             </div>
                         </div>
                         ` : ''}
-                        <button onclick="app.removeBulkReceipt(${index})" class="btn btn-sm">
-                            <i class="fas fa-trash"></i>
-                        </button>
                         <div class="drag-indicator">
                             <i class="fas fa-arrows-alt"></i>
                         </div>
