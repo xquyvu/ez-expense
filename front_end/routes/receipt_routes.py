@@ -519,7 +519,7 @@ def move_receipt():
             "receipt_data": updated_receipt_data,
             "from_expense_id": from_expense_id,
             "to_expense_id": to_expense_id,
-            "new_confidence_score": match_score * 100,
+            "new_confidence_score": match_score * 100 if match_score is not None else None,
         }
 
         return jsonify(response_data)
