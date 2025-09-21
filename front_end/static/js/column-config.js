@@ -7,6 +7,13 @@ const COLUMN_CONFIG = {
     // Default column widths (in pixels)
     defaultWidth: 150,
 
+    // Column display name mapping - maps internal column names to display names
+    displayNames: {
+        'Additional information': 'Expense Description',
+        'Receipts attached': 'Receipts attached on My Expense'
+        // Add more mappings here as needed
+    },
+
     // Specific column widths - customize these as needed
     columnWidths: {
         // Special columns
@@ -60,7 +67,12 @@ const COLUMN_CONFIG = {
         'Amount',
         'Expense category',
         'Merchant'
-    ]
+    ],
+
+    // Get display name for a column (returns original name if no mapping exists)
+    getDisplayName(columnName) {
+        return this.displayNames[columnName] || columnName;
+    }
 };
 
 // Export for use in main app

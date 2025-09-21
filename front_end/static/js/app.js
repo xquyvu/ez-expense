@@ -1778,23 +1778,27 @@ class EZExpenseApp {
         regularKeys.forEach(key => {
             const th = document.createElement('th');
 
+            // Get display name from configuration, fallback to original key
+            const displayName = window.COLUMN_CONFIG?.getDisplayName ?
+                window.COLUMN_CONFIG.getDisplayName(key) : key;
+
             // Check if sorting is enabled in configuration
             const sortingEnabled = window.COLUMN_CONFIG?.headerConfig?.allowSorting;
 
             if (sortingEnabled) {
                 th.innerHTML = `
                     <div class="column-header">
-                        <span class="column-text">${key}</span>
+                        <span class="column-text">${displayName}</span>
                         <span class="sort-icon" data-column="${key}">
                             <i class="fas fa-sort"></i>
                         </span>
                     </div>
                 `;
             } else {
-                th.textContent = key;
+                th.textContent = displayName;
             }
 
-            th.title = key; // Add tooltip with full column name
+            th.title = displayName; // Add tooltip with display name
             headerRow.appendChild(th);
         });
 
