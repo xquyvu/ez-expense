@@ -408,15 +408,16 @@ def upload_multiple_receipts():
 @receipt_bp.route("/move", methods=["POST"])
 def move_receipt():
     """
-    Move a receipt from one expense to another.
+    Move a receipt from one expense to another and recalculate confidence score.
 
     Expected JSON data:
     - receipt_data: The receipt object to move (includes filename, name, etc.)
     - from_expense_id: ID of the expense the receipt is currently attached to
     - to_expense_id: ID of the expense to move the receipt to
+    - to_expense_data: The target expense data for confidence calculation
 
     Returns:
-    - JSON response indicating success/failure of the move operation
+    - JSON response indicating success/failure of the move operation with updated confidence
     """
     try:
         if not request.is_json:
@@ -436,6 +437,7 @@ def move_receipt():
         receipt_data = data["receipt_data"]
         from_expense_id = data["from_expense_id"]
         to_expense_id = data["to_expense_id"]
+        to_expense_data = data.get("to_expense_data")
 
         # Validate expense IDs
         if from_expense_id == to_expense_id:
@@ -446,12 +448,15 @@ def move_receipt():
                 }
             ), 400
 
-        # Validate receipt data has required fields
-        if not receipt_data.get("filename"):
+        # Validate receipt data has some form of filename or file path
+        filename = receipt_data.get("filename") or receipt_data.get("name")
+        file_path = receipt_data.get("filePath")
+
+        if not filename and not file_path:
             return jsonify(
                 {
                     "error": "Invalid receipt data",
-                    "message": "Receipt filename is required",
+                    "message": "Receipt filename or filePath is required",
                 }
             ), 400
 
@@ -459,31 +464,62 @@ def move_receipt():
         # The actual file doesn't need to be moved since we're just changing which expense it's associated with
         # The filename and file_path remain the same, only the association changes
 
-        filename = receipt_data.get("filename")
+        # Determine the actual file path to check
+        if file_path:
+            # Use the full file path if available (for uploaded receipts)
+            actual_file_path = file_path
+        else:
+            # Fall back to constructing path from filename (for legacy compatibility)
+            upload_folder = current_app.config.get("UPLOAD_FOLDER", "uploads")
+            actual_file_path = os.path.join(upload_folder, filename)
 
-        # Verify the receipt file exists in the upload folder
-        upload_folder = current_app.config.get("UPLOAD_FOLDER", "uploads")
-        file_path = os.path.join(upload_folder, filename)
+        # Only verify file existence if we have a proper file path
+        # Skip verification for receipts that might not be physically stored yet
+        if actual_file_path and os.path.isabs(actual_file_path):
+            if not os.path.exists(actual_file_path):
+                logger.warning(
+                    f"Receipt file not found at {actual_file_path}, but proceeding with move operation"
+                )
+                # Don't fail the operation - just log a warning
+                # This allows for moving receipts that exist in frontend state but may not have been properly uploaded
 
-        if not os.path.exists(file_path):
-            return jsonify(
-                {
-                    "error": "Receipt file not found",
-                    "message": f"Receipt file '{filename}' does not exist",
-                }
-            ), 404
+        # Calculate new match score for the target expense
+        if to_expense_data:
+            match_score = None
+            try:
+                # Import receipt_match_score function
+                from expense_matcher import receipt_match_score
+
+                match_score = receipt_match_score(receipt_data, to_expense_data)
+
+                logger.info(
+                    f"Calculated new match score: {match_score}% for moving receipt to expense {to_expense_id}"
+                )
+
+            except ImportError:
+                logger.warning(
+                    "receipt_match_score function not available, skipping match score calculation"
+                )
+            except Exception as e:
+                logger.warning(f"Error calculating match score: {e}")
 
         logger.info(
-            f"Moving receipt '{filename}' from expense {from_expense_id} to expense {to_expense_id}"
+            f"Moving receipt '{filename or file_path}' from expense {from_expense_id} to expense {to_expense_id}"
         )
+
+        # Prepare updated receipt data
+        updated_receipt_data = receipt_data.copy()
+        if match_score is not None:
+            updated_receipt_data["confidence"] = match_score * 100
 
         # Return success response with the updated receipt data
         response_data = {
             "success": True,
             "message": f"Receipt '{receipt_data.get('name', filename)}' moved successfully",
-            "receipt_data": receipt_data,
+            "receipt_data": updated_receipt_data,
             "from_expense_id": from_expense_id,
             "to_expense_id": to_expense_id,
+            "new_confidence_score": match_score * 100,
         }
 
         return jsonify(response_data)

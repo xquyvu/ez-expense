@@ -3717,6 +3717,9 @@ class EZExpenseApp {
         try {
             this.showLoading('Moving receipt...');
 
+            // Get target expense data for confidence calculation
+            const targetExpense = this.expenses.find(e => e.id === targetExpenseId);
+
             // Prepare receipt data with proper filename field for API
             const receiptDataForAPI = {
                 ...receipt,
@@ -3724,6 +3727,7 @@ class EZExpenseApp {
             };
 
             console.log('Receipt data being sent to API:', receiptDataForAPI);
+            console.log('Target expense data:', targetExpense);
 
             // Call the backend API to move the receipt
             const response = await fetch('/api/receipts/move', {
@@ -3734,15 +3738,24 @@ class EZExpenseApp {
                 body: JSON.stringify({
                     receipt_data: receiptDataForAPI,
                     from_expense_id: fromExpenseId,
-                    to_expense_id: targetExpenseId
+                    to_expense_id: targetExpenseId,
+                    to_expense_data: targetExpense
                 })
             });
 
             const data = await response.json();
 
             if (data.success) {
-                // Update the frontend receipts data
-                this.moveReceiptInFrontend(fromExpenseId, receiptIndex, targetExpenseId, receipt);
+                // Use the updated receipt data from the backend (includes new confidence score)
+                const updatedReceipt = data.receipt_data || receipt;
+
+                // Log the confidence score update
+                if (data.new_confidence_score !== null && data.new_confidence_score !== undefined) {
+                    console.log(`Updated confidence score: ${data.new_confidence_score}% for receipt moved to expense ${targetExpenseId}`);
+                }
+
+                // Update the frontend receipts data with the updated receipt
+                this.moveReceiptInFrontend(fromExpenseId, receiptIndex, targetExpenseId, updatedReceipt);
 
                 // Refresh the table display
                 this.displayExpensesTable();
