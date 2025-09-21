@@ -878,6 +878,10 @@ textarea.table-input.non-editable:focus {
     font-size: 0.8rem;
 }
 
+.receipt-confidence.undefined {
+    color: #6c757d;
+}
+
 /* Invoice Details Styles */
 .invoice-details {
     margin-top: 0.75rem;
@@ -1536,6 +1540,10 @@ textarea.table-input.non-editable:focus {
     font-size: 0.8rem;
     color: #28a745;
     font-weight: 500;
+}
+
+.receipt-confidence.undefined {
+    color: #6c757d;
 }
 
 /* Multiple Receipts Support */

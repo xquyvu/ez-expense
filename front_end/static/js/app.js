@@ -2000,7 +2000,7 @@ class EZExpenseApp {
                     }
                         <div class="receipt-info">
                             <div class="receipt-name">${receipt.name}</div>
-                            <div class="receipt-confidence">Match: ${receipt.confidence}%</div>
+                            <div class="receipt-confidence${receipt.confidence !== null && receipt.confidence !== undefined ? '' : ' undefined'}">Match: ${receipt.confidence !== null && receipt.confidence !== undefined ? receipt.confidence + '%' : 'UNDEFINED'}</div>
                         </div>
                         ${receipt.invoiceDetails ? `
                         <div class="invoice-details">
@@ -2271,6 +2271,7 @@ class EZExpenseApp {
                             // Create preview
                             let preview = '';
                             let type = 'pdf';
+                            let confidence = null; // Initialize confidence as null
 
                             if (originalFile.type.startsWith('image/')) {
                                 preview = await this.createImagePreview(originalFile);
@@ -2281,7 +2282,6 @@ class EZExpenseApp {
                             }
 
                             // Calculate match confidence if possible
-                            let confidence = 85; // Default confidence
                             try {
                                 if (expense) {
                                     const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
@@ -2299,10 +2299,12 @@ class EZExpenseApp {
                                         const matchData = await matchResponse.json();
                                         if (matchData.success) {
                                             confidence = matchData.confidence_score;
-                                            if (confidence <= 1) {
-                                                confidence *= 100;
+                                            if (confidence !== null && confidence !== undefined) {
+                                                if (confidence <= 1) {
+                                                    confidence *= 100;
+                                                }
+                                                confidence = Math.round(confidence);
                                             }
-                                            confidence = Math.round(confidence);
                                         }
                                     }
                                 }
@@ -2508,11 +2510,16 @@ class EZExpenseApp {
             if (matchData.success) {
                 // Convert to percentage (multiply by 100 if needed)
                 let confidence = matchData.confidence_score;
-                if (confidence <= 1) {
-                    confidence *= 100;
+                if (confidence !== null && confidence !== undefined) {
+                    if (confidence <= 1) {
+                        confidence *= 100;
+                    }
+                    confidence = Math.round(confidence);
+                } else {
+                    confidence = null;
                 }
                 return {
-                    confidence: Math.round(confidence),
+                    confidence: confidence,
                     filePath: receiptPath,
                     savedFilename: uploadData.file_info.saved_filename,
                     originalFilename: uploadData.file_info.original_filename
@@ -2527,7 +2534,7 @@ class EZExpenseApp {
             // If we have upload data, use it even if match calculation failed
             if (uploadData && uploadData.file_info) {
                 return {
-                    confidence: 85, // Default confidence
+                    confidence: null, // Default confidence
                     filePath: uploadData.file_info.file_path,
                     savedFilename: uploadData.file_info.saved_filename,
                     originalFilename: uploadData.file_info.original_filename
@@ -2536,7 +2543,7 @@ class EZExpenseApp {
 
             // Complete fallback if upload also failed
             return {
-                confidence: 85,
+                confidence: null,
                 filePath: null,
                 savedFilename: null,
                 originalFilename: file.name
@@ -2877,10 +2884,15 @@ class EZExpenseApp {
                     exportRow.receipt_names = receipts.map(r => r.name).join('; ');
                     // Join multiple receipt file paths with semicolon
                     exportRow.receipt_file_paths = receipts.map(r => r.filePath || 'N/A').join('; ');
-                    // Use average confidence or highest confidence
-                    exportRow.receipt_confidence = Math.round(
-                        receipts.reduce((sum, r) => sum + r.confidence, 0) / receipts.length
-                    );
+                    // Use average confidence or highest confidence, excluding null values
+                    const validConfidences = receipts.filter(r => r.confidence !== null && r.confidence !== undefined).map(r => r.confidence);
+                    if (validConfidences.length > 0) {
+                        exportRow.receipt_confidence = Math.round(
+                            validConfidences.reduce((sum, c) => sum + c, 0) / validConfidences.length
+                        );
+                    } else {
+                        exportRow.receipt_confidence = 'UNDEFINED';
+                    }
                     exportRow.receipt_count = receipts.length;
                 } else {
                     exportRow.receipt_names = '';
@@ -3095,10 +3107,15 @@ class EZExpenseApp {
                     exportRow.receipt_names = receipts.map(r => r.name).join('; ');
                     // Join multiple receipt file paths with semicolon
                     exportRow.receipt_file_paths = receipts.map(r => r.filePath || 'N/A').join('; ');
-                    // Use average confidence or highest confidence
-                    exportRow.receipt_confidence = Math.round(
-                        receipts.reduce((sum, r) => sum + r.confidence, 0) / receipts.length
-                    );
+                    // Use average confidence or highest confidence, excluding null values
+                    const validConfidences = receipts.filter(r => r.confidence !== null && r.confidence !== undefined).map(r => r.confidence);
+                    if (validConfidences.length > 0) {
+                        exportRow.receipt_confidence = Math.round(
+                            validConfidences.reduce((sum, c) => sum + c, 0) / validConfidences.length
+                        );
+                    } else {
+                        exportRow.receipt_confidence = 'UNDEFINED';
+                    }
                     exportRow.receipt_count = receipts.length;
                 } else {
                     exportRow.receipt_names = '';
@@ -3507,8 +3524,8 @@ class EZExpenseApp {
                 }
 
                 // Calculate actual confidence score using receipt_match_score function
-                let confidence = 85; // Default fallback
                 let receiptData = { ...originalReceipt };
+                let confidence = null; // Initialize confidence as null
 
                 try {
                     // Check if receipt already has a filePath (was previously uploaded)
@@ -3537,10 +3554,12 @@ class EZExpenseApp {
                             const matchData = await matchResponse.json();
                             if (matchData.success) {
                                 confidence = matchData.confidence_score;
-                                if (confidence <= 1) {
-                                    confidence *= 100;
+                                if (confidence !== null && confidence !== undefined) {
+                                    if (confidence <= 1) {
+                                        confidence *= 100;
+                                    }
+                                    confidence = Math.round(confidence);
                                 }
-                                confidence = Math.round(confidence);
                                 console.log('Calculated confidence score for existing file:', confidence);
                             }
                         }
@@ -3596,10 +3615,12 @@ class EZExpenseApp {
                             const matchData = await matchResponse.json();
                             if (matchData.success) {
                                 confidence = matchData.confidence_score;
-                                if (confidence <= 1) {
-                                    confidence *= 100;
+                                if (confidence !== null && confidence !== undefined) {
+                                    if (confidence <= 1) {
+                                        confidence *= 100;
+                                    }
+                                    confidence = Math.round(confidence);
                                 }
-                                confidence = Math.round(confidence);
                                 console.log('Calculated confidence score:', confidence);
                             }
                         }
