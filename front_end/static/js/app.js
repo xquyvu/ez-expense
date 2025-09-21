@@ -2284,14 +2284,24 @@ class EZExpenseApp {
                             // Calculate match confidence if possible
                             try {
                                 if (expense) {
+                                    // Create receipt object in the same format as bulk receipts
+                                    const receiptData = {
+                                        name: result.file_info.original_filename,
+                                        file_path: result.file_info.file_path,
+                                        type: type,
+                                        confidence: null // Will be updated by the endpoint
+                                    };
+
+
                                     const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json'
                                         },
                                         body: JSON.stringify({
-                                            expense_data: expense,
-                                            receipt_path: result.file_info.file_path
+                                            receipt_data: receiptData,
+                                            receipt_path: result.file_info.file_path,
+                                            expense_data: expense
                                         })
                                     });
 
@@ -2489,6 +2499,13 @@ class EZExpenseApp {
                 throw new Error('Expense not found');
             }
 
+            // Create receipt object in the same format as bulk receipts
+            const receiptData = {
+                name: uploadData.file_info.original_filename,
+                file_path: uploadData.file_info.file_path,
+                type: file.type.startsWith('image/') ? 'image' : 'pdf',
+            };
+
             // Call the match-receipt endpoint
             const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
                 method: 'POST',
@@ -2496,6 +2513,7 @@ class EZExpenseApp {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                    receipt_data: receiptData,
                     expense_data: expense,
                     receipt_path: receiptPath
                 })
@@ -3539,12 +3557,23 @@ class EZExpenseApp {
                         }
 
                         // Call the match-receipt endpoint directly
+                        const receiptData = {
+                            filePath: originalReceipt.filePath,
+                            type: 'existing'
+                        };
+
+                        // Include invoiceDetails if available
+                        if (originalReceipt.invoiceDetails) {
+                            receiptData.invoiceDetails = originalReceipt.invoiceDetails;
+                        }
+
                         const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
+                                receipt_data: receiptData,
                                 expense_data: expense,
                                 receipt_path: originalReceipt.filePath
                             })
@@ -3600,12 +3629,23 @@ class EZExpenseApp {
                         }
 
                         // Call the match-receipt endpoint
+                        const receiptData = {
+                            filePath: uploadData.file_info.file_path,
+                            type: 'uploaded'
+                        };
+
+                        // Include invoiceDetails if available
+                        if (originalReceipt.invoiceDetails) {
+                            receiptData.invoiceDetails = originalReceipt.invoiceDetails;
+                        }
+
                         const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
+                                receipt_data: receiptData,
                                 expense_data: expense,
                                 receipt_path: uploadData.file_info.file_path
                             })
@@ -3996,7 +4036,7 @@ class EZExpenseApp {
                     file_path: file.name, // This would normally be a server path
                     preview: preview,
                     type: type,
-                    confidence: 0, // No confidence for bulk imports
+                    confidence: null, // No confidence for bulk imports
                     file: file, // Keep the file object for potential later upload
                     invoiceDetails: invoiceDetails // Add extracted invoice details
                 };

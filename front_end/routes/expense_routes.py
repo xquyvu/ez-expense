@@ -468,22 +468,7 @@ def match_receipt():
             ), 400
 
         expense_data = data.get("expense_data")
-        receipt_path = data.get("receipt_path")
-
-        if not expense_data or not receipt_path:
-            return jsonify(
-                {
-                    "error": "Missing data",
-                    "message": "Both expense_data and receipt_path are required",
-                }
-            ), 400
-
-        # Check if receipt file exists (skip in test mode)
-        skip_file_check = request.args.get("debug") == "true"
-        if not skip_file_check and not os.path.exists(receipt_path):
-            return jsonify(
-                {"error": "Receipt not found", "message": "Receipt file does not exist"}
-            ), 404
+        receipt_data = data.get("receipt_data")
 
         # Calculate confidence score using existing receipt_matcher
         if receipt_match_score is None:
@@ -494,7 +479,7 @@ def match_receipt():
             )
         else:
             try:
-                confidence_score = receipt_match_score()
+                confidence_score = receipt_match_score(receipt_data, expense_data)
             except Exception as e:
                 logger.warning(f"Error calling receipt_match_score: {e}")
                 confidence_score = None
@@ -508,7 +493,6 @@ def match_receipt():
                 "success": True,
                 "confidence_score": confidence_score,
                 "expense_id": expense_data.get("id"),
-                "receipt_path": receipt_path,
                 "message": f"Match confidence calculated: {confidence_score}",
             }
         )

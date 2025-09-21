@@ -13,13 +13,13 @@ def receipt_match_score(receipt: dict[str, Any], expense_line: dict[str, Any]) -
 
     if not invoice_details:
         # If no invoice details are present, we cannot match
-        return 0.0
+        return
 
     if all(
         [
             expense_line["Date"] == invoice_details["Date"],
             expense_line["Currency"] == invoice_details["Currency"],
-            expense_line["Amount"] == invoice_details["Amount"],
+            float(expense_line["Amount"]) == float(invoice_details["Amount"]),
         ]
     ):
         return 1.0
