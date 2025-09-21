@@ -35,8 +35,11 @@ def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
     """
     # Logic to interact with the website and fetch expenses
     # This is a placeholder for the actual implementation
-    expense_df = pd.read_csv("./tests/test_data/test_expense_report.csv")
+    expense_df = pd.read_excel("./tests/test_data/test_expense_report.xlsx")
     expense_df.replace({np.nan: None}, inplace=True)
+    expense_df["Date"] = expense_df["Date"].dt.date.astype(str)
+
+    expense_df = split_currency_and_amount(expense_df)
 
     # No need to save to file since we return the DataFrame
     # The calling code can decide what to do with the data
@@ -104,6 +107,9 @@ def import_expense_my_expense(page: Page, save_path: Path | None = None) -> pd.D
 
     existing_expenses = pd.read_excel(download_info.value.url)
     existing_expenses.replace({np.nan: None}, inplace=True)
+    existing_expenses["Date"] = existing_expenses["Date"].dt.date.astype(str)
+
+    existing_expenses = split_currency_and_amount(existing_expenses)
 
     if save_path:
         existing_expenses.to_csv(save_path, index=False)
