@@ -1646,6 +1646,45 @@ class EZExpenseApp {
     }
 
     /**
+     * Detect receipt-related columns in expense data
+     * Returns object with receiptColumns array and hasReceiptData boolean
+     */
+    detectReceiptColumns(allKeys) {
+        const receiptColumns = [];
+
+        allKeys.forEach(key => {
+            const normalizedKey = key.toLowerCase();
+            // Only detect columns that are exactly "receipts" (case-insensitive)
+            if (normalizedKey === 'receipts') {
+                receiptColumns.push(key);
+            }
+        });
+
+        return {
+            receiptColumns,
+            hasReceiptData: receiptColumns.length > 0
+        };
+    }
+
+    /**
+     * Extract receipt data from expense for a given receipt column
+     */
+    extractReceiptData(expense, receiptColumn) {
+        const value = expense[receiptColumn];
+        if (!value || value === '' || value === 'N/A') {
+            return null;
+        }
+
+        // If it looks like file paths (contains extensions or semicolons)
+        if (typeof value === 'string' && (value.includes('.') || value.includes(';'))) {
+            return value.split(';').map(path => path.trim()).filter(path => path && path !== 'N/A');
+        }
+
+        // Otherwise return as-is for display
+        return value;
+    }
+
+    /**
      * Display expenses in the table
      */
     displayExpensesTable() {
@@ -1690,8 +1729,31 @@ class EZExpenseApp {
             });
         });
 
-        // Convert to array for regular columns
-        const regularKeys = Array.from(allKeys);
+        // Detect receipt-related columns
+        const receiptDetection = this.detectReceiptColumns(Array.from(allKeys));
+        console.log('Receipt detection result:', receiptDetection);
+
+        // Filter out receipt-related columns from regular display
+        const regularKeys = Array.from(allKeys).filter(key =>
+            !receiptDetection.receiptColumns.includes(key)
+        );
+
+        // Store receipt data for later use in createReceiptCell
+        this.extractedReceiptData = new Map();
+        if (receiptDetection.hasReceiptData) {
+            this.expenses.forEach(expense => {
+                const receiptData = {};
+                receiptDetection.receiptColumns.forEach(column => {
+                    const data = this.extractReceiptData(expense, column);
+                    if (data !== null) {
+                        receiptData[column] = data;
+                    }
+                });
+                if (Object.keys(receiptData).length > 0) {
+                    this.extractedReceiptData.set(expense.id, receiptData);
+                }
+            });
+        }
 
         // Create header row
         const headerRow = document.createElement('tr');
@@ -1736,10 +1798,10 @@ class EZExpenseApp {
             headerRow.appendChild(th);
         });
 
-        // Add receipts column (sticky on the right)
+        // Add receipts column (always shown for interactivity, but enhanced with data if available)
         const receiptTh = document.createElement('th');
-        receiptTh.textContent = 'Receipts';
-        receiptTh.title = 'Receipts'; // Add tooltip
+        receiptTh.textContent = receiptDetection.hasReceiptData ? 'Receipts & Attachments' : 'Receipts';
+        receiptTh.title = receiptDetection.hasReceiptData ? 'Receipt data and file uploads' : 'Upload receipts';
         receiptTh.className = 'receipts-column';
         headerRow.appendChild(receiptTh);
 
@@ -1762,13 +1824,14 @@ class EZExpenseApp {
             // Add regular columns
             regularKeys.forEach(key => {
                 const td = document.createElement('td');
-                const formattedValue = this.formatDateValue(expense[key] || '');
+                // Keep raw values as-is (especially for dates in YYYY-MM-DD format)
+                const rawValue = expense[key] || '';
                 const textarea = document.createElement('textarea');
                 textarea.setAttribute('data-field', key);
                 textarea.setAttribute('data-column', key);
                 textarea.className = 'table-input';
                 textarea.rows = 1;
-                textarea.value = formattedValue;
+                textarea.value = rawValue;
 
                 // Check if this column is editable
                 const isEditable = !window.COLUMN_CONFIG ||
@@ -1791,7 +1854,7 @@ class EZExpenseApp {
                     });
 
                     // Initial validation only for editable columns
-                    this.validateField(textarea, key, formattedValue);
+                    this.validateField(textarea, key, rawValue);
                 }
 
                 td.appendChild(textarea);
@@ -1802,7 +1865,10 @@ class EZExpenseApp {
             const receiptTd = document.createElement('td');
             receiptTd.className = 'receipt-cell receipts-column';
             receiptTd.dataset.expenseId = expense.id;
-            receiptTd.innerHTML = this.createReceiptCell(expense.id);
+            console.log(`Creating receipt cell for expense ${expense.id}`);
+            const receiptCellHTML = this.createReceiptCell(expense.id);
+            console.log(`Receipt cell HTML for ${expense.id}:`, receiptCellHTML);
+            receiptTd.innerHTML = receiptCellHTML;
             row.appendChild(receiptTd);
 
             // Make row droppable for receipts
@@ -1835,69 +1901,20 @@ class EZExpenseApp {
         // Dispatch event to notify autocomplete that table has been created
         document.dispatchEvent(new CustomEvent('expensesTableCreated'));
     }    /**
-     * Format date values from JSON to YYYY-MM-DD format
-     */
-    formatDateValue(value) {
-        if (!value || typeof value !== 'string') {
-            return value;
-        }
-
-        // Detect various date formats
-        // ISO 8601: "2025-09-14T10:30:00", "2025-09-14T10:30:00.123Z", "2025-09-14"
-        const isoDateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
-        const isoDateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
-
-        // JavaScript Date.toString() format: "Tue, 09 Sep 2025 00:00:00 GMT"
-        const jsDateStringRegex = /^[A-Za-z]{3},\s\d{2}\s[A-Za-z]{3}\s\d{4}\s\d{2}:\d{2}:\d{2}\sGMT$/;
-
-        // RFC 2822 format: "Tue Sep 09 2025 00:00:00 GMT+0000"
-        const rfc2822Regex = /^[A-Za-z]{3}\s[A-Za-z]{3}\s\d{2}\s\d{4}\s\d{2}:\d{2}:\d{2}/;
-
-        // Try pattern matching first
-        if (isoDateTimeRegex.test(value) || isoDateOnlyRegex.test(value) ||
-            jsDateStringRegex.test(value) || rfc2822Regex.test(value)) {
-            try {
-                const date = new Date(value);
-                if (!isNaN(date.getTime())) {
-                    // Return in YYYY-MM-DD format
-                    return date.toISOString().split('T')[0];
-                }
-            } catch (error) {
-                console.warn('Error parsing date:', value, error);
-            }
-        }
-
-        // Fallback: Try to parse any string that might be a date
-        // This is more aggressive but helps catch edge cases
-        try {
-            const date = new Date(value);
-            // Check if it's a valid date and the original value looks date-like
-            if (!isNaN(date.getTime()) &&
-                (value.includes('GMT') || value.includes('UTC') ||
-                    value.match(/\d{4}/) || value.includes('Jan') || value.includes('Feb') ||
-                    value.includes('Mar') || value.includes('Apr') || value.includes('May') ||
-                    value.includes('Jun') || value.includes('Jul') || value.includes('Aug') ||
-                    value.includes('Sep') || value.includes('Oct') || value.includes('Nov') ||
-                    value.includes('Dec'))) {
-                // Log for debugging
-                console.log('Date detected and converted:', value, '→', date.toISOString().split('T')[0]);
-                return date.toISOString().split('T')[0];
-            }
-        } catch (error) {
-            // Silent fallback - not a date
-        }
-
-        return value; // Return original if not a date or parsing failed
-    }    /**
      * Create receipt cell HTML
      */
     createReceiptCell(expenseId) {
         const receipts = this.receipts.get(expenseId) || [];
+        console.log(`createReceiptCell called for expense ${expenseId}, receipts:`, receipts);
+
+        // Get extracted receipt data from original expense columns (for potential future use)
+        const extractedData = this.extractedReceiptData?.get(expenseId) || {};
 
         let html = '';
 
         // Display existing receipts
         if (receipts.length > 0) {
+            console.log(`Creating HTML for ${receipts.length} receipts`);
             html += '<div class="receipts-container">';
             receipts.forEach((receipt, index) => {
                 // Escape quotes in preview URL for HTML attributes
@@ -3968,6 +3985,10 @@ class EZExpenseApp {
                 return expenseRecord;
             });
 
+            console.log('Data being sent to backend:');
+            console.log('Receipt data sample:', receiptData[0]);
+            console.log('Expense data sample:', expenseData[0]);
+
             // Call the backend matching endpoint
             const response = await fetch('/api/receipts/match_bulk_receipts', {
                 method: 'POST',
@@ -3986,15 +4007,20 @@ class EZExpenseApp {
 
             const result = await response.json();
 
-            if (result.status === 'success') {
-                this.showToast(`Matching completed! Found ${result.matches ? result.matches.length : 0} potential matches.`, 'success');
+            if (result.success) {
+                const matchedExpenseData = result.matched_expense_data || [];
+                const unmatchedReceipts = result.unmatched_receipts || [];
 
-                // Show matching results in a modal or detailed message
-                if (result.matches && result.matches.length > 0) {
-                    this.showMatchingResults(result.matches);
-                } else {
-                    this.showToast('No strong matches found between receipts and expenses.', 'info');
-                }
+                // Calculate number of matched receipts
+                const totalMatchedReceipts = matchedExpenseData.reduce((count, expense) => {
+                    return count + (expense.receipts ? expense.receipts.length : 0);
+                }, 0);
+
+                this.showToast(`Matching completed! Attached ${totalMatchedReceipts} receipts to expenses.`, 'success');
+
+                // Update the expense data with the matched results
+                this.updateExpenseDataWithMatches(matchedExpenseData, unmatchedReceipts);
+
             } else {
                 throw new Error(result.message || 'Matching failed');
             }
@@ -4005,6 +4031,73 @@ class EZExpenseApp {
         } finally {
             this.hideLoading();
         }
+    }
+
+    /**
+     * Update expense data table with matched results from backend
+     */
+    updateExpenseDataWithMatches(matchedExpenseData, unmatchedReceipts) {
+        console.log('updateExpenseDataWithMatches called with:', {
+            matchedExpenseData,
+            unmatchedReceipts
+        });
+
+        // Update this.expenses with the matched expense data
+        this.expenses = matchedExpenseData;
+        console.log('Updated this.expenses:', this.expenses);
+
+        // Clear and rebuild the receipts map based on the matched data
+        this.receipts.clear();
+
+        // Process each expense from the matched data
+        this.expenses.forEach(expense => {
+            console.log('Processing expense:', expense.id, 'receipts:', expense.receipts);
+            if (expense.receipts && expense.receipts.length > 0) {
+                // Convert backend receipt format to frontend format
+                const formattedReceipts = expense.receipts.map(receipt => ({
+                    name: receipt.name,
+                    type: receipt.type || (receipt.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'),
+                    preview: receipt.preview || null,
+                    confidence: 100, // Backend matches are considered high confidence
+                    file: null, // File object not available from backend
+                    filePath: receipt.filePath || receipt.file_path,
+                    filename: receipt.filename || receipt.name,
+                    originalFilename: receipt.originalFilename || receipt.name,
+                    invoiceDetails: receipt.invoiceDetails
+                }));
+
+                console.log('Setting receipts for expense', expense.id, ':', formattedReceipts);
+                this.receipts.set(expense.id, formattedReceipts);
+            }
+        });
+
+        console.log('Final receipts map:', this.receipts);
+
+        // Update bulk receipts with only the unmatched ones
+        this.bulkReceipts = unmatchedReceipts;
+
+        // Refresh the display
+        console.log('Calling displayExpensesTable() after matching...');
+        this.displayExpensesTable();
+        console.log('Calling updateBulkReceiptCell() after matching...');
+        this.updateBulkReceiptCell();
+        console.log('Calling updateStatistics() after matching...');
+        this.updateStatistics();
+
+        // Show success message with details
+        const totalAttachedReceipts = Array.from(this.receipts.values()).reduce((count, receipts) => count + receipts.length, 0);
+        console.log('Final state after matching:');
+        console.log('- this.expenses:', this.expenses);
+        console.log('- this.receipts map:', this.receipts);
+        console.log('- totalAttachedReceipts:', totalAttachedReceipts);
+
+        // Verify each expense has the correct receipts
+        this.expenses.forEach(expense => {
+            const receiptsForExpense = this.receipts.get(expense.id);
+            console.log(`Expense ${expense.id} has ${receiptsForExpense ? receiptsForExpense.length : 0} receipts:`, receiptsForExpense);
+        });
+
+        this.showToast(`Successfully updated expense table! ${totalAttachedReceipts} receipts attached, ${unmatchedReceipts.length} receipts remain unmatched.`, 'success');
     }
 
     /**

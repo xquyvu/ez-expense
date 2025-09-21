@@ -756,6 +756,45 @@ textarea.table-input.non-editable:focus {
     box-sizing: border-box;
 }
 
+/* Extracted receipt data styles */
+.extracted-receipt-data {
+    background: #f0f7ff;
+    border: 1px solid #cce7ff;
+    border-radius: 4px;
+    padding: 0.3rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.7rem;
+}
+
+.extracted-data-header {
+    font-weight: 600;
+    color: #2563eb;
+    margin-bottom: 0.2rem;
+}
+
+.extracted-data-item {
+    margin-bottom: 0.1rem;
+    line-height: 1.2;
+}
+
+.extracted-data-label {
+    font-weight: 500;
+    color: #374151;
+}
+
+.extracted-data-value {
+    color: #6b7280;
+}
+
+.extracted-file-path {
+    color: #059669;
+    font-family: monospace;
+    background: #ecfdf5;
+    padding: 0.1rem 0.2rem;
+    border-radius: 2px;
+    margin-right: 0.2rem;
+}
+
 .receipts-container {
     margin-bottom: 0.5rem;
 }

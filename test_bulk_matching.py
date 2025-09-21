@@ -17,28 +17,30 @@ def test_bulk_receipt_matching():
                 "file_path": "/tmp/test_receipt1.pdf",
                 "type": "pdf",
                 "extract_ai": True,
+                "invoiceDetails": {"Amount": 25.50, "Date": "2025-09-20", "Currency": "USD"},
             },
             {
                 "name": "receipt2.pdf",
                 "file_path": "/tmp/test_receipt2.pdf",
                 "type": "pdf",
                 "extract_ai": False,
+                "invoiceDetails": {"Amount": 42.00, "Date": "2025-09-21", "Currency": "USD"},
             },
         ],
         "expense_data": [
             {
                 "id": "exp1",
-                "amount": 25.50,
-                "date": "2025-09-20",
-                "description": "Office supplies",
-                "category": "Business",
+                "Amount": "25.50 USD",  # Changed to uppercase and proper format
+                "Date": "2025-09-20",  # Changed to uppercase
+                "Description": "Office supplies",  # Changed to uppercase
+                "Category": "Business",  # Changed to uppercase
             },
             {
                 "id": "exp2",
-                "amount": 42.00,
-                "date": "2025-09-21",
-                "description": "Lunch meeting",
-                "category": "Meals",
+                "Amount": "42.00 USD",  # Changed to uppercase and proper format
+                "Date": "2025-09-21",  # Changed to uppercase
+                "Description": "Lunch meeting",  # Changed to uppercase
+                "Category": "Meals",  # Changed to uppercase
             },
         ],
     }

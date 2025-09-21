@@ -29,6 +29,13 @@ def get_playwright_page() -> Page | None:
     return playwright_manager.get_current_page()
 
 
+def split_currency_and_amount(expense_df: pd.DataFrame) -> pd.DataFrame:
+    expense_df[["Amount", "Currency"]] = expense_df["Amount"].str.split(" ", expand=True)
+    expense_df["Amount"] = expense_df["Amount"].astype(float)
+
+    return expense_df
+
+
 def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
     """
     Import expenses from a website and return them as a pandas DataFrame.
