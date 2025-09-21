@@ -3935,6 +3935,152 @@ class EZExpenseApp {
     }
 
     /**
+     * Match bulk receipts with expenses using the backend matching algorithm
+     */
+    async matchReceiptsWithExpenses() {
+        if (this.bulkReceipts.length === 0) {
+            this.showToast('No receipts to match. Please add receipts first.', 'warning');
+            return;
+        }
+
+        if (this.expenses.length === 0) {
+            this.showToast('No expenses to match with. Please add expenses first.', 'warning');
+            return;
+        }
+
+        this.showLoading(`Matching ${this.bulkReceipts.length} receipts with ${this.expenses.length} expenses...`);
+
+        try {
+            // Prepare data for the backend
+            const receiptData = this.bulkReceipts.map(receipt => {
+                // Include ALL fields from receipt using spread operator, excluding file object
+                const { file, ...receiptRecord } = receipt;
+                return receiptRecord;
+            });
+
+            const expenseData = this.expenses.map(expense => {
+                // Include ALL fields from the expense data
+                const expenseRecord = { ...expense };
+
+                // Ensure receipts field is included for matching context
+                expenseRecord.receipts = this.receipts.get(expense.id) || [];
+
+                return expenseRecord;
+            });
+
+            // Call the backend matching endpoint
+            const response = await fetch('/api/receipts/match_bulk_receipts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    bulk_receipts: receiptData,
+                    expense_data: expenseData
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                this.showToast(`Matching completed! Found ${result.matches ? result.matches.length : 0} potential matches.`, 'success');
+
+                // Show matching results in a modal or detailed message
+                if (result.matches && result.matches.length > 0) {
+                    this.showMatchingResults(result.matches);
+                } else {
+                    this.showToast('No strong matches found between receipts and expenses.', 'info');
+                }
+            } else {
+                throw new Error(result.message || 'Matching failed');
+            }
+
+        } catch (error) {
+            console.error('Error matching receipts with expenses:', error);
+            this.showToast('Error matching receipts with expenses: ' + error.message, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Display matching results to the user
+     */
+    showMatchingResults(matches) {
+        let message = `Found ${matches.length} potential matches:\n\n`;
+
+        matches.forEach((match, index) => {
+            message += `${index + 1}. Receipt: "${match.receipt.name}" ➔ Expense: "${match.expense.description}" (Score: ${(match.score * 100).toFixed(1)}%)\n`;
+            if (match.receipt.invoiceDetails) {
+                message += `   Amount: ${match.receipt.invoiceDetails.amount || 'N/A'} | Date: ${match.receipt.invoiceDetails.date || 'N/A'}\n`;
+            }
+            message += '\n';
+        });
+
+        message += 'Would you like to apply these matches automatically?';
+
+        if (confirm(message)) {
+            this.applyMatches(matches);
+        }
+    }
+
+    /**
+     * Apply the matched receipts to their corresponding expenses
+     */
+    async applyMatches(matches) {
+        let appliedCount = 0;
+
+        for (const match of matches) {
+            try {
+                // Find the expense in our current data
+                const expenseIndex = this.expenses.findIndex(exp => exp.id === match.expense.id);
+                if (expenseIndex === -1) continue;
+
+                // Find the receipt in our bulk receipts
+                const receiptIndex = this.bulkReceipts.findIndex(receipt => receipt.name === match.receipt.name);
+                if (receiptIndex === -1) continue;
+
+                const expense = this.expenses[expenseIndex];
+                const receipt = this.bulkReceipts[receiptIndex];
+
+                // Initialize receipts array if not exists
+                if (!expense.receipts) {
+                    expense.receipts = [];
+                }
+
+                // Add receipt to expense (avoid duplicates)
+                const existingReceipt = expense.receipts.find(r => r.name === receipt.name);
+                if (!existingReceipt) {
+                    expense.receipts.push({
+                        name: receipt.name,
+                        file_path: receipt.file_path,
+                        preview: receipt.preview,
+                        type: receipt.type,
+                        confidence: match.score
+                    });
+
+                    // Remove from bulk receipts
+                    this.bulkReceipts.splice(receiptIndex, 1);
+                    appliedCount++;
+                }
+
+            } catch (error) {
+                console.error('Error applying match:', error);
+            }
+        }
+
+        // Update the display
+        this.updateBulkReceiptCell();
+        this.updateTable();
+
+        this.showToast(`Successfully applied ${appliedCount} matches!`, 'success');
+    }
+
+    /**
      * Update bulk receipt cell display (follows same pattern as createReceiptCell)
      */
     updateBulkReceiptCell() {
@@ -4015,6 +4161,10 @@ class EZExpenseApp {
         html += `
             <button onclick="app.selectBulkReceipts()" class="attach-receipt-btn">
                 <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Add More Receipts' : 'Attach Receipts'}
+            </button>
+            <button onclick="app.matchReceiptsWithExpenses()" class="match-receipts-btn"
+                    ${receipts.length === 0 ? 'disabled' : ''}>
+                <i class="fas fa-link"></i> Match receipts with expenses
             </button>
             <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
                    onchange="app.handleBulkReceiptSelection(this.files)">

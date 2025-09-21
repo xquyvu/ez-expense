@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 # Add parent directory to path for importing the invoice extractor
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from expense_matcher import match_receipts_with_expenses
 from invoice_extractor import extract_invoice_details
 
 # Create blueprint
@@ -559,3 +560,76 @@ def extract_invoice_details_endpoint():
     except Exception as e:
         logger.error(f"Error extracting invoice details: {e}")
         return jsonify({"error": "Extraction failed", "message": str(e)}), 500
+
+
+@receipt_bp.route("/match_bulk_receipts", methods=["POST"])
+def match_bulk_receipts():
+    """
+    Match bulk receipts with expense data using the receipt_match_score function.
+
+    Expected JSON data:
+    - bulk_receipts: Array of bulk receipt objects with file paths and extracted invoice details
+    - expense_data: Array of expense data objects from the expense table
+
+    Returns:
+    - JSON response with matching results and scores
+    """
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Invalid request", "message": "Request must be JSON"}), 400
+
+        data = request.get_json()
+
+        # Validate required fields
+        if not all(key in data for key in ["bulk_receipts", "expense_data"]):
+            return jsonify(
+                {
+                    "error": "Missing required fields",
+                    "message": "bulk_receipts and expense_data are required",
+                }
+            ), 400
+
+        bulk_receipts = data["bulk_receipts"]
+        expense_data = data["expense_data"]
+
+        # Validate input types
+        if not isinstance(bulk_receipts, list) or not isinstance(expense_data, list):
+            return jsonify(
+                {
+                    "error": "Invalid data format",
+                    "message": "bulk_receipts and expense_data must be arrays",
+                }
+            ), 400
+
+        # Log the data being passed to the matching function
+        logger.info(
+            f"Processing {len(bulk_receipts)} bulk receipts and {len(expense_data)} expenses"
+        )
+
+        # Call the receipt_match_score function with the gathered data
+        try:
+            matched_expense_data, unmatched_receipts = match_receipts_with_expenses(
+                bulk_receipts, expense_data
+            )
+
+            num_matched_receipts = len(bulk_receipts) - len(unmatched_receipts)
+            logger.info(f"Receipt matching completed with {num_matched_receipts} matches found")
+        except Exception as e:
+            logger.error(f"Error in receipt_match_score function: {e}")
+            return jsonify(
+                {"error": "Matching failed", "message": "Error during matching process"}
+            ), 500
+
+        # Prepare response
+        response_data = {
+            "success": True,
+            "message": "Bulk receipt matching completed successfully",
+            "unmatched_receipts": unmatched_receipts,
+            "matched_expense_data": matched_expense_data,
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        logger.error(f"Error in bulk receipt matching: {e}")
+        return jsonify({"error": "Matching failed", "message": str(e)}), 500
