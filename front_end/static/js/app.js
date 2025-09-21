@@ -1752,7 +1752,11 @@ class EZExpenseApp {
 
         // Hide no expenses message and show bulk receipts section when we have expenses
         if (noExpensesMessage) noExpensesMessage.style.display = 'none';
-        if (bulkReceiptsSection) bulkReceiptsSection.style.display = 'block';
+        if (bulkReceiptsSection) {
+            bulkReceiptsSection.style.display = 'block';
+            // Initialize the bulk receipt action buttons
+            this.updateBulkReceiptActions();
+        }
 
         // Show the table container
         const tableContainer = document.querySelector('.table-container');
@@ -4379,15 +4383,8 @@ class EZExpenseApp {
             html += '</div>';
         }
 
-        // Always show the attach receipt button (same as receipts column)
+        // Show the file input but hidden
         html += `
-            <button onclick="app.selectBulkReceipts()" class="attach-receipt-btn">
-                <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Add More Receipts' : 'Attach Receipts'}
-            </button>
-            <button onclick="app.matchReceiptsWithExpenses()" class="match-receipts-btn"
-                    ${receipts.length === 0 ? 'disabled' : ''}>
-                <i class="fas fa-link"></i> Match receipts with expenses
-            </button>
             <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
                    onchange="app.handleBulkReceiptSelection(this.files)">
         `;
@@ -4402,6 +4399,38 @@ class EZExpenseApp {
         }
 
         cell.innerHTML = html;
+
+        // Update the action buttons in the header
+        this.updateBulkReceiptActions();
+    }
+
+    /**
+     * Update the bulk receipt action buttons in the header
+     */
+    updateBulkReceiptActions() {
+        const actionsContainer = document.getElementById('bulk-receipt-actions');
+        if (!actionsContainer) return;
+
+        const receipts = this.bulkReceipts;
+        let html = '';
+
+        // Always show the attach receipt button
+        html += `
+            <button onclick="app.selectBulkReceipts()" class="btn btn-primary btn-sm">
+                <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Add More Receipts' : 'Attach Receipts'}
+            </button>
+        `;
+
+        // Show match button when there are receipts
+        if (receipts.length > 0) {
+            html += `
+                <button onclick="app.matchReceiptsWithExpenses()" class="btn btn-success btn-sm">
+                    <i class="fas fa-link"></i> Match receipts with expenses
+                </button>
+            `;
+        }
+
+        actionsContainer.innerHTML = html;
     }
 
     /**
