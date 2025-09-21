@@ -3513,6 +3513,12 @@ class EZExpenseApp {
         // Remove visual feedback
         event.target.classList.remove('being-dragged');
 
+        // Reset any inline opacity styles for backward compatibility
+        const receiptPreview = event.target.closest('.receipt-preview');
+        if (receiptPreview) {
+            receiptPreview.style.opacity = '';
+        }
+
         // Remove any remaining drag-over classes
         document.querySelectorAll('.drag-over, .receipt-drag-over, .file-drag-over').forEach(el => {
             el.classList.remove('drag-over', 'receipt-drag-over', 'file-drag-over');
@@ -4418,8 +4424,8 @@ class EZExpenseApp {
         event.dataTransfer.setData('application/x-receipt-data', JSON.stringify(dragData));
         event.dataTransfer.effectAllowed = 'move';
 
-        // Add visual feedback
-        event.target.closest('.receipt-preview').style.opacity = '0.5';
+        // Add visual feedback using CSS class (consistent with handleReceiptDragStart)
+        event.target.closest('.receipt-preview').classList.add('being-dragged');
     }
 
     /**

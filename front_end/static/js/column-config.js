@@ -10,7 +10,6 @@ const COLUMN_CONFIG = {
     // Column display name mapping - maps internal column names to display names
     displayNames: {
         'Additional information': 'Expense Description',
-        'Receipts attached': 'Receipts attached on My Expense'
         // Add more mappings here as needed
     },
 

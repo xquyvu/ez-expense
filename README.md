@@ -14,4 +14,4 @@
 
 ### Low priority
 
-- When receipts are dragged inside the bulk upload area, they are grey out
+- [x] When receipts are dragged inside the bulk upload area, they are grey out
