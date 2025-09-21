@@ -36,6 +36,41 @@ def split_currency_and_amount(expense_df: pd.DataFrame) -> pd.DataFrame:
     return expense_df
 
 
+def postprocess_expense_data(expense_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Post-process the imported expense data to ensure it matches the expected format.
+
+    Args:
+        expense_df: DataFrame containing the raw imported expense data
+
+    Returns:
+        DataFrame containing the post-processed expense data
+    """
+    expense_df = expense_df.replace({np.nan: None})
+    expense_df["Date"] = expense_df["Date"].dt.date.astype(str)
+
+    expense_df = split_currency_and_amount(expense_df)
+
+    columns_to_prioritise = [
+        "Additional information",
+        "Amount",
+        "Currency",
+        "Date",
+        "Expense category",
+        "Merchant",
+        "Receipts attached",
+        "Payment method",
+        "Created ID",
+    ]
+
+    expense_df = expense_df[
+        columns_to_prioritise
+        + [col for col in expense_df.columns if col not in columns_to_prioritise]
+    ]
+
+    return expense_df
+
+
 def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
     """
     Import expenses from a website and return them as a pandas DataFrame.
@@ -43,10 +78,7 @@ def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
     # Logic to interact with the website and fetch expenses
     # This is a placeholder for the actual implementation
     expense_df = pd.read_excel("./tests/test_data/test_expense_report.xlsx")
-    expense_df.replace({np.nan: None}, inplace=True)
-    expense_df["Date"] = expense_df["Date"].dt.date.astype(str)
-
-    expense_df = split_currency_and_amount(expense_df)
+    expense_df = postprocess_expense_data(expense_df)
 
     # No need to save to file since we return the DataFrame
     # The calling code can decide what to do with the data
@@ -113,10 +145,7 @@ def import_expense_my_expense(page: Page, save_path: Path | None = None) -> pd.D
         page.click('button[name="DownloadButton"]')
 
     existing_expenses = pd.read_excel(download_info.value.url)
-    existing_expenses.replace({np.nan: None}, inplace=True)
-    existing_expenses["Date"] = existing_expenses["Date"].dt.date.astype(str)
-
-    existing_expenses = split_currency_and_amount(existing_expenses)
+    existing_expenses = postprocess_expense_data(existing_expenses)
 
     if save_path:
         existing_expenses.to_csv(save_path, index=False)
