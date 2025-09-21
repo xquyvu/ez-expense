@@ -2017,10 +2017,6 @@ class EZExpenseApp {
                                     <span class="detail-label">Date:</span>
                                     <span class="detail-value">${receipt.invoiceDetails.Date}</span>
                                 </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Category:</span>
-                                    <span class="detail-value">${receipt.invoiceDetails['Expense category']}</span>
-                                </div>
                             </div>
                         </div>
                         ` : ''}
