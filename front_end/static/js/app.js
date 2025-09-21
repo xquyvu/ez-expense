@@ -1620,6 +1620,43 @@ class EZExpenseApp {
     }
 
     /**
+     * Sort columns according to the expected priority order from the backend
+     */
+    sortColumnsByPriority(columns) {
+        // Define the expected column priority order (matching expense_importer.py)
+        const priorityOrder = [
+            'Additional information',
+            'Amount',
+            'Currency',
+            'Date',
+            'Expense category',
+            'Merchant',
+            'Receipts attached',
+            'Payment method',
+            'Created ID'
+        ];
+
+        const prioritized = [];
+        const remaining = [];
+
+        // First, add columns in priority order if they exist
+        priorityOrder.forEach(priorityCol => {
+            if (columns.includes(priorityCol)) {
+                prioritized.push(priorityCol);
+            }
+        });
+
+        // Then add any remaining columns that weren't in the priority list
+        columns.forEach(col => {
+            if (!priorityOrder.includes(col)) {
+                remaining.push(col);
+            }
+        });
+
+        return [...prioritized, ...remaining];
+    }
+
+    /**
      * Parse CSV content into expense objects
      */
     parseCSV(csvText) {
@@ -1722,19 +1759,27 @@ class EZExpenseApp {
         if (tableContainer) tableContainer.style.display = 'block';
 
         // Get all unique keys from expenses
-        const allKeys = new Set();
+        const allKeys = [];
+        const keySet = new Set();
+
+        // Collect all unique keys from all expenses
         this.expenses.forEach(expense => {
             Object.keys(expense).forEach(key => {
-                if (key !== 'id') allKeys.add(key);
+                if (key !== 'id' && !keySet.has(key)) {
+                    allKeys.push(key);
+                    keySet.add(key);
+                }
             });
         });
 
-        // Detect receipt-related columns
-        const receiptDetection = this.detectReceiptColumns(Array.from(allKeys));
+        // Sort columns according to priority order
+        const sortedKeys = this.sortColumnsByPriority(allKeys);
+        console.log('Final sorted column order:', sortedKeys);        // Detect receipt-related columns
+        const receiptDetection = this.detectReceiptColumns(sortedKeys);
         console.log('Receipt detection result:', receiptDetection);
 
         // Filter out receipt-related columns from regular display
-        const regularKeys = Array.from(allKeys).filter(key =>
+        const regularKeys = sortedKeys.filter(key =>
             !receiptDetection.receiptColumns.includes(key)
         );
 

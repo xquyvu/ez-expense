@@ -51,23 +51,6 @@ def postprocess_expense_data(expense_df: pd.DataFrame) -> pd.DataFrame:
 
     expense_df = split_currency_and_amount(expense_df)
 
-    columns_to_prioritise = [
-        "Additional information",
-        "Amount",
-        "Currency",
-        "Date",
-        "Expense category",
-        "Merchant",
-        "Receipts attached",
-        "Payment method",
-        "Created ID",
-    ]
-
-    expense_df = expense_df[
-        columns_to_prioritise
-        + [col for col in expense_df.columns if col not in columns_to_prioritise]
-    ]
-
     return expense_df
 
 
