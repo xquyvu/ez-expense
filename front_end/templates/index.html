@@ -27,8 +27,18 @@
                     <h2><i class="fas fa-download"></i> Step 1: Import Expenses</h2>
                     <p>Get your expense data from your expense system</p>
                 </div>
+                <div style="margin-bottom: 1rem; padding: 1rem; border-left: 4px solid #2196F3; background-color: #f8f9fa;">
+                    <p style="color: #000; margin: 0; font-weight: 500;">Please navigate to an existing expense report in My Expense before
+                        proceeding.</p>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="navigation-checkbox" style="cursor: pointer;">
+                        <span>I have navigated to the expense report I want to fill</span>
+                    </label>
+                </div>
                 <div class="action-buttons">
-                    <button id="import-from-website-btn" class="btn btn-primary">
+                    <button id="import-from-website-btn" class="btn btn-primary" style="display: none;">
                         <i class="fas fa-building"></i> Import from My Expense
                     </button>
                 </div>

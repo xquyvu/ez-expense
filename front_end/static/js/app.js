@@ -830,6 +830,16 @@ class EZExpenseApp {
             this.importFromWebsite();
         });
 
+        // Navigation checkbox event
+        document.getElementById('navigation-checkbox').addEventListener('change', (e) => {
+            const importBtn = document.getElementById('import-from-website-btn');
+            if (e.target.checked) {
+                importBtn.style.display = 'inline-flex';
+            } else {
+                importBtn.style.display = 'none';
+            }
+        });
+
         // Table management events
         document.getElementById('add-row-btn').addEventListener('click', () => {
             this.addNewRow();

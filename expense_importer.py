@@ -69,6 +69,10 @@ def import_expense_mock(page: Page | None = None) -> pd.DataFrame:
 
 
 def import_expense_my_expense(page: Page, save_path: Path | None = None) -> pd.DataFrame:
+    # Find the "New expense report button"
+    if not page.query_selector('*[data-dyn-controlname="NewExpenseButton"]'):
+        raise ValueError("Please make sure you have navigated to an existing expense report")
+
     # region: Open the column selection dialog
     page.get_by_role("button", name="Grid options").click()
     page.get_by_text("Insert columns...").click()
