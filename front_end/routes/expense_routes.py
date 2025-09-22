@@ -2,7 +2,6 @@
 Expense-related API routes for the Flask application.
 """
 
-import csv
 import io
 import logging
 import os
@@ -286,81 +285,6 @@ def health_check():
 def allowed_file(filename: str, allowed_extensions: set) -> bool:
     """Check if the uploaded file has an allowed extension."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_extensions
-
-
-@expense_bp.route("/upload-csv", methods=["POST"])
-def upload_csv():
-    """
-    Upload and parse CSV file containing expense data.
-
-    Expected form data:
-    - file: CSV file containing expense data
-
-    Returns:
-    - JSON response with parsed expense data
-    """
-    try:
-        # Check if file is present in request
-        if "file" not in request.files:
-            return jsonify(
-                {"error": "No file provided", "message": "Please select a CSV file"}
-            ), 400
-
-        file = request.files["file"]
-
-        # Check if file was actually selected
-        if file.filename == "":
-            return jsonify(
-                {"error": "No file selected", "message": "Please select a CSV file"}
-            ), 400
-
-        # Check file extension
-        if not allowed_file(file.filename, {"csv"}):
-            return jsonify(
-                {"error": "Invalid file type", "message": "Only CSV files are allowed"}
-            ), 400
-
-        # Read and parse CSV file
-        csv_content = file.read().decode("utf-8")
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
-
-        expenses = []
-        for i, row in enumerate(csv_reader):
-            expense = dict(row)
-            # Add ID if not present
-            if "id" not in expense:
-                expense["id"] = i + 1
-            expenses.append(expense)
-
-        if not expenses:
-            return jsonify({"error": "Empty file", "message": "CSV file contains no data"}), 400
-
-        logger.info(f"Successfully parsed CSV with {len(expenses)} expenses")
-
-        return jsonify(
-            {
-                "success": True,
-                "message": f"Successfully uploaded and parsed {len(expenses)} expenses from CSV",
-                "data": expenses,
-                "count": len(expenses),
-                "columns": list(expenses[0].keys()) if expenses else [],
-            }
-        )
-
-    except UnicodeDecodeError:
-        return jsonify(
-            {
-                "error": "File encoding error",
-                "message": "Could not read CSV file. Please ensure it's UTF-8 encoded",
-            }
-        ), 400
-    except csv.Error as e:
-        return jsonify(
-            {"error": "CSV parsing error", "message": f"Could not parse CSV file: {str(e)}"}
-        ), 400
-    except Exception as e:
-        logger.error(f"Error uploading CSV: {e}")
-        return jsonify({"error": "Upload failed", "message": str(e)}), 500
 
 
 @expense_bp.route("/upload-receipt", methods=["POST"])

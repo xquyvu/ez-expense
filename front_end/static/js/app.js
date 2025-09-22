@@ -831,14 +831,6 @@ class EZExpenseApp {
             this.importFromWebsite();
         });
 
-        document.getElementById('upload-csv-btn').addEventListener('click', () => {
-            document.getElementById('csv-file-input').click();
-        });
-
-        document.getElementById('csv-file-input').addEventListener('change', (e) => {
-            this.handleCSVUpload(e.target.files[0]);
-        });
-
         // Table management events
         document.getElementById('add-row-btn').addEventListener('click', () => {
             this.addNewRow();
@@ -1657,38 +1649,6 @@ class EZExpenseApp {
     }
 
     /**
-     * Handle CSV file upload
-     */
-    async handleCSVUpload(file) {
-        if (!file || !file.name.toLowerCase().endsWith('.csv')) {
-            this.showToast('Please select a valid CSV file', 'error');
-            return;
-        }
-
-        this.showLoading('Processing CSV file...');
-
-        try {
-            const csvText = await this.readFileAsText(file);
-            const expenses = this.parseCSV(csvText);
-
-            if (expenses.length === 0) {
-                throw new Error('No valid expense data found in CSV');
-            }
-
-            this.expenses = expenses;
-            this.displayExpensesTable();
-            this.showToast(`Loaded ${expenses.length} expenses from CSV`, 'success');
-            this.showStep(2);
-
-        } catch (error) {
-            console.error('Error processing CSV:', error);
-            this.showToast('Failed to process CSV file: ' + error.message, 'error');
-        } finally {
-            this.hideLoading();
-        }
-    }
-
-    /**
      * Sort columns according to the expected priority order from the backend
      */
     sortColumnsByPriority(columns) {
@@ -1723,32 +1683,6 @@ class EZExpenseApp {
         });
 
         return [...prioritized, ...remaining];
-    }
-
-    /**
-     * Parse CSV content into expense objects
-     */
-    parseCSV(csvText) {
-        const lines = csvText.trim().split('\n');
-        if (lines.length < 2) {
-            throw new Error('CSV file must have at least a header row and one data row');
-        }
-
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        const expenses = [];
-
-        for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-            if (values.length !== headers.length) continue;
-
-            const expense = { id: i };
-            headers.forEach((header, index) => {
-                expense[header] = values[index];
-            });
-            expenses.push(expense);
-        }
-
-        return expenses;
     }
 
     /**
@@ -4780,18 +4714,6 @@ class EZExpenseApp {
     }
 
     // ===== END DUPLICATE DETECTION FUNCTIONALITY =====
-
-    /**
-     * Read file as text
-     */
-    readFileAsText(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsText(file);
-        });
-    }
 
     /**
      * Utility function to create delay

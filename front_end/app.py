@@ -3,7 +3,6 @@ Flask web application for invoice and receipt management.
 
 This application provides a web interface for:
 - Importing expenses from external sources
-- Uploading and managing CSV expense data
 - Matching receipts to expenses
 - Exporting finalized expense data
 """
