@@ -830,6 +830,11 @@ class EZExpenseApp {
             this.importFromWebsite();
         });
 
+        // Bring page to front event
+        document.getElementById('bring-to-front-btn').addEventListener('click', () => {
+            this.bringPageToFront();
+        });
+
         // Navigation checkbox event
         document.getElementById('navigation-checkbox').addEventListener('change', (e) => {
             const importBtn = document.getElementById('import-from-website-btn');
@@ -1649,6 +1654,34 @@ class EZExpenseApp {
             this.showToast('Failed to import expenses from My Expense: ' + error.message, 'error');
         } finally {
             this.hideLoading();
+        }
+    }
+
+    /**
+     * Bring the My Expense page to the front of the browser
+     */
+    async bringPageToFront() {
+        try {
+            console.log('Bringing My Expense page to front...');
+            const response = await fetch('/api/expenses/bring-page-to-front', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                console.log('Successfully brought page to front');
+                this.showToast('My Expense page brought to front', 'success');
+            } else {
+                throw new Error(data.error || 'Failed to bring page to front');
+            }
+
+        } catch (error) {
+            console.error('Error bringing page to front:', error);
+            this.showToast('Failed to bring page to front: ' + error.message, 'error');
         }
     }
 

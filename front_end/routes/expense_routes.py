@@ -23,12 +23,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 try:
     from expense_importer import (
-        get_playwright_page,
+        get_expense_page,
         import_expense_wrapper,
     )
 except ImportError as e:
     logging.error(f"Could not import expense_importer: {e}")
-    get_playwright_page = None
+    get_expense_page = None
     import_expense_wrapper = None
 
 try:
@@ -157,7 +157,7 @@ def _import_real_data():
     except RuntimeError as e:
         # Handle browser connection errors specifically
         error_msg = str(e)
-        if "Playwright page not available" in error_msg:
+        if "Expense page not available" in error_msg:
             return jsonify(
                 {
                     "error": "Browser session required",
@@ -239,7 +239,7 @@ def health_check():
     """
     try:
         # Check browser availability
-        browser_available = get_playwright_page() is not None if get_playwright_page else False
+        browser_available = get_expense_page() is not None if get_expense_page else False
 
         # Check if import functions are available
         import_functions_available = import_expense_wrapper is not None
@@ -1185,3 +1185,42 @@ def create_expenses_from_receipts():
     except Exception as e:
         logger.error(f"Error creating expenses from receipts: {e}")
         return jsonify({"error": "Failed to create expenses", "message": str(e)}), 500
+
+
+@expense_bp.route("/bring-page-to-front", methods=["POST"])
+def bring_page_to_front():
+    """
+    Bring the My Expense page to the front of the browser.
+
+    Returns:
+    - JSON response indicating success or failure
+    """
+    try:
+        logger.info("Attempting to bring My Expense page to front")
+
+        # Get the current expense page
+        if not get_expense_page:
+            logger.error("Expense page getter not available")
+            return jsonify({"success": False, "error": "Browser control not available"}), 503
+
+        page = get_expense_page()
+        if page is None:
+            logger.error("No active browser page found")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No active browser session found. Please ensure the browser is connected.",
+                }
+            ), 503
+
+        # Bring the page to front
+        page.bring_to_front()
+        logger.info("Successfully brought page to front")
+
+        return jsonify({"success": True, "message": "Page brought to front successfully"})
+
+    except Exception as e:
+        logger.error(f"Error bringing page to front: {e}")
+        return jsonify(
+            {"success": False, "error": "Failed to bring page to front", "message": str(e)}
+        ), 500

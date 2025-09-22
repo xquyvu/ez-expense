@@ -11,20 +11,19 @@ from config import DEBUG
 load_dotenv()
 
 
-def set_playwright_page(page: Page | None = None) -> None:
+def set_expense_page(page: Page | None = None) -> None:
     """
-    Set the global Playwright page instance for use by the expense importer.
+    Set the global Expense page instance for use by the expense importer.
 
     Args:
         page: The page instance to set
-        playwright_instance: Legacy parameter, ignored (playwright_manager handles this)
     """
     # All page management is now handled by playwright_manager
     playwright_manager.set_current_page(page)
 
 
-def get_playwright_page() -> Page | None:
-    """Get the global Playwright page instance."""
+def get_expense_page() -> Page | None:
+    """Get the global Expense page instance."""
     # All page management is now handled by playwright_manager
     return playwright_manager.get_current_page()
 
@@ -146,16 +145,16 @@ def import_expense_wrapper(page: Page | None = None, save_path: Path | None = No
     """
     Wrapper function that handles both DEBUG and non-DEBUG modes.
     In DEBUG mode, it uses the mock function.
-    In non-DEBUG mode, it uses the real implementation with the Playwright page.
+    In non-DEBUG mode, it uses the real implementation with the Expense page.
     """
     if DEBUG:
         return import_expense_mock(page)
 
     # Use the provided page or get from the shared playwright manager
-    playwright_page = page if page is not None else get_playwright_page()
+    expense_page = page if page is not None else get_expense_page()
 
-    if playwright_page is None:
+    if expense_page is None:
         raise RuntimeError(
-            "Playwright page not available. Make sure the browser session is initialized."
+            "Expense page not available. Make sure the browser session is initialized."
         )
-    return import_expense_my_expense(playwright_page, save_path)
+    return import_expense_my_expense(expense_page, save_path)
