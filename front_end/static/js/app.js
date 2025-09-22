@@ -997,6 +997,44 @@ class EZExpenseApp {
     }
 
     /**
+     * Validate that a value is numeric (not empty and is a valid number)
+     */
+    validateAmount(value) {
+        // Handle null/undefined values
+        if (value === null || value === undefined) {
+            return false;
+        }
+
+        // Convert to string and trim
+        const valueStr = String(value).trim();
+
+        // Empty string is invalid
+        if (valueStr === '') {
+            return false;
+        }
+
+        // Check if it's a valid number
+        const num = parseFloat(valueStr);
+        return !isNaN(num) && isFinite(num);
+    }
+
+    /**
+     * Validate that a value is not empty
+     */
+    validateNotEmpty(value) {
+        // Handle null/undefined values
+        if (value === null || value === undefined) {
+            return false;
+        }
+
+        // Convert to string and trim
+        const valueStr = String(value).trim();
+
+        // Check if it's not empty
+        return valueStr !== '';
+    }
+
+    /**
      * Validate an input field and apply visual feedback
      */
     validateField(input, columnName, value) {
@@ -1029,6 +1067,21 @@ class EZExpenseApp {
             normalizedColumnName.includes('expense category')) {
             hasValidation = true;
             isValid = this.validateExpenseCategory(value);
+        }
+        // Check for Amount column (multiple possible variations)
+        else if (normalizedColumnName === 'amount') {
+            hasValidation = true;
+            isValid = this.validateAmount(value);
+        }
+        // Check for Merchant column (multiple possible variations)
+        else if (normalizedColumnName === 'merchant') {
+            hasValidation = true;
+            isValid = this.validateNotEmpty(value);
+        }
+        // Check for Additional information column (multiple possible variations)
+        else if (normalizedColumnName === 'additional information') {
+            hasValidation = true;
+            isValid = this.validateNotEmpty(value);
         }
 
         // Apply visual feedback to both input and cell - only for columns with validation
