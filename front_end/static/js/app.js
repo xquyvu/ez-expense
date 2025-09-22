@@ -855,6 +855,11 @@ class EZExpenseApp {
             this.showValidationSummary();
         });
 
+        // Fill expense report button
+        document.getElementById('fill-expense-report-btn').addEventListener('click', () => {
+            this.fillExpenseReport();
+        });
+
         // Receipts import events
         this.initBulkReceiptsImport();
 
@@ -1331,6 +1336,73 @@ class EZExpenseApp {
         }
 
         this.showToast(errorMessage, 'warning');
+    }
+
+    /**
+     * Fill expense report by sending current expense data to the backend
+     */
+    async fillExpenseReport() {
+        console.log('Filling expense report...');
+
+        if (!this.expenses || this.expenses.length === 0) {
+            this.showToast('No expense data to fill. Please import expenses first.', 'warning');
+            return;
+        }
+
+        try {
+            // Show loading state
+            this.showLoading('Filling expense report...');
+
+            // Update expenses from table to get latest data
+            this.updateExpensesFromTable();
+
+            // Prepare expense data with receipts attached to each expense line
+            const expensesWithReceipts = this.expenses.map(expense => {
+                // Get receipts for this expense
+                const expenseReceipts = this.receipts.get(expense.id) || [];
+
+                // Create a copy of the expense and add the receipts
+                return {
+                    ...expense,
+                    Receipts: expenseReceipts
+                };
+            });
+
+            // Prepare the expense data to send
+            const expenseData = {
+                expenses: expensesWithReceipts,
+                timestamp: new Date().toISOString()
+            };
+
+            // Send data to the fill-expense-report route
+            const response = await fetch('/api/expenses/fill-expense-report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(expenseData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            this.hideLoading();
+
+            if (result.success) {
+                this.showToast('Expense report filled successfully!', 'success');
+                console.log('Fill expense report result:', result);
+            } else {
+                this.showToast(`Failed to fill expense report: ${result.message || 'Unknown error'}`, 'error');
+            }
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('Error filling expense report:', error);
+            this.showToast(`Error filling expense report: ${error.message}`, 'error');
+        }
     }
 
     /**

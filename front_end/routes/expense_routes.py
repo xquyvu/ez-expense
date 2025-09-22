@@ -659,3 +659,162 @@ def bring_page_to_front():
         return jsonify(
             {"success": False, "error": "Failed to bring page to front", "message": str(e)}
         ), 500
+
+
+@expense_bp.route("/fill-expense-report", methods=["POST"])
+def fill_expense_report():
+    """
+    Fill expense report with the provided expense data.
+
+    Accepts JSON data containing:
+    - expenses: List of expense records
+    - timestamp: Timestamp of when the request was made
+
+    Returns:
+    - JSON response indicating success or failure
+    """
+    try:
+        logger.info("Starting fill expense report process")
+
+        # Get the JSON data from the request
+        data = request.get_json()
+        if not data:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No data provided",
+                    "message": "Request body must contain JSON data",
+                }
+            ), 400
+
+        # Extract expense data
+        expenses = data.get("expenses", [])
+        timestamp = data.get("timestamp")
+
+        if not expenses:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No expenses provided",
+                    "message": "The expenses array cannot be empty",
+                }
+            ), 400
+
+        # Count expenses with receipts (now attached directly to each expense)
+        total_expenses = len(expenses)
+        num_expenses_with_receipts = len(
+            [
+                expense
+                for expense in expenses
+                if expense.get("Receipts") and len(expense["Receipts"]) > 0
+            ]
+        )
+
+        logger.info(f"Processing {total_expenses} expenses")
+        logger.info(f"Expenses with attached receipts: {num_expenses_with_receipts}")
+
+        existing_expenses_to_update = [expense for expense in expenses if expense.get("Created ID")]
+        new_expenses_to_create = [expense for expense in expenses if not expense.get("Created ID")]
+
+        page = get_expense_page()
+        expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
+
+        expense_line_mapping = {
+            expense_line.get_attribute("value"): expense_line for expense_line in expense_lines
+        }
+
+        # Update existing expenses in MyExpense with receipts
+        for expense in existing_expenses_to_update:
+            expense_created_id = expense["Created ID"]
+
+            attached_receipts = expense.get("Receipts", [])
+            logger.info(f"Expense {expense_created_id}: {len(attached_receipts)} receipts attached")
+
+            # Select the expense line
+            expense_line = expense_line_mapping[expense_created_id]
+            expense_line.dispatch_event("click")
+
+            for expense in existing_expenses_to_update:
+                attached_receipts = expense.get("Receipts", [])
+
+            # Log receipt details
+            for _, receipt in enumerate(attached_receipts):
+                receipt_file_path = receipt["filePath"]
+                page.click('a[name="EditReceipts"]')
+                page.click('button[name="AddButton"]')
+
+                # Upload receipt
+                with page.expect_file_chooser() as file_chooser_info:
+                    page.click('button[name="UploadControlBrowseButton"]')
+
+                file_chooser = file_chooser_info.value
+                file_chooser.set_files(receipt_file_path)
+
+                page.click('button[name="UploadControlUploadButton"]')
+                page.click('button[name="OkButtonAddNewTabPage"]')
+                page.click('button[name="CloseButton"]')
+
+                page.get_by_text("Save and continue", exact=True).click()
+
+        logger.info(f"Total expenses: {total_expenses}")
+        logger.info(f"Expenses with receipts: {num_expenses_with_receipts}")
+
+        # Create new expenses and attach receipts to them
+        for expense in new_expenses_to_create:
+            page.click('button[name="NewExpenseButton"]')
+
+            page.fill('input[name="CategoryInput"]', expense["Expense category"])
+            page.fill('input[name="AmountInput"]', expense["Amount"])
+            page.fill('input[name="CurrencyInput"]', expense["Currency"])
+            page.fill('input[name="MerchantInputNoLookup"]', expense["Merchant"])
+            page.fill(
+                'input[name="DateInput"]',
+                datetime.strptime(expense["Date"], "%Y-%m-%d").strftime("%-m/%-d/%Y"),
+            )
+            page.fill('textarea[name="NotesInput"]', expense["Additional information"])
+
+            page.click('button[name="SaveButton"]')
+            page.wait_for_timeout(3000)
+
+            for receipt in expense["Receipts"]:
+                receipt_file_path = receipt["filePath"]
+                page.click('a[name="EditReceipts"]')
+                page.click('button[name="AddButton"]')
+
+                # Upload receipt
+                with page.expect_file_chooser() as file_chooser_info:
+                    page.click('button[name="UploadControlBrowseButton"]')
+
+                file_chooser = file_chooser_info.value
+                file_chooser.set_files(receipt_file_path)
+
+                page.click('button[name="UploadControlUploadButton"]')
+                page.click('button[name="OkButtonAddNewTabPage"]')
+                page.wait_for_timeout(1000)
+                page.get_by_text("Close", exact=True).click()
+
+                page.get_by_text("Save and continue", exact=True).click()
+
+        result_message = f"Successfully processed {total_expenses} expenses"
+        if num_expenses_with_receipts > 0:
+            result_message += f" ({num_expenses_with_receipts} with receipts)"
+
+        logger.info("Fill expense report completed successfully")
+
+        return jsonify(
+            {
+                "success": True,
+                "message": result_message,
+                "data": {
+                    "total_expenses": total_expenses,
+                    "expenses_with_receipts": num_expenses_with_receipts,
+                    "timestamp": timestamp,
+                },
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error filling expense report: {e}")
+        return jsonify(
+            {"success": False, "error": "Failed to fill expense report", "message": str(e)}
+        ), 500
