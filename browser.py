@@ -59,6 +59,11 @@ class BrowserProcess:
 
         if result.stdout.strip():
             logger.info(f"Found existing {self.browser.process_name} process(es).")
+
+            input(
+                "Press Enter to continue. This will close and restart your browser, or Ctrl+C to cancel"
+            )
+
             print(f"Gracefully closing {self.browser.process_name}...")
             if self.close_browser_gracefully():
                 print("✅ Browser closed gracefully")
