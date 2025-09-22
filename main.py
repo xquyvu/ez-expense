@@ -180,38 +180,3 @@ if __name__ == "__main__":
         # Ensure cleanup happens even if the signal handler wasn't called
         if playwright_manager.is_playwright_running() or _browser_process:
             signal_handler(signal.SIGTERM, None)
-
-    # # Create new expenses and attach receipts to them
-    # page.click('button[name="NewExpenseButton"]')
-    # page.wait_for_load_state("networkidle", timeout=10000)
-
-    # page.fill('input[name="CategoryInput"]', category)
-    # page.fill('input[name="AmountInput"]', amount)
-    # page.fill('input[name="CurrencyInput"]', currency)
-    # page.fill('input[name="MerchantInputNoLookup"]', merchant)
-    # page.fill('input[name="DateInput"]', date_to_fill.strftime("%-m/%-d/%Y"))
-    # page.fill('textarea[name="NotesInput"]', description)
-
-    # page.click('button[name="SaveButton"]')
-    # page.wait_for_timeout(3000)
-
-    # # Now we add receipt to the expense
-    # receipt_file_paths = ["screenshot.png"]
-
-    # for receipt_file_path in receipt_file_paths:
-    #     page.click('a[name="EditReceipts"]')
-    #     page.click('button[name="AddButton"]')
-
-    #     # Upload receipt
-    #     with page.expect_file_chooser() as file_chooser_info:
-    #         page.click('button[name="UploadControlBrowseButton"]')
-
-    #     file_chooser = file_chooser_info.value
-    #     file_chooser.set_files(receipt_file_path)
-
-    #     page.click('button[name="UploadControlUploadButton"]')
-    #     page.click('button[name="OkButtonAddNewTabPage"]')
-    #     page.wait_for_timeout(1000)
-    #     page.get_by_text("Close", exact=True).click()
-
-    #     page.get_by_text("Save and continue", exact=True).click()
