@@ -3131,7 +3131,7 @@ class EZExpenseApp {
 
                         // Call the match-receipt endpoint directly
                         const receiptData = {
-                            filePath: originalReceipt.filePath,
+                            file_path: originalReceipt.filePath,  // Backend expects file_path
                             type: 'existing'
                         };
 
@@ -3194,6 +3194,8 @@ class EZExpenseApp {
 
                         const uploadData = await uploadResponse.json();
                         console.log('Upload successful, now calculating match score');
+                        console.log('Upload data:', uploadData);
+                        console.log('File path from upload:', uploadData.file_info?.file_path);
 
                         // Get expense data for this expense ID
                         const expense = this.expenses.find(e => e.id === targetExpenseId);
@@ -3202,14 +3204,14 @@ class EZExpenseApp {
                         }
 
                         // Call the match-receipt endpoint
-                        const receiptData = {
-                            filePath: uploadData.file_info.file_path,
+                        const apiReceiptData = {
+                            file_path: uploadData.file_info.file_path,  // Backend expects file_path
                             type: 'uploaded'
                         };
 
                         // Include invoiceDetails if available
                         if (originalReceipt.invoiceDetails) {
-                            receiptData.invoiceDetails = originalReceipt.invoiceDetails;
+                            apiReceiptData.invoiceDetails = originalReceipt.invoiceDetails;
                         }
 
                         const matchResponse = await fetch('/api/expenses/match-receipt?debug=true', {
@@ -3218,7 +3220,7 @@ class EZExpenseApp {
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
-                                receipt_data: receiptData,
+                                receipt_data: apiReceiptData,
                                 expense_data: expense,
                                 receipt_path: uploadData.file_info.file_path
                             })
@@ -3242,6 +3244,8 @@ class EZExpenseApp {
                         receiptData.filePath = uploadData.file_info.file_path;
                         receiptData.filename = uploadData.file_info.saved_filename;
                         receiptData.originalFilename = uploadData.file_info.original_filename;
+
+                        console.log('Updated receiptData with filePath:', receiptData.filePath);
                     } else {
                         console.log('No file object or file path available for receipt:', originalReceipt.name);
                         // Use default confidence and existing receipt data
@@ -3256,6 +3260,8 @@ class EZExpenseApp {
                     ...receiptData,
                     confidence: confidence
                 };
+
+                console.log('Final newReceipt filePath:', newReceipt.filePath);
 
                 targetReceipts.push(newReceipt);
                 this.receipts.set(targetExpenseId, targetReceipts);
@@ -3619,11 +3625,11 @@ class EZExpenseApp {
 
                 return {
                     name: file.name,
-                    file_path: file.name, // This would normally be a server path
+                    filePath: null, // Will be set to absolute path when uploaded to server
                     preview: preview,
                     type: type,
                     confidence: null, // No confidence for bulk imports
-                    file: file, // Keep the file object for potential later upload
+                    file: file, // Keep the file object for upload when needed
                     invoiceDetails: invoiceDetails // Add extracted invoice details
                 };
             });
