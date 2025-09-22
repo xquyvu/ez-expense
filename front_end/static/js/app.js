@@ -1094,6 +1094,11 @@ class EZExpenseApp {
             hasValidation = true;
             isValid = this.validateNotEmpty(value);
         }
+        // Check for Additional information column (multiple possible variations)
+        else if (normalizedColumnName === 'currency') {
+            hasValidation = true;
+            isValid = this.validateNotEmpty(value);
+        }
 
         // Apply visual feedback to both input and cell - only for columns with validation
         const cell = input.closest('td');
@@ -1958,7 +1963,7 @@ class EZExpenseApp {
                 // Additional check: if Payment method is CC_Amex, make specific columns uneditable
                 const paymentMethod = expense['Payment method'] || '';
                 if (paymentMethod === 'CC_Amex') {
-                    const uneditableForAmex = ['Amount', 'Date', 'Expense category', 'Merchant'];
+                    const uneditableForAmex = ['Amount', 'Date', 'Expense category', 'Merchant', 'Currency'];
                     if (uneditableForAmex.includes(key)) {
                         isEditable = false;
                     }

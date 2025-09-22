@@ -66,7 +66,8 @@ const COLUMN_CONFIG = {
         'Date',
         'Amount',
         'Expense category',
-        'Merchant'
+        'Merchant',
+        'Currency'
     ],
 
     // Get display name for a column (returns original name if no mapping exists)
