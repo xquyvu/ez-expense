@@ -99,14 +99,9 @@ def get_expense_page_from_browser(browser):
     # Find the expense management page
     context = browser.contexts[0] if browser.contexts else browser.new_context()
 
-    for page in context.pages:
-        if EXPENSE_APP_URL in page.url:
-            page.bring_to_front()
-            return page
-    else:
-        page = context.new_page()
-        page.goto(f"https://{EXPENSE_APP_URL}")
-        return page
+    page = context.new_page()
+    page.goto(f"https://{EXPENSE_APP_URL}")
+    return page
 
 
 def start_flask_app():
