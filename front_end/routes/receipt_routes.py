@@ -530,7 +530,7 @@ def move_receipt():
 
 
 @receipt_bp.route("/extract_invoice_details", methods=["POST"])
-def extract_invoice_details_endpoint():
+async def extract_invoice_details_endpoint():
     """
     Extract invoice details from an uploaded receipt.
 
@@ -579,7 +579,7 @@ def extract_invoice_details_endpoint():
             ), 400
 
         # Extract invoice details using the file path
-        invoice_details = extract_invoice_details(file_path)
+        invoice_details = await extract_invoice_details(file_path)
 
         logger.info(f"Successfully extracted invoice details for: {filename}")
 

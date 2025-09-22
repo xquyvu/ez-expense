@@ -4088,8 +4088,8 @@ class EZExpenseApp {
 
             this.showLoading(loadingMessage);
 
-            // Process each non-duplicate file and add to bulk receipts
-            for (const file of filesToProcess) {
+            // Process each non-duplicate file and add to bulk receipts in parallel
+            const receiptPromises = filesToProcess.map(async (file) => {
                 // Create receipt object using same structure as receipts column
                 let preview = '';
                 let type = 'pdf';
@@ -4117,7 +4117,7 @@ class EZExpenseApp {
                     console.log(`Skipping AI extraction for ${file.name} - AI extraction disabled`);
                 }
 
-                const receipt = {
+                return {
                     name: file.name,
                     file_path: file.name, // This would normally be a server path
                     preview: preview,
@@ -4126,9 +4126,13 @@ class EZExpenseApp {
                     file: file, // Keep the file object for potential later upload
                     invoiceDetails: invoiceDetails // Add extracted invoice details
                 };
+            });
 
-                this.bulkReceipts.push(receipt);
-            }
+            // Wait for all receipts to be processed in parallel
+            const receipts = await Promise.all(receiptPromises);
+
+            // Add all processed receipts to bulk receipts
+            this.bulkReceipts.push(...receipts);
 
             let successMessage = `Successfully imported ${filesToProcess.length} receipts`;
             if (!aiExtractionEnabled) {

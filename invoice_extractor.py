@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import pdfplumber
 from dotenv import load_dotenv
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 from openai.types.chat import (
     ChatCompletionContentPartImageParam,
     ChatCompletionSystemMessageParam,
@@ -39,7 +39,7 @@ class InvoiceDetails(BaseModel):
 IMAGE_RESOLUTION = 300  # DPI for image extraction from PDF
 
 # Initialize Azure OpenAI client
-client = AzureOpenAI(
+client = AsyncAzureOpenAI(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
@@ -101,7 +101,7 @@ def image_to_base64(image: Image.Image) -> str:
     return base64_string
 
 
-def extract_invoice_details(file_path: Optional[str] = None) -> dict:
+async def extract_invoice_details(file_path: Optional[str] = None) -> dict:
     """
     Extract invoice details from a PDF or image file.
 
@@ -163,7 +163,7 @@ def extract_invoice_details(file_path: Optional[str] = None) -> dict:
         ]
 
         # Call Azure OpenAI with structured output
-        completion = client.beta.chat.completions.parse(
+        completion = await client.beta.chat.completions.parse(
             model=model_name,
             messages=messages,
             response_format=InvoiceDetails,
