@@ -12,7 +12,7 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "App",
+            "name": "Main",
             "type": "debugpy",
             "request": "launch",
             "module": "main",
