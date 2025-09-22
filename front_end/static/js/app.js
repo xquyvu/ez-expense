@@ -1042,6 +1042,17 @@ class EZExpenseApp {
             return true;
         }
 
+        // Skip validation for uneditable fields
+        if (input.readOnly || input.classList.contains('non-editable')) {
+            // Remove any existing validation classes from uneditable fields
+            input.classList.remove('validation-error');
+            const cell = input.closest('td');
+            if (cell) {
+                cell.classList.remove('validation-valid', 'validation-invalid');
+            }
+            return true;
+        }
+
         let isValid = true;
         let hasValidation = false; // Track if this column has validation rules
         const normalizedColumnName = String(columnName).toLowerCase().trim();
