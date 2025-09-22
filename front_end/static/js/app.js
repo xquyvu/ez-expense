@@ -1940,9 +1940,18 @@ class EZExpenseApp {
                 textarea.value = rawValue;
 
                 // Check if this column is editable
-                const isEditable = !window.COLUMN_CONFIG ||
+                let isEditable = !window.COLUMN_CONFIG ||
                     !window.COLUMN_CONFIG.editableColumns ||
                     window.COLUMN_CONFIG.editableColumns.includes(key);
+
+                // Additional check: if Payment method is CC_Amex, make specific columns uneditable
+                const paymentMethod = expense['Payment method'] || '';
+                if (paymentMethod === 'CC_Amex') {
+                    const uneditableForAmex = ['Amount', 'Date', 'Expense category', 'Merchant'];
+                    if (uneditableForAmex.includes(key)) {
+                        isEditable = false;
+                    }
+                }
 
                 if (!isEditable) {
                     textarea.className += ' non-editable';
