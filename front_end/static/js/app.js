@@ -4490,6 +4490,9 @@ class EZExpenseApp {
                 <button onclick="app.matchReceiptsWithExpenses()" class="btn btn-success btn-sm">
                     <i class="fas fa-link"></i> Match receipts with expenses
                 </button>
+                <button onclick="app.createExpensesFromReceipts()" class="btn btn-secondary btn-sm">
+                    <i class="fas fa-magic"></i> Create expenses from receipts
+                </button>
             `;
         }
 
@@ -4530,6 +4533,102 @@ class EZExpenseApp {
             this.updateBulkReceiptCell();
             this.showToast(`Removed ${receipt.name}`, 'info');
         }
+    }
+
+    /**
+     * Create new expenses from bulk receipts that have invoice details
+     */
+    async createExpensesFromReceipts() {
+        // Filter bulk receipts to only include those with invoice details
+        const receiptsWithInvoiceDetails = this.bulkReceipts.filter(receipt =>
+            receipt.invoiceDetails && Object.keys(receipt.invoiceDetails).length > 0
+        );
+
+        if (receiptsWithInvoiceDetails.length === 0) {
+            this.showToast('No receipts with invoice details found. Please upload receipts with AI extraction enabled.', 'warning');
+            return;
+        }
+
+        this.showLoading(`Creating ${receiptsWithInvoiceDetails.length} new expenses from receipt data...`);
+
+        try {
+            // Prepare data for the backend
+            const payload = {
+                receipts_with_invoice_details: receiptsWithInvoiceDetails.map(receipt => ({
+                    name: receipt.name,
+                    invoiceDetails: receipt.invoiceDetails,
+                    preview: receipt.preview,
+                    type: receipt.type,
+                    // Remove file object since it can't be serialized
+                    file: null
+                })),
+                current_expense_data: this.expenses
+            };
+
+            console.log('Sending payload to create expenses from receipts:', payload);
+
+            // Call the backend endpoint
+            const response = await fetch('/api/expenses/create-from-receipts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Update frontend state with new expenses
+                this.updateStateWithNewExpenses(result.new_expenses, receiptsWithInvoiceDetails);
+
+                this.showToast(
+                    `Successfully created ${result.processed_receipt_count} new expenses from receipt data!`,
+                    'success'
+                );
+            } else {
+                throw new Error(result.message || 'Failed to create expenses from receipts');
+            }
+
+        } catch (error) {
+            console.error('Error creating expenses from receipts:', error);
+            this.showToast('Error creating expenses from receipts: ' + error.message, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Update frontend state with newly created expenses
+     */
+    updateStateWithNewExpenses(newExpenses, processedReceipts) {
+        console.log('Updating state with new expenses:', newExpenses);
+        console.log('Processed receipts to remove:', processedReceipts);
+
+        // Add new expenses to the expenses array
+        this.expenses.push(...newExpenses);
+
+        // Update receipts map with new expense receipts
+        newExpenses.forEach(expense => {
+            if (expense.receipts && expense.receipts.length > 0) {
+                this.receipts.set(expense.id, expense.receipts);
+            }
+        });
+
+        // Remove processed receipts from bulk receipts
+        const processedReceiptNames = processedReceipts.map(r => r.name);
+        this.bulkReceipts = this.bulkReceipts.filter(receipt =>
+            !processedReceiptNames.includes(receipt.name)
+        );
+
+        // Refresh the UI
+        this.displayExpensesTable();
+        this.updateBulkReceiptCell();
+        this.updateStatistics();
     }
 
     /**

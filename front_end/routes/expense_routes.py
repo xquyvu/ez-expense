@@ -1178,3 +1178,86 @@ def delete_expenses():
     except Exception as e:
         logger.error(f"Error deleting expenses: {e}")
         return jsonify({"error": "Delete failed", "message": str(e)}), 500
+
+
+@expense_bp.route("/create-from-receipts", methods=["POST"])
+def create_expenses_from_receipts():
+    """
+    Create new expense entries from receipts with invoice details.
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        receipts_with_invoice_details = data.get("receipts_with_invoice_details", [])
+        current_expense_data = data.get("current_expense_data", [])
+
+        if not receipts_with_invoice_details:
+            return jsonify({"error": "No receipts with invoice details provided"}), 400
+
+        logger.info(f"Creating expenses from {len(receipts_with_invoice_details)} receipts")
+
+        # Find the highest existing expense ID to generate new sequential IDs
+        max_id = max(expense["id"] for expense in current_expense_data if "id" in expense)
+
+        # Start new IDs from the next number
+        next_id = max_id + 1
+
+        new_expenses = []
+        processed_count = 0
+
+        for receipt in receipts_with_invoice_details:
+            try:
+                invoice_details = receipt.get("invoiceDetails", {})
+
+                if not invoice_details:
+                    logger.warning(
+                        f"Skipping receipt {receipt.get('name', 'unknown')} - no invoice details"
+                    )
+                    continue
+
+                # Create new expense object
+                new_expense = {
+                    "id": next_id,
+                    "Date": invoice_details.get("Date", ""),
+                    "Amount": invoice_details.get("Amount"),
+                    "Currency": invoice_details.get("Currency"),
+                    "Additional description": f"Expense from {receipt.get('name')}",
+                    "Expense category": invoice_details.get("Expense category"),
+                    "Payment method": "Cash",
+                    "receipts": [receipt],  # Attach the receipt to the expense
+                }
+
+                new_expenses.append(new_expense)
+                next_id += 1
+                processed_count += 1
+
+                logger.info(
+                    f"Created expense {new_expense['id']} from receipt {receipt.get('name')}"
+                )
+
+            except Exception as e:
+                logger.error(f"Error processing receipt {receipt.get('name', 'unknown')}: {e}")
+                continue
+
+        if not new_expenses:
+            return jsonify(
+                {"error": "No valid expenses could be created from the provided receipts"}
+            ), 400
+
+        logger.info(f"Successfully created {len(new_expenses)} new expenses")
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Successfully created {len(new_expenses)} expenses from receipts",
+                "new_expenses": new_expenses,
+                "processed_receipt_count": processed_count,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating expenses from receipts: {e}")
+        return jsonify({"error": "Failed to create expenses", "message": str(e)}), 500
