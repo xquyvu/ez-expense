@@ -20,14 +20,15 @@ const COLUMN_CONFIG = {
 
         // Common expense fields
         'Date': 130,
-        'Amount': 135,
+        'Amount': 100,
+        'Currency': 110,
         'Expense category': 140,
         'Merchant': 120,
         'Payment method': 110,
         'Receipts attached': 110,
 
         // Special columns
-        'Receipts': 280  // This is handled separately as sticky column
+        'Receipts': 250  // This is handled separately as sticky column
     },
 
     // Minimum column width
