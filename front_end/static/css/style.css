@@ -884,11 +884,11 @@ textarea.table-input.non-editable:focus {
 
 /* Invoice Details Styles */
 .invoice-details {
-    margin-top: 0.75rem;
-    padding: 0.6rem;
-    background-color: #f8f9fa;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
+    margin-top: 0;
+    padding: 0;
+    background-color: transparent;
+    border-radius: 0;
+    border: none;
     font-size: 0.8rem;
     width: 100%;
     box-sizing: border-box;
@@ -913,17 +913,42 @@ textarea.table-input.non-editable:focus {
 
 .invoice-details-content {
     display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
+    flex-wrap: wrap;
+    gap: 0.35rem;
     width: 100%;
 }
 
 .detail-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.1rem 0;
-    width: 100%;
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: white;
+    text-align: center;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Modern color scheme for different detail types */
+.detail-amount {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border: none;
+}
+
+.detail-date {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border: none;
+}
+
+.detail-category {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    border: none;
+}
+
+.detail-currency {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border: none;
 }
 
 .detail-label {

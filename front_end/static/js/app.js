@@ -2009,14 +2009,8 @@ class EZExpenseApp {
                         ${receipt.invoiceDetails ? `
                         <div class="invoice-details">
                             <div class="invoice-details-content">
-                                <div class="detail-item">
-                                    <span class="detail-label">Amount:</span>
-                                    <span class="detail-value">${receipt.invoiceDetails.Amount} ${receipt.invoiceDetails.Currency || ''}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Date:</span>
-                                    <span class="detail-value">${receipt.invoiceDetails.Date}</span>
-                                </div>
+                                <div class="detail-item detail-amount">${receipt.invoiceDetails.Amount}${receipt.invoiceDetails.Currency ? ` ${receipt.invoiceDetails.Currency}` : ''}</div>
+                                <div class="detail-item detail-date">${receipt.invoiceDetails.Date}</div>
                             </div>
                         </div>
                         ` : ''}
@@ -4355,18 +4349,9 @@ class EZExpenseApp {
                         ${receipt.invoiceDetails ? `
                         <div class="invoice-details">
                             <div class="invoice-details-content">
-                                <div class="detail-item">
-                                    <span class="detail-label">Amount:</span>
-                                    <span class="detail-value">${receipt.invoiceDetails.Amount} ${receipt.invoiceDetails.Currency || ''}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Date:</span>
-                                    <span class="detail-value">${receipt.invoiceDetails.Date}</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Category:</span>
-                                    <span class="detail-value">${receipt.invoiceDetails['Expense category']}</span>
-                                </div>
+                                <div class="detail-item detail-amount">${receipt.invoiceDetails.Amount}${receipt.invoiceDetails.Currency ? ` ${receipt.invoiceDetails.Currency}` : ''}</div>
+                                <div class="detail-item detail-date">${receipt.invoiceDetails.Date}</div>
+                                <div class="detail-item detail-category">${receipt.invoiceDetails['Expense category']}</div>
                             </div>
                         </div>
                         ` : ''}
