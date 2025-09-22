@@ -155,17 +155,6 @@ def run_expense_automation():
         # Set the page in the playwright manager (Flask routes will use this)
         playwright_manager.set_current_page(page)
 
-        # Wait for user to setup the expense report
-        print("Press <Enter> after you have created a new expense report, or navigated")
-        print("to the expense report you want to fill. Press <Ctrl+C> to exit at any")
-        print("time.")
-
-        try:
-            input()
-        except (KeyboardInterrupt, EOFError):
-            print("\n🛑 User interrupted. Exiting gracefully...")
-            return
-
         print("\n✅ Browser setup complete. Starting Flask web interface...")
 
         # Start Flask in main thread (this will block until server stops)
