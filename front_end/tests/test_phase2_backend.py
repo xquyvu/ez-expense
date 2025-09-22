@@ -129,40 +129,8 @@ def test_phase2_backend():
                 if os.path.exists(receipt_path):
                     os.unlink(receipt_path)
 
-            # Test 7: Export expenses
-            print("\n7. Testing expense export...")
-            test_expenses = [
-                {
-                    "id": 1,
-                    "Amount": 45.99,
-                    "Description": "Office Supplies",
-                    "receipt_path": "receipt1.png",
-                },
-                {
-                    "id": 2,
-                    "Amount": 67.50,
-                    "Description": "Client Lunch",
-                    "receipt_path": "receipt2.png",
-                },
-            ]
-
-            response = client.post(
-                "/api/expenses/export",
-                data=json.dumps({"expenses": test_expenses, "filename": "test_export.csv"}),
-                content_type="application/json",
-            )
-            print(f"   Status: {response.status_code}")
-            result = response.get_json()
-            print(f"   Success: {result.get('success', False)}")
-            if result.get("success"):
-                export_info = result.get("export_info", {})
-                print(f"   Exported: {export_info.get('filename', 'unknown')}")
-                print(f"   Count: {export_info.get('expense_count', 0)}")
-            else:
-                print(f"   Error: {result.get('message', 'Unknown error')}")
-
-            # Test 8: List receipts
-            print("\n8. Testing receipt listing...")
+            # Test 7: List receipts
+            print("\n7. Testing receipt listing...")
             response = client.get("/api/receipts/list")
             print(f"   Status: {response.status_code}")
             result = response.get_json()
@@ -178,7 +146,6 @@ def test_phase2_backend():
             print("   ✅ Task 2.3: CSV file upload and parsing endpoint")
             print("   ✅ Task 2.4: Receipt file upload endpoint")
             print("   ✅ Task 2.5: Receipt matching endpoint")
-            print("   ✅ Task 2.6: Expense export endpoint")
 
     except ImportError as e:
         print(f"❌ Error importing Flask app: {e}")

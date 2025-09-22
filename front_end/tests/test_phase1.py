@@ -44,7 +44,6 @@ def test_main_page_accessibility():
                 "Import Expenses",
                 "Review and Edit Expenses",
                 "Match Receipts",
-                "Export Data",
             ]
 
             missing_elements = []

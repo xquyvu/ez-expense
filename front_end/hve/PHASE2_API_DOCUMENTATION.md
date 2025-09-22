@@ -137,38 +137,6 @@ Calculate confidence score for expense-receipt matching.
 }
 ```
 
-### POST /api/expenses/export
-Export finalized expenses with receipt information to CSV.
-
-**Request:**
-```json
-{
-  "expenses": [
-    {
-      "id": 1,
-      "Amount": 45.99,
-      "Description": "Office Supplies",
-      "receipt_path": "receipt1.png"
-    }
-  ],
-  "filename": "exported_expenses.csv"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Successfully exported 2 expenses",
-  "export_info": {
-    "filename": "exported_expenses_20240101_120000.csv",
-    "file_path": "/path/to/export/file.csv",
-    "file_size": 1024,
-    "expense_count": 2
-  }
-}
-```
-
 ### GET /api/expenses/list
 Get a list of all stored expenses (placeholder endpoint).
 
@@ -274,7 +242,6 @@ Delete a specific receipt file.
 - **Allowed receipt formats**: PDF, PNG, JPG, JPEG, GIF
 - **Allowed CSV formats**: CSV files with UTF-8 encoding
 - **Upload directory**: `front_end/uploads/`
-- **Export directory**: `front_end/uploads/exports/`
 
 ## Integration Points
 
@@ -293,7 +260,6 @@ Delete a specific receipt file.
 ✅ **Task 2.3**: CSV file upload and parsing endpoint (`/api/expenses/upload-csv`)
 ✅ **Task 2.4**: Receipt file upload endpoint (`/api/receipts/upload`)
 ✅ **Task 2.5**: Receipt matching endpoint (`/api/expenses/match-receipt`)
-✅ **Task 2.6**: Expense export endpoint (`/api/expenses/export`)
 
 ## Additional Features Implemented
 

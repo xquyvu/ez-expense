@@ -51,15 +51,6 @@ Successfully implemented a comprehensive Flask-based backend API that provides a
 - Includes fallback mock scoring when module unavailable
 - Returns confidence percentage and match details
 
-#### ✅ Task 2.6: Implement expense export endpoint
-**Endpoint:** `POST /api/expenses/export`
-**File:** `front_end/routes/expense_routes.py`
-- Exports expense data with receipt information to CSV
-- Uses pandas for robust CSV generation
-- Creates timestamped export files
-- Supports custom filenames
-- Returns export file details and statistics
-
 ### Additional Features Implemented
 
 #### Enhanced Receipt Management
@@ -83,7 +74,7 @@ Successfully implemented a comprehensive Flask-based backend API that provides a
 
 #### File Organization
 - Modular route organization using Flask blueprints
-- Separate upload and export directories
+- Upload directory management
 - Automatic directory creation
 - Timestamped filenames to prevent conflicts
 
@@ -124,7 +115,6 @@ Successfully implemented a comprehensive Flask-based backend API that provides a
 ✅ CSV upload endpoint - Working
 ✅ Receipt upload endpoint - Working
 ✅ Receipt matching endpoint - Working
-✅ Expense export endpoint - Working
 ✅ Receipt listing endpoint - Working
 ```
 
@@ -144,7 +134,6 @@ front_end/
 ├── tests/
 │   └── test_phase2_backend_fixed.py   # Comprehensive test suite
 ├── uploads/                           # File upload directory
-│   └── exports/                       # Export file directory
 ├── PHASE2_API_DOCUMENTATION.md        # Complete API documentation
 └── templates/                         # HTML templates (existing)
     └── index.html
@@ -165,7 +154,7 @@ Phase 2 backend development is now complete and ready for Phase 3 frontend devel
 1. **Robust API endpoints** for all required functionality
 2. **Comprehensive error handling** and validation
 3. **Integration capabilities** with existing Python modules
-4. **File management** for receipts and exports
+4. **File management** for receipts
 5. **Testing framework** for validation
 6. **Documentation** for frontend developers
 
