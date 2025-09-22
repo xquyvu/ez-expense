@@ -30,10 +30,12 @@ ValidExpenseCategories = Enum(
 
 
 class InvoiceDetails(BaseModel):
-    amount: float = Field(..., alias="Amount")
-    currency: str = Field(..., alias="Currency")
-    date: str = Field(..., alias="Date", description="Date in YYYY-MM-DD format")
-    expense_category: ValidExpenseCategories = Field(..., alias="Expense category")
+    amount: float = Field(
+        alias="Amount", description="Invoice amount. If it is a refund, give a negative number"
+    )
+    currency: str = Field(alias="Currency", description="Currency code (e.g., USD, GBP)")
+    date: str = Field(alias="Date", description="Date in YYYY-MM-DD format")
+    expense_category: ValidExpenseCategories = Field(alias="Expense category")
 
 
 IMAGE_RESOLUTION = 300  # DPI for image extraction from PDF
