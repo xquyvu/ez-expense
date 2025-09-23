@@ -7,7 +7,7 @@ import os
 import sys
 from datetime import datetime
 
-from flask import Blueprint, current_app, jsonify, request, send_file
+from quart import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
 # Add parent directory to path for importing the invoice extractor
@@ -26,7 +26,7 @@ def allowed_file(filename: str, allowed_extensions: set) -> bool:
 
 
 @receipt_bp.route("/upload", methods=["POST"])
-def upload_receipt():
+async def upload_receipt():
     """
     Upload a receipt file.
 
@@ -39,12 +39,13 @@ def upload_receipt():
     """
     try:
         # Check if file is present in request
-        if "file" not in request.files:
+        files = await request.files
+        if "file" not in files:
             return jsonify(
                 {"error": "No file provided", "message": "Please select a receipt file"}
             ), 400
 
-        file = request.files["file"]
+        file = files["file"]
 
         # Check if file was actually selected
         if file.filename == "":
@@ -74,10 +75,11 @@ def upload_receipt():
         upload_folder = current_app.config.get("UPLOAD_FOLDER", "uploads")
         os.makedirs(upload_folder, exist_ok=True)
         file_path = os.path.join(upload_folder, unique_filename)
-        file.save(file_path)
+        await file.save(file_path)
 
         # Get expense ID if provided
-        expense_id = request.form.get("expense_id")
+        form = await request.form
+        expense_id = form.get("expense_id")
 
         # Get file size
         file_size = os.path.getsize(file_path)
@@ -277,7 +279,7 @@ def delete_receipt(filename):
 
 
 @receipt_bp.route("/upload-multiple", methods=["POST"])
-def upload_multiple_receipts():
+async def upload_multiple_receipts():
     """
     Upload multiple receipt files for a single expense.
 
@@ -290,12 +292,13 @@ def upload_multiple_receipts():
     """
     try:
         # Check if files are present in request
-        if "files" not in request.files:
+        request_files = await request.files
+        if "files" not in request_files:
             return jsonify(
                 {"error": "No files provided", "message": "Please select receipt files"}
             ), 400
 
-        files = request.files.getlist("files")
+        files = request_files.getlist("files")
 
         # Check if any files were actually selected
         if not files or all(file.filename == "" for file in files):
@@ -304,7 +307,8 @@ def upload_multiple_receipts():
             ), 400
 
         # Get expense ID if provided
-        expense_id = request.form.get("expense_id")
+        form = await request.form
+        expense_id = form.get("expense_id")
 
         # Process each file
         results = []
@@ -345,7 +349,7 @@ def upload_multiple_receipts():
                 upload_folder = current_app.config.get("UPLOAD_FOLDER", "uploads")
                 os.makedirs(upload_folder, exist_ok=True)
                 file_path = os.path.join(upload_folder, unique_filename)
-                file.save(file_path)
+                await file.save(file_path)
 
                 # Get file size
                 file_size = os.path.getsize(file_path)
@@ -406,7 +410,7 @@ def upload_multiple_receipts():
 
 
 @receipt_bp.route("/move", methods=["POST"])
-def move_receipt():
+async def move_receipt():
     """
     Move a receipt from one expense to another and recalculate confidence score.
 
@@ -423,7 +427,7 @@ def move_receipt():
         if not request.is_json:
             return jsonify({"error": "Invalid request", "message": "Request must be JSON"}), 400
 
-        data = request.get_json()
+        data = await request.get_json()
 
         # Validate required fields
         if not all(key in data for key in ["receipt_data", "from_expense_id", "to_expense_id"]):
@@ -540,8 +544,9 @@ async def extract_invoice_details_endpoint():
     """
     try:
         # Handle different input methods
-        if request.files and "file" in request.files:
-            file = request.files["file"]
+        files = await request.files
+        if files and "file" in files:
+            file = files["file"]
 
             # Check if file was actually selected
             if not file.filename:
@@ -568,7 +573,7 @@ async def extract_invoice_details_endpoint():
             upload_folder = current_app.config.get("UPLOAD_FOLDER", "uploads")
             os.makedirs(upload_folder, exist_ok=True)
             file_path = os.path.join(upload_folder, unique_filename)
-            file.save(file_path)
+            await file.save(file_path)
 
         else:
             return jsonify(
@@ -578,7 +583,7 @@ async def extract_invoice_details_endpoint():
                 }
             ), 400
 
-        # Extract invoice details using the file path
+        # Extract invoice details using the file path - now works with async!
         invoice_details = await extract_invoice_details(file_path)
 
         logger.info(f"Successfully extracted invoice details for: {filename}")
@@ -599,7 +604,7 @@ async def extract_invoice_details_endpoint():
 
 
 @receipt_bp.route("/match_bulk_receipts", methods=["POST"])
-def match_bulk_receipts():
+async def match_bulk_receipts():
     """
     Match bulk receipts with expense data using the receipt_match_score function.
 
@@ -614,7 +619,7 @@ def match_bulk_receipts():
         if not request.is_json:
             return jsonify({"error": "Invalid request", "message": "Request must be JSON"}), 400
 
-        data = request.get_json()
+        data = await request.get_json()
 
         # Validate required fields
         if not all(key in data for key in ["bulk_receipts", "expense_data"]):

@@ -13,8 +13,8 @@ import sys
 import tempfile
 
 from dotenv import load_dotenv
-from flask import Flask, g, jsonify, render_template
-from flask_cors import CORS
+from quart import Quart, g, jsonify, render_template
+from quart_cors import cors
 
 from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY
 
@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_app():
-    """Create and configure the Flask application."""
-    app = Flask(__name__)
+    """Create and configure the Quart application."""
+    app = Quart(__name__)
 
     # Configuration
     app.config["SECRET_KEY"] = SECRET_KEY
@@ -81,7 +81,7 @@ def create_app():
     app.config["ALLOWED_EXTENSIONS"] = ALLOWED_EXTENSIONS
 
     # Enable CORS for all routes
-    CORS(app)
+    app = cors(app)
 
     # Cleanup handler for temporary files
     @app.teardown_appcontext
@@ -95,9 +95,9 @@ def create_app():
                     logger.warning(f"Error during cleanup: {e}")
 
     @app.route("/")
-    def index():
+    async def index():
         """Render the main application page."""
-        return render_template("index.html")
+        return await render_template("index.html")
 
     @app.route("/health")
     def health_check():
@@ -208,5 +208,15 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
 
-    logger.info(f"Starting EZ Expense Flask app on port {FRONTEND_PORT}")
-    app.run(debug=FLASK_DEBUG, host="0.0.0.0", port=FRONTEND_PORT)
+    logger.info(f"Starting EZ Expense Quart app on port {FRONTEND_PORT}")
+    # Use hypercorn for Quart (ASGI) instead of Flask's built-in server
+    import asyncio
+
+    import hypercorn.asyncio
+    import hypercorn.config
+
+    config = hypercorn.config.Config()
+    config.bind = [f"0.0.0.0:{FRONTEND_PORT}"]
+    config.debug = FLASK_DEBUG
+
+    asyncio.run(hypercorn.asyncio.serve(app, config))

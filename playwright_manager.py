@@ -7,7 +7,7 @@ and browser connections across the application.
 
 import logging
 
-from playwright.sync_api import Browser, Page, Playwright, sync_playwright
+from playwright.async_api import Browser, Page, Playwright, async_playwright
 
 from config import BROWSER_PORT
 
@@ -19,7 +19,7 @@ _browser_connection: Browser | None = None
 _current_page: Page | None = None
 
 
-def start_playwright() -> Playwright:
+async def start_playwright() -> Playwright:
     """
     Start a new Playwright instance.
 
@@ -35,7 +35,7 @@ def start_playwright() -> Playwright:
         raise RuntimeError("Playwright instance is already running. Call stop_playwright() first.")
 
     logger.info("Starting Playwright instance...")
-    _playwright_instance = sync_playwright().start()
+    _playwright_instance = await async_playwright().start()
     logger.info("Playwright instance started successfully")
 
     return _playwright_instance
@@ -126,13 +126,13 @@ def cleanup_page() -> None:
         _current_page = None
 
 
-def cleanup_browser() -> None:
+async def cleanup_browser() -> None:
     """Clean up the browser connection."""
     global _browser_connection
     if _browser_connection:
         try:
             logger.info("Closing browser connection...")
-            _browser_connection.close()
+            await _browser_connection.close()
             logger.info("Browser connection closed successfully")
         except Exception as e:
             logger.warning(f"Error closing browser connection: {e}")
@@ -140,7 +140,7 @@ def cleanup_browser() -> None:
             _browser_connection = None
 
 
-def stop_playwright() -> None:
+async def stop_playwright() -> None:
     """
     Stop the Playwright instance and clean up all resources.
     """
@@ -150,13 +150,13 @@ def stop_playwright() -> None:
     cleanup_page()
 
     # Clean up browser connection
-    cleanup_browser()
+    await cleanup_browser()
 
     # Stop Playwright instance
     if _playwright_instance:
         try:
             logger.info("Stopping Playwright instance...")
-            _playwright_instance.stop()
+            await _playwright_instance.stop()
             logger.info("Playwright instance stopped successfully")
         except Exception as e:
             logger.warning(f"Error stopping Playwright instance: {e}")

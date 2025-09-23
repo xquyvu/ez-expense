@@ -72,11 +72,11 @@ def get_polygon_center(
     return {"x": center_x, "y": center_y}
 
 
-def get_scaled_coordinate(x, y, page):
+async def get_scaled_coordinate(x, y, page):
     """
     Adjust coordinates to click on by device pixel ratio
     """
-    device_pixel_ratio = page.evaluate("window.devicePixelRatio")
+    device_pixel_ratio = await page.evaluate("window.devicePixelRatio")
     scaled_x = int(x / device_pixel_ratio)
     scaled_y = int(y / device_pixel_ratio)
     return scaled_x, scaled_y

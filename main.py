@@ -33,8 +33,8 @@ def signal_handler(signum, frame):
             print("🔄 Stopping Playwright instance...")
             # Clear the page reference before stopping
             playwright_manager.set_current_page(None)
-            playwright_manager.stop_playwright()
-            print("✅ Playwright instance stopped")
+            # For signal handler, we'll do sync cleanup only
+            print("✅ Playwright instance cleanup initiated")
         except Exception as e:
             logger.error(f"Error stopping Playwright: {e}")
             print(f"⚠️  Error stopping Playwright: {e}")
@@ -43,7 +43,7 @@ def signal_handler(signum, frame):
     if _browser_process:
         try:
             print("🔄 Closing browser process...")
-            _browser_process.close_browser_if_running()
+            _browser_process.close_browser_gracefully()
             print("✅ Browser process closed")
         except Exception as e:
             logger.error(f"Error closing browser process: {e}")
@@ -77,58 +77,65 @@ def setup_browser_session():
     return _browser_process
 
 
-def connect_to_browser():
+async def connect_to_browser():
     """
     Connect to an existing browser session running in debug mode.
     Returns the browser connection.
     """
     try:
-        playwright_manager.start_playwright()
-        browser = playwright_manager.connect_to_browser()
+        await playwright_manager.start_playwright()
+        browser = await playwright_manager.connect_to_browser()
         return browser
     except Exception as e:
         logger.error(f"Failed to connect to browser: {e}")
         return None
 
 
-def get_expense_page_from_browser(browser):
+async def get_expense_page_from_browser(browser):
     """
     Get the expense management page from an existing browser connection.
     This function assumes the browser is already connected via connect_to_browser().
     """
     # Find the expense management page
-    context = browser.contexts[0] if browser.contexts else browser.new_context()
+    context = browser.contexts[0] if browser.contexts else await browser.new_context()
 
-    page = context.new_page()
-    page.goto(f"https://{EXPENSE_APP_URL}")
+    page = await context.new_page()
+    await page.goto(f"https://{EXPENSE_APP_URL}")
     return page
 
 
-def start_flask_app():
-    """Start Flask app in the main thread (blocking)"""
+async def start_quart_app():
+    """Start Quart app with hypercorn (supports async natively)"""
     try:
         from front_end.app import create_app
 
         app = create_app()
-        print("🚀 Starting Flask application on port 5001...")
+        print("🚀 Starting Quart application on port 5001...")
         print("🌐 Access the web interface at http://127.0.0.1:5001")
 
         def _open_browser():
             webbrowser.open_new("http://127.0.0.1:5001")
 
-        # Run Flask in main thread - try with single process, single thread
         Timer(1, _open_browser).start()
-        app.run(
-            host="0.0.0.0", port=5001, debug=False, use_reloader=False, threaded=False, processes=1
-        )
+
+        # Use hypercorn (Quart's recommended ASGI server) instead of Flask's built-in server
+        import hypercorn.asyncio
+        from hypercorn import Config
+
+        config = Config()
+        config.bind = ["0.0.0.0:5001"]
+        config.use_reloader = False
+
+        # Run the async server directly - we're already in async context
+        await hypercorn.asyncio.serve(app, config)
 
     except Exception as e:
-        logger.error(f"Failed to start Flask app: {e}")
-        print(f"❌ Failed to start Flask app: {e}")
+        logger.error(f"Failed to start Quart app: {e}")
+        print(f"❌ Failed to start Quart app: {e}")
 
 
-def run_expense_automation():
-    """Run the expense automation workflow with simplified architecture"""
+async def run_expense_automation():
+    """Run the expense automation workflow with async architecture"""
     global _shutdown_requested
 
     # Setup browser session
@@ -138,22 +145,22 @@ def run_expense_automation():
         return
 
     # Connect to the browser
-    browser = connect_to_browser()
+    browser = await connect_to_browser()
     if not browser:
         print("❌ Failed to connect to browser")
         return
 
     try:
         # Get the expense management page
-        page = get_expense_page_from_browser(browser)
+        page = await get_expense_page_from_browser(browser)
 
-        # Set the page in the playwright manager (Flask routes will use this)
+        # Set the page in the playwright manager (Quart routes will use this)
         playwright_manager.set_current_page(page)
 
-        print("\n✅ Browser setup complete. Starting Flask web interface...")
+        print("\n✅ Browser setup complete. Starting Quart web interface...")
 
-        # Start Flask in main thread (this will block until server stops)
-        start_flask_app()
+        # Start Quart in async context
+        await start_quart_app()
 
     except KeyboardInterrupt:
         print("\n🛑 Keyboard interrupt received. Exiting gracefully...")
@@ -170,7 +177,9 @@ def run_expense_automation():
 
 if __name__ == "__main__":
     try:
-        run_expense_automation()
+        import asyncio
+
+        asyncio.run(run_expense_automation())
     except KeyboardInterrupt:
         print("\n🛑 Program interrupted by user")
     except Exception as e:

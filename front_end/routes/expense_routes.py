@@ -7,7 +7,7 @@ import os
 import sys
 from datetime import datetime
 
-from flask import Blueprint, current_app, jsonify, request
+from quart import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
 # Add parent directory to path for imports
@@ -72,33 +72,27 @@ def get_categories():
 
 
 @expense_bp.route("/import", methods=["POST"])
-def import_expenses():
+async def import_expenses():
     """
     Primary import endpoint that automatically chooses between mock and real import based on environment.
     This is the main endpoint used by the frontend in production.
     """
     try:
-        logger.info(f"Starting expense import (DEBUG mode: {DEBUG})")
-
+        logger.info(f"Import requested - DEBUG mode: {DEBUG}")
         if DEBUG:
-            logger.info("Using mock data due to DEBUG=True")
+            logger.info("Using mock import due to DEBUG=True")
             result = get_mock_expenses_internal()
             logger.info("Import completed successfully using mock source")
             return result
         else:
             logger.info("Using real browser import due to DEBUG=False")
-            result = _import_real_data()
+            result = await _import_real_data()
             logger.info("Import completed successfully using browser source")
             return result
 
     except Exception as e:
         logger.error(f"Error during expense import: {e}")
-        return jsonify(
-            {
-                "error": "Import failed",
-                "message": str(e),
-            }
-        ), 500
+        return jsonify({"error": "Import failed", "message": str(e)}), 500
 
 
 @expense_bp.route("/import/mock", methods=["POST"])
@@ -112,28 +106,28 @@ def import_expenses_mock():
 
 
 @expense_bp.route("/import/real", methods=["POST"])
-def import_expenses_real():
+async def import_expenses_real():
     """
     Explicit real import endpoint for testing and debugging.
     Always attempts real browser import regardless of DEBUG setting.
     """
     logger.info("Explicit real import requested")
-    return _import_real_data()
+    return await _import_real_data()
 
 
-def _import_real_data():
-    """Internal function to handle real browser-based import."""
-    if import_expense_wrapper is None:
+async def _import_real_data():
+    """Import real expense data from browser"""
+    if not import_expense_wrapper:
         return jsonify(
             {
-                "error": "Import function not available",
+                "error": "Import functionality not available",
                 "message": "Expense importer module could not be loaded.",
             }
         ), 500
 
     try:
         # Use the import_expense_wrapper function to get real browser data
-        expense_df = import_expense_wrapper()
+        expense_df = await import_expense_wrapper()
         expense_df["id"] = range(1, len(expense_df) + 1)
 
         # Convert DataFrame to list of dictionaries for JSON response
@@ -285,7 +279,7 @@ def allowed_file(filename: str, allowed_extensions: set) -> bool:
 
 
 @expense_bp.route("/upload-receipt", methods=["POST"])
-def upload_receipt():
+async def upload_receipt():
     """
     Upload receipt file for an expense.
 
@@ -298,12 +292,13 @@ def upload_receipt():
     """
     try:
         # Check if file is present in request
-        if "file" not in request.files:
+        files = await request.files
+        if "file" not in files:
             return jsonify(
                 {"error": "No file provided", "message": "Please select a receipt file"}
             ), 400
 
-        file = request.files["file"]
+        file = files["file"]
 
         # Check if file was actually selected
         if file.filename == "":
@@ -336,7 +331,8 @@ def upload_receipt():
         file.save(file_path)
 
         # Get expense ID if provided
-        expense_id = request.form.get("expense_id")
+        form = await request.form
+        expense_id = form.get("expense_id")
 
         # Get file size
         file_size = os.path.getsize(file_path)
@@ -365,8 +361,20 @@ def upload_receipt():
         return jsonify({"error": "Upload failed", "message": str(e)}), 500
 
 
+@expense_bp.route("/test-request", methods=["POST"])
+async def test_request():
+    """Test endpoint to verify request context is working."""
+    try:
+        logger.info("test_request endpoint called")
+        data = await request.get_json()
+        return jsonify({"success": True, "received_data": data})
+    except Exception as e:
+        logger.error(f"Error in test_request: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @expense_bp.route("/match-receipt", methods=["POST"])
-def match_receipt():
+async def match_receipt():
     """
     Calculate confidence score for expense-receipt match.
 
@@ -378,7 +386,10 @@ def match_receipt():
     - JSON response with confidence score
     """
     try:
-        data = request.get_json()
+        logger.info("match_receipt endpoint called")
+        logger.info(f"Request method: {request.method}")
+
+        data = await request.get_json()
 
         if not data:
             return jsonify(
@@ -491,7 +502,7 @@ def list_receipts():
 
 
 @expense_bp.route("/delete", methods=["POST"])
-def delete_expenses():
+async def delete_expenses():
     """
     Delete specified expenses from the current working set.
 
@@ -503,7 +514,7 @@ def delete_expenses():
     """
     try:
         # Get the request data
-        data = request.get_json()
+        data = await request.get_json()
         if not data:
             return jsonify({"error": "Invalid request", "message": "No JSON data provided"}), 400
 
@@ -540,12 +551,12 @@ def delete_expenses():
 
 
 @expense_bp.route("/create-from-receipts", methods=["POST"])
-def create_expenses_from_receipts():
+async def create_expenses_from_receipts():
     """
     Create new expense entries from receipts with invoice details.
     """
     try:
-        data = request.get_json()
+        data = await request.get_json()
 
         if not data:
             return jsonify({"error": "No data provided"}), 400
@@ -623,7 +634,7 @@ def create_expenses_from_receipts():
 
 
 @expense_bp.route("/bring-page-to-front", methods=["POST"])
-def bring_page_to_front():
+async def bring_page_to_front():
     """
     Bring the My Expense page to the front of the browser.
 
@@ -649,7 +660,7 @@ def bring_page_to_front():
             ), 503
 
         # Bring the page to front
-        page.bring_to_front()
+        await page.bring_to_front()
         logger.info("Successfully brought page to front")
 
         return jsonify({"success": True, "message": "Page brought to front successfully"})
@@ -662,7 +673,7 @@ def bring_page_to_front():
 
 
 @expense_bp.route("/fill-expense-report", methods=["POST"])
-def fill_expense_report():
+async def fill_expense_report():
     """
     Fill expense report with the provided expense data.
 
@@ -677,7 +688,7 @@ def fill_expense_report():
         logger.info("Starting fill expense report process")
 
         # Get the JSON data from the request
-        data = request.get_json()
+        data = await request.get_json()
         if not data:
             return jsonify(
                 {
@@ -717,11 +728,14 @@ def fill_expense_report():
         new_expenses_to_create = [expense for expense in expenses if not expense.get("Created ID")]
 
         page = get_expense_page()
-        expense_lines = page.get_by_role("textbox", name="Created ID", include_hidden=True).all()
+        expense_lines = await page.get_by_role(
+            "textbox", name="Created ID", include_hidden=True
+        ).all()
 
-        expense_line_mapping = {
-            expense_line.get_attribute("value"): expense_line for expense_line in expense_lines
-        }
+        expense_line_mapping = {}
+        for expense_line in expense_lines:
+            value = await expense_line.get_attribute("value")
+            expense_line_mapping[value] = expense_line
 
         # Update existing expenses in MyExpense with receipts
         for expense in existing_expenses_to_update:
@@ -732,68 +746,64 @@ def fill_expense_report():
 
             # Select the expense line
             expense_line = expense_line_mapping[expense_created_id]
-            expense_line.dispatch_event("click")
-
-            for expense in existing_expenses_to_update:
-                attached_receipts = expense.get("Receipts", [])
+            await expense_line.dispatch_event("click")
 
             # Log receipt details
             for _, receipt in enumerate(attached_receipts):
                 receipt_file_path = receipt["filePath"]
-                page.click('a[name="EditReceipts"]')
-                page.click('button[name="AddButton"]')
+                await page.click('a[name="EditReceipts"]')
+                await page.click('button[name="AddButton"]')
 
                 # Upload receipt
-                with page.expect_file_chooser() as file_chooser_info:
-                    page.click('button[name="UploadControlBrowseButton"]')
+                async with page.expect_file_chooser() as file_chooser_info:
+                    await page.click('button[name="UploadControlBrowseButton"]')
 
-                file_chooser = file_chooser_info.value
-                file_chooser.set_files(receipt_file_path)
+                file_chooser = await file_chooser_info.value
+                await file_chooser.set_files(receipt_file_path)
 
-                page.click('button[name="UploadControlUploadButton"]')
-                page.click('button[name="OkButtonAddNewTabPage"]')
-                page.click('button[name="CloseButton"]')
-
-                page.get_by_text("Save and continue", exact=True).click()
+                await page.click('button[name="UploadControlUploadButton"]')
+                await page.click('button[name="OkButtonAddNewTabPage"]')
+                await page.click('button[name="CloseButton"]')
+                await page.click('button[name="CommandButtonNext"]')
 
         logger.info(f"Total expenses: {total_expenses}")
         logger.info(f"Expenses with receipts: {num_expenses_with_receipts}")
 
         # Create new expenses and attach receipts to them
         for expense in new_expenses_to_create:
-            page.click('button[name="NewExpenseButton"]')
+            await page.click('button[name="NewExpenseButton"]')
 
-            page.fill('input[name="CategoryInput"]', expense["Expense category"])
-            page.fill('input[name="AmountInput"]', expense["Amount"])
-            page.fill('input[name="CurrencyInput"]', expense["Currency"])
-            page.fill('input[name="MerchantInputNoLookup"]', expense["Merchant"])
-            page.fill(
+            await page.fill('input[name="CategoryInput"]', expense["Expense category"])
+            await page.fill('input[name="AmountInput"]', expense["Amount"])
+            await page.fill('input[name="CurrencyInput"]', expense["Currency"])
+            await page.fill('input[name="MerchantInputNoLookup"]', expense["Merchant"])
+            await page.fill(
                 'input[name="DateInput"]',
                 datetime.strptime(expense["Date"], "%Y-%m-%d").strftime("%-m/%-d/%Y"),
             )
-            page.fill('textarea[name="NotesInput"]', expense["Additional information"])
+            await page.fill('textarea[name="NotesInput"]', expense["Additional information"])
 
-            page.click('button[name="SaveButton"]')
-            page.wait_for_timeout(3000)
+            await page.click('button[name="SaveButton"]')
+            await page.wait_for_timeout(3000)
 
             for receipt in expense["Receipts"]:
                 receipt_file_path = receipt["filePath"]
-                page.click('a[name="EditReceipts"]')
-                page.click('button[name="AddButton"]')
+                await page.click('a[name="EditReceipts"]')
+                await page.click('button[name="AddButton"]')
 
                 # Upload receipt
-                with page.expect_file_chooser() as file_chooser_info:
-                    page.click('button[name="UploadControlBrowseButton"]')
+                async with page.expect_file_chooser() as file_chooser_info:
+                    await page.click('button[name="UploadControlBrowseButton"]')
 
-                file_chooser = file_chooser_info.value
-                file_chooser.set_files(receipt_file_path)
+                file_chooser = await file_chooser_info.value
+                await file_chooser.set_files(receipt_file_path)
 
-                page.click('button[name="UploadControlUploadButton"]')
-                page.click('button[name="OkButtonAddNewTabPage"]')
-                page.wait_for_timeout(1000)
-                page.get_by_text("Close", exact=True).click()
+                await page.click('button[name="UploadControlUploadButton"]')
+                await page.click('button[name="OkButtonAddNewTabPage"]')
+                await page.click('button[name="CloseButton"]')
+                await page.click('button[name="CommandButtonNext"]')
 
-                page.get_by_text("Save and continue", exact=True).click()
+                # await page.click('button[data-dyn-controlname="CloseButton"][type="button"]')
 
         result_message = f"Successfully processed {total_expenses} expenses"
         if num_expenses_with_receipts > 0:

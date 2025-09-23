@@ -3245,6 +3245,11 @@ class EZExpenseApp {
                         receiptData.filename = uploadData.file_info.saved_filename;
                         receiptData.originalFilename = uploadData.file_info.original_filename;
 
+                        // Also update the original receipt in bulkReceipts array
+                        originalReceipt.filePath = uploadData.file_info.file_path;
+                        originalReceipt.filename = uploadData.file_info.saved_filename;
+                        originalReceipt.originalFilename = uploadData.file_info.original_filename;
+
                         console.log('Updated receiptData with filePath:', receiptData.filePath);
                     } else {
                         console.log('No file object or file path available for receipt:', originalReceipt.name);
@@ -3630,17 +3635,22 @@ class EZExpenseApp {
                     type: type,
                     confidence: null, // No confidence for bulk imports
                     file: file, // Keep the file object for upload when needed
-                    invoiceDetails: invoiceDetails // Add extracted invoice details
+                    invoiceDetails: invoiceDetails, // Add extracted invoice details
+                    needsUpload: true // Flag to indicate this receipt needs to be uploaded
                 };
             });
 
             // Wait for all receipts to be processed in parallel
             const receipts = await Promise.all(receiptPromises);
 
-            // Add all processed receipts to bulk receipts
-            this.bulkReceipts.push(...receipts);
+            // Upload all the new receipts to get their file paths BEFORE adding them to bulkReceipts
+            await this.uploadBulkReceiptsToServer(receipts);
 
-            let successMessage = `Successfully imported ${filesToProcess.length} receipts`;
+            // Debug: Check if filePath is set after upload
+            console.log('Receipts after upload:', receipts.map(r => ({ name: r.name, filePath: r.filePath, needsUpload: r.needsUpload })));
+
+            // Now add all processed receipts (with filePath set) to bulk receipts
+            this.bulkReceipts.push(...receipts); let successMessage = `Successfully imported ${filesToProcess.length} receipts`;
             if (!aiExtractionEnabled) {
                 successMessage += ' (without AI extraction)';
             }
@@ -3654,6 +3664,48 @@ class EZExpenseApp {
             this.showToast('Error processing some receipts', 'error');
         } finally {
             this.hideLoading();
+        }
+    }
+
+    /**
+     * Upload bulk receipts to server to get their file paths
+     */
+    async uploadBulkReceiptsToServer(receipts) {
+        console.log('Uploading bulk receipts to server...');
+
+        for (const receipt of receipts) {
+            if (receipt.needsUpload && receipt.file && !receipt.filePath) {
+                try {
+                    console.log(`Uploading receipt: ${receipt.name}`);
+
+                    const formData = new FormData();
+                    formData.append('file', receipt.file);
+
+                    const uploadResponse = await fetch('/api/receipts/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (uploadResponse.ok) {
+                        const uploadData = await uploadResponse.json();
+                        if (uploadData.success) {
+                            // Update receipt with file path from server
+                            receipt.filePath = uploadData.file_info.file_path;
+                            receipt.filename = uploadData.file_info.saved_filename;
+                            receipt.originalFilename = uploadData.file_info.original_filename;
+                            receipt.needsUpload = false;
+
+                            console.log(`Successfully uploaded ${receipt.name}, filePath: ${receipt.filePath}`);
+                        } else {
+                            console.error(`Failed to upload ${receipt.name}:`, uploadData.message);
+                        }
+                    } else {
+                        console.error(`Upload failed for ${receipt.name}:`, uploadResponse.status);
+                    }
+                } catch (error) {
+                    console.error(`Error uploading ${receipt.name}:`, error);
+                }
+            }
         }
     }
 
@@ -3680,6 +3732,9 @@ class EZExpenseApp {
                 const { file, ...receiptRecord } = receipt;
                 return receiptRecord;
             });
+
+            // Debug: Check filePath in receipt data being sent to backend
+            console.log('Receipt filePaths being sent to backend:', receiptData.map(r => ({ name: r.name, filePath: r.filePath })));
 
             const expenseData = this.expenses.map(expense => {
                 // Include ALL fields from the expense data
@@ -4055,18 +4110,16 @@ class EZExpenseApp {
         try {
             // Prepare data for the backend
             const payload = {
-                receipts_with_invoice_details: receiptsWithInvoiceDetails.map(receipt => ({
-                    name: receipt.name,
-                    invoiceDetails: receipt.invoiceDetails,
-                    preview: receipt.preview,
-                    type: receipt.type,
-                    // Remove file object since it can't be serialized
-                    file: null
-                })),
+                receipts_with_invoice_details: receiptsWithInvoiceDetails.map(receipt => {
+                    // Include ALL receipt properties except the file object
+                    const { file, ...receiptRecord } = receipt;
+                    return receiptRecord;
+                }),
                 current_expense_data: this.expenses
             };
 
             console.log('Sending payload to create expenses from receipts:', payload);
+            console.log('Receipt filePaths in create-from-receipts payload:', payload.receipts_with_invoice_details.map(r => ({ name: r.name, filePath: r.filePath })));
 
             // Call the backend endpoint
             const response = await fetch('/api/expenses/create-from-receipts', {
