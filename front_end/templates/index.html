@@ -31,10 +31,13 @@
                     <p style="color: #000; margin: 0; font-weight: 500;">Please navigate to an existing expense report in My Expense before
                         proceeding.</p>
                 </div>
-                <div style="margin-bottom: 1rem;">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" id="navigation-checkbox" style="cursor: pointer;">
-                        <span>I have navigated to the expense report I want to fill</span>
+                <div style="margin-bottom: 1rem; padding: 1rem; border-left: 4px solid #ff9800; background-color: #fff3e0;">
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="navigation-checkbox" style="margin-top: 0.25rem; cursor: pointer;">
+                        <span style="color: #000; font-weight: 500;">
+                            <i class="fas fa-map-marker-alt" style="color: #ff9800; margin-right: 0.5rem;"></i>
+                            I have navigated to the expense report I want to fill
+                        </span>
                     </label>
                 </div>
                 <div class="action-buttons">
@@ -138,7 +141,7 @@
 
                 <!-- Export Section (formerly Step 4) -->
                 <div class="section-header" style="margin-top: 2rem;">
-                    <h3><i class="fas fa-file-export"></i>Fill Expense Report</h3>
+                    <h3><i class="fas fa-file-export"></i> Fill Expense Report</h3>
                     <p>Fill in your expense report with matched receipts</p>
                 </div>
                 <div class="export-summary">
