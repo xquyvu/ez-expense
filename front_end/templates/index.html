@@ -163,6 +163,22 @@
                         <span id="validation-text">All validation tests have passed</span>
                     </div>
                 </div>
+                <div style="margin-top: 1rem; padding: 1rem; border-left: 4px solid #ff9800; background-color: #fff3e0;">
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="zoom-confirmation-checkbox" style="margin-top: 0.25rem; cursor: pointer;">
+                        <span style="color: #000; font-weight: 500;">
+                            <i class="fas fa-search-minus" style="color: #ff9800; margin-right: 0.5rem;"></i>
+                            I confirm that I have zoomed out the My Expense page so that all expenses are visible (otherwise there will be
+                            errors when filling the report).
+                        </span>
+                    </label>
+                </div>
+                <div class="zoom-confirmation-status" id="zoom-confirmation-status" style="margin-top: 0.5rem; display: none;">
+                    <div class="validation-message" id="zoom-status-message">
+                        <i class="fas fa-exclamation-triangle" id="zoom-status-icon"></i>
+                        <span id="zoom-status-text">Please confirm that you have zoomed out the My Expense page</span>
+                    </div>
+                </div>
                 <div class="export-actions" style="margin-top: 1rem;">
                     <button id="fill-expense-report-btn" class="btn btn-primary">
                         <i class="fas fa-file-upload"></i> Fill Expense Report
