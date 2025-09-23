@@ -1233,15 +1233,14 @@ class EZExpenseApp {
         const shouldNotHaveReceipts = receiptsAttachedNormalized === 'no' || receiptsAttachedNormalized === 'false' || receiptsAttachedNormalized === '0';
 
         // Updated validation logic:
-        // - if Receipts attached is Yes, and there's nothing in the Receipts column, pass
-        // - if Receipts attached is Yes, and there's receipt in the Receipts column, fail
+        // - if Receipts attached is Yes, it's fine to have or not have receipts in the Receipts column (always pass)
         // - if Receipts attached is No, and there's nothing in the Receipts column, fail
         // - if Receipts attached is No, and there's receipt in the Receipts column, pass
         let isValid = false;
 
         if (shouldHaveReceipts) {
-            // "Receipts attached" is "Yes"
-            isValid = !hasActualReceipts; // Pass only if no actual receipts
+            // "Receipts attached" is "Yes" - always valid regardless of actual receipts
+            isValid = true;
         } else if (shouldNotHaveReceipts) {
             // "Receipts attached" is "No"
             isValid = hasActualReceipts; // Pass only if has actual receipts
