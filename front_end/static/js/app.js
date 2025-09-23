@@ -859,6 +859,12 @@ class EZExpenseApp {
 
         // Fill expense report button
         document.getElementById('fill-expense-report-btn').addEventListener('click', () => {
+            // Check if button is disabled due to validation errors
+            const button = document.getElementById('fill-expense-report-btn');
+            if (button.disabled) {
+                this.showToast('Please fix all validation errors before filling the expense report', 'warning');
+                return;
+            }
             this.fillExpenseReport();
         });
 
@@ -1190,8 +1196,14 @@ class EZExpenseApp {
                 // Update the receipt validation indicator for this expense
                 setTimeout(() => {
                     this.updateReceiptValidationIndicator(expenseId);
+                    this.updateValidationStatus(); // Update overall validation status
                 }, 0);
             }
+        } else {
+            // For other fields, update validation status after a short delay
+            setTimeout(() => {
+                this.updateValidationStatus();
+            }, 0);
         }
 
         return isValid;
@@ -1314,6 +1326,11 @@ class EZExpenseApp {
             }
         });
 
+        // Update validation status after all fields are validated
+        setTimeout(() => {
+            this.updateValidationStatus();
+        }, 0);
+
         return allValid;
     }
 
@@ -1387,6 +1404,74 @@ class EZExpenseApp {
         }
 
         this.showToast(errorMessage, 'warning');
+    }
+
+    /**
+     * Check validation status and update the fill expense report button
+     */
+    updateValidationStatus() {
+        const table = document.getElementById('expenses-table');
+        const validationGuidance = document.getElementById('validation-guidance');
+        const validationMessage = document.getElementById('validation-message');
+        const validationIcon = document.getElementById('validation-icon');
+        const validationText = document.getElementById('validation-text');
+        const fillButton = document.getElementById('fill-expense-report-btn');
+
+        // Don't show validation if no table or no expenses
+        if (!table || !this.expenses || this.expenses.length === 0) {
+            validationGuidance.style.display = 'none';
+            fillButton.disabled = false;
+            return;
+        }
+
+        // Check for field validation errors
+        const errorFields = table.querySelectorAll('.validation-error');
+
+        // Check receipt validation errors
+        let receiptValidationErrors = 0;
+        this.expenses.forEach(expense => {
+            // Find the "Receipts attached" column value
+            let receiptsAttachedValue = null;
+            for (const [key, value] of Object.entries(expense)) {
+                const normalizedKey = key.toLowerCase().trim();
+                if (normalizedKey.includes('receipts') && normalizedKey.includes('attached')) {
+                    receiptsAttachedValue = value;
+                    break;
+                }
+            }
+
+            // Only validate if there's a "Receipts attached" column
+            if (receiptsAttachedValue !== null) {
+                const isValid = this.validateReceiptAttachment(expense.id, receiptsAttachedValue);
+                if (!isValid) {
+                    receiptValidationErrors++;
+                }
+            }
+        });
+
+        const totalErrors = errorFields.length + receiptValidationErrors;
+        const hasErrors = totalErrors > 0;
+
+        // Show validation guidance
+        validationGuidance.style.display = 'block';
+
+        if (hasErrors) {
+            // Has validation errors
+            validationGuidance.className = 'validation-guidance validation-failed';
+            validationIcon.className = 'fas fa-exclamation-triangle';
+            validationText.textContent = `Please fix ${totalErrors} validation error${totalErrors > 1 ? 's' : ''} before proceeding`;
+
+            // Disable button
+            fillButton.disabled = true;
+        } else {
+            // All validations passed
+            validationGuidance.className = 'validation-guidance validation-passed';
+            validationIcon.className = 'fas fa-check-circle';
+            validationText.textContent = 'All validation tests have passed';
+
+            // Enable button
+            fillButton.disabled = false;
+        }
     }
 
     /**
@@ -2125,6 +2210,11 @@ class EZExpenseApp {
 
         // Dispatch event to notify autocomplete that table has been created
         document.dispatchEvent(new CustomEvent('expensesTableCreated'));
+
+        // Update validation status after table display
+        setTimeout(() => {
+            this.updateValidationStatus();
+        }, 100);
     }    /**
      * Create receipt cell HTML
      */
@@ -2627,6 +2717,11 @@ class EZExpenseApp {
             this.showToast('Receipt attached successfully', 'success');
             this.showStep(2);
 
+            // Update validation status after receipt addition
+            setTimeout(() => {
+                this.updateValidationStatus();
+            }, 100);
+
         } catch (error) {
             console.error('Error processing receipt:', error);
             this.showToast('Failed to process receipt file', 'error');
@@ -2762,6 +2857,11 @@ class EZExpenseApp {
         this.updateExpensesFromTable();
 
         this.displayExpensesTable();
+
+        // Update validation status after receipt removal
+        setTimeout(() => {
+            this.updateValidationStatus();
+        }, 100);
     }
 
     /**

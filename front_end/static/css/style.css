@@ -2071,3 +2071,57 @@ textarea.table-input.non-editable:focus {
     background-color: #f5c6cb !important;
     /* Slightly darker red on hover */
 }
+
+/* Validation Guidance Styles */
+.validation-guidance {
+    padding: 1rem;
+    border-radius: 8px;
+    border: 2px solid;
+    background-color: #f8f9fa;
+}
+
+.validation-guidance.validation-passed {
+    border-color: #28a745;
+    background-color: #d4f7d4;
+    color: #155724;
+}
+
+.validation-guidance.validation-failed {
+    border-color: #dc3545;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.validation-message {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.validation-message i {
+    margin-right: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.validation-guidance.validation-passed i {
+    color: #28a745;
+}
+
+.validation-guidance.validation-failed i {
+    color: #dc3545;
+}
+
+/* Button disabled styles */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+}
+
+.btn:disabled:hover {
+    transform: none !important;
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+}
