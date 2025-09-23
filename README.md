@@ -15,7 +15,7 @@
 - [x] filePath key for files that didn't get matched doesn't exist
 - [ ] Refund not giving minus value
 - [ ] additional description for existing expense didn't get fill
-- [ ] Ask the user to zoom out so that all expenses are visible
+- [x] Ask the user to zoom out so that all expenses are visible
 
 ### Low priority
 
