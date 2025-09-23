@@ -12,6 +12,7 @@ class EZExpenseApp {
         this.confirmationTimeout = null; // Track timeout for resetting confirmation
         this.currentStep = 1;
         this.validCategories = new Set(); // Valid expense categories
+        this.validCurrencies = new Set(); // Valid currency codes
         this.validationEnabled = true; // Enable/disable validation
 
         this.init();
@@ -25,6 +26,7 @@ class EZExpenseApp {
         this.checkHealthStatus();
         this.createDeleteButton(); // Initialize the delete button
         this.loadValidCategories(); // Load valid expense categories
+        this.loadValidCurrencies(); // Load valid currency codes
         this.initModalEventListeners(); // Initialize modal event listeners
 
         // Debug: Check if column config is loaded
@@ -911,6 +913,23 @@ class EZExpenseApp {
     }
 
     /**
+     * Load valid currency codes from the server
+     */
+    async loadValidCurrencies() {
+        try {
+            const response = await fetch('/api/currency-list');
+            const data = await response.json();
+            if (data.currencies) {
+                this.validCurrencies = new Set(data.currencies);
+                console.log('Loaded', this.validCurrencies.size, 'valid currency codes');
+            }
+        } catch (error) {
+            console.error('Failed to load currency codes:', error);
+            this.showToast('Warning: Could not load currency code validation list', 'warning');
+        }
+    }
+
+    /**
      * Extract invoice details from a receipt file
      */
     async extractInvoiceDetails(file) {
@@ -995,6 +1014,38 @@ class EZExpenseApp {
         const lowerCategory = categoryStr.toLowerCase();
         for (const validCategory of this.validCategories) {
             if (validCategory.toLowerCase() === lowerCategory) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Validate currency code against the valid currency codes list
+     */
+    validateCurrencyCode(currency) {
+        // Handle non-string values
+        if (currency === null || currency === undefined) {
+            return false;
+        }
+
+        // Convert to string if not already
+        const currencyStr = String(currency).trim();
+
+        if (currencyStr === '') {
+            return false; // Empty currency is invalid
+        }
+
+        // Check exact match first (case-sensitive for currency codes)
+        if (this.validCurrencies.has(currencyStr)) {
+            return true;
+        }
+
+        // Check case-insensitive match as fallback
+        const upperCurrency = currencyStr.toUpperCase();
+        for (const validCurrency of this.validCurrencies) {
+            if (validCurrency.toUpperCase() === upperCurrency) {
                 return true;
             }
         }
@@ -1103,7 +1154,7 @@ class EZExpenseApp {
         // Check for Additional information column (multiple possible variations)
         else if (normalizedColumnName === 'currency') {
             hasValidation = true;
-            isValid = this.validateNotEmpty(value);
+            isValid = this.validateCurrencyCode(value);
         }
 
         // Apply visual feedback to both input and cell - only for columns with validation

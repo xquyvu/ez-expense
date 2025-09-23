@@ -126,6 +126,28 @@ def create_app():
             logger.error(f"Error reading category list: {e}")
             return jsonify({"error": "Failed to load category list"}), 500
 
+    @app.route("/api/currency-list")
+    def get_currency_list():
+        """Get the list of valid currency codes."""
+        try:
+            # Path to currency codes file (relative to the project root)
+            currency_file_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "assets",
+                "currency_codes.txt",
+            )
+
+            with open(currency_file_path, "r", encoding="utf-8") as f:
+                currencies = [line.strip() for line in f if line.strip()]
+
+            return jsonify({"currencies": currencies})
+        except FileNotFoundError:
+            logger.error(f"Currency codes file not found: {currency_file_path}")
+            return jsonify({"error": "Currency codes file not found"}), 404
+        except Exception as e:
+            logger.error(f"Error reading currency codes: {e}")
+            return jsonify({"error": "Failed to load currency codes"}), 500
+
     # Error handlers
     @app.errorhandler(404)
     def not_found_error(error):
