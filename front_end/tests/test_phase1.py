@@ -6,7 +6,9 @@ import sys
 
 import requests
 
-BASE_URL = "http://127.0.0.1:5001"
+from config import FRONTEND_PORT
+
+BASE_URL = f"http://127.0.0.1:{FRONTEND_PORT}"
 
 
 def test_health_endpoint():

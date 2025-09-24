@@ -5,6 +5,8 @@ Test script for the new bulk receipt matching endpoint.
 
 import requests
 
+from config import FRONTEND_PORT
+
 
 def test_bulk_receipt_matching():
     """Test the new /api/receipts/match_bulk_receipts endpoint."""
@@ -48,7 +50,7 @@ def test_bulk_receipt_matching():
     try:
         # Test the endpoint
         response = requests.post(
-            "http://127.0.0.1:5001/api/receipts/match_bulk_receipts",
+            f"http://127.0.0.1:{FRONTEND_PORT}/api/receipts/match_bulk_receipts",
             json=test_data,
             headers={"Content-Type": "application/json"},
         )
@@ -76,7 +78,7 @@ def test_bulk_receipt_matching():
 
     except requests.exceptions.ConnectionError:
         print("❌ Cannot connect to the application")
-        print("   Please make sure the Flask app is running on http://127.0.0.1:5001")
+        print(f"   Please make sure the Flask app is running on http://127.0.0.1:{FRONTEND_PORT}")
         return False
     except Exception as e:
         print(f"❌ Test failed with exception: {e}")
@@ -93,7 +95,7 @@ def test_endpoint_validation():
 
     try:
         response = requests.post(
-            "http://127.0.0.1:5001/api/receipts/match_bulk_receipts",
+            f"http://127.0.0.1:{FRONTEND_PORT}/api/receipts/match_bulk_receipts",
             json=invalid_data,
             headers={"Content-Type": "application/json"},
         )

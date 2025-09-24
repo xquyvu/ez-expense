@@ -9,12 +9,14 @@ from datetime import datetime
 
 import requests
 
+from config import FRONTEND_PORT
+
 
 def test_fill_expense_report_endpoint():
     """Test the /api/expenses/fill-expense-report endpoint"""
 
     # Base URL for the Flask app (using correct port from config)
-    base_url = "http://localhost:5001"
+    base_url = f"http://localhost:{FRONTEND_PORT}"
     endpoint = f"{base_url}/api/expenses/fill-expense-report"  # Sample test data
     test_data = {
         "expenses": [
@@ -65,7 +67,9 @@ def test_fill_expense_report_endpoint():
 
     except requests.exceptions.ConnectionError:
         print("❌ CONNECTION ERROR!")
-        print("Could not connect to the Flask app. Make sure it's running on localhost:5001")
+        print(
+            f"Could not connect to the Flask app. Make sure it's running on localhost:{FRONTEND_PORT}"
+        )
         print("Run: uv run -m front_end.app")
         return False
     except Exception as e:

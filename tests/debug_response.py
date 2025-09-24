@@ -7,6 +7,8 @@ import json
 
 import requests
 
+from config import FRONTEND_PORT
+
 
 def test_response_format():
     """Test what the backend actually returns."""
@@ -35,7 +37,9 @@ def test_response_format():
     try:
         # Test the endpoint
         response = requests.post(
-            "http://127.0.0.1:5001/api/receipts/match_bulk_receipts", json=test_data, timeout=10
+            f"http://127.0.0.1:{FRONTEND_PORT}/api/receipts/match_bulk_receipts",
+            json=test_data,
+            timeout=10,
         )
 
         print(f"Response status: {response.status_code}")

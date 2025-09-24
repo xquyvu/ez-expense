@@ -1,3 +1,4 @@
+import os
 import signal
 import sys
 import time
@@ -9,7 +10,7 @@ from dotenv import load_dotenv
 
 import playwright_manager
 from browser import BrowserProcess
-from config import BROWSER_PORT, EXPENSE_APP_URL
+from config import BROWSER_PORT, EXPENSE_APP_URL, FRONTEND_PORT
 
 logger = getLogger(__name__)
 
@@ -64,7 +65,7 @@ def setup_browser_session():
     """Set up the browser session and return the page object"""
     global _browser_process
 
-    _browser_process = BrowserProcess(browser_name="edge", port=BROWSER_PORT)
+    _browser_process = BrowserProcess(browser_name=os.getenv("BROWSER", "edge"), port=BROWSER_PORT)
 
     # Try to close existing browser gracefully
     if not _browser_process.close_browser_if_running():
@@ -72,7 +73,7 @@ def setup_browser_session():
         return None
 
     _browser_process.start_browser_debug_mode()
-    time.sleep(2)  # Give Edge time to start
+    time.sleep(2)  # Give Browser time to start
 
     return _browser_process
 
@@ -110,11 +111,11 @@ async def start_quart_app():
         from front_end.app import create_app
 
         app = create_app()
-        print("🚀 Starting Quart application on port 5001...")
-        print("🌐 Access the web interface at http://127.0.0.1:5001")
+        print(f"🚀 Starting Quart application on port {FRONTEND_PORT}...")
+        print(f"🌐 Access the web interface at http://127.0.0.1:{FRONTEND_PORT}")
 
         def _open_browser():
-            webbrowser.open_new("http://127.0.0.1:5001")
+            webbrowser.open_new(f"http://127.0.0.1:{FRONTEND_PORT}")
 
         Timer(1, _open_browser).start()
 
@@ -123,7 +124,7 @@ async def start_quart_app():
         from hypercorn import Config
 
         config = Config()
-        config.bind = ["0.0.0.0:5001"]
+        config.bind = [f"0.0.0.0:{FRONTEND_PORT}"]
         config.use_reloader = False
 
         # Run the async server directly - we're already in async context
