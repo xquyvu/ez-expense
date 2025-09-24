@@ -16,16 +16,14 @@ from openai.types.chat import (
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from config import EXPENSE_CATEGORIES
+
 # Load environment variables
 load_dotenv()
 
-with open("assets/category_list.txt") as f:
-    CATEGORY_LIST = [line.strip() for line in f if line.strip()]
-
-
 ValidExpenseCategories = Enum(
     "ValidExpenseCategories",
-    ((x, x) for x in CATEGORY_LIST),
+    ((x, x) for x in EXPENSE_CATEGORIES),
 )
 
 

@@ -45,26 +45,10 @@ def get_categories():
     Get the list of expense categories from category_list.txt for autocomplete functionality.
     """
     try:
-        # Get the path to the category list file
-        category_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "assets",
-            "category_list.txt",
-        )
+        from config import EXPENSE_CATEGORIES
 
-        if not os.path.exists(category_file_path):
-            logger.error(f"Category file not found: {category_file_path}")
-            return jsonify({"error": "Category file not found"}), 404
-
-        categories = []
-        with open(category_file_path, "r", encoding="utf-8") as file:
-            for line in file:
-                line = line.strip()
-                if line:  # Skip empty lines
-                    categories.append(line)
-
-        logger.info(f"Loaded {len(categories)} categories from {category_file_path}")
-        return jsonify({"categories": categories})
+        logger.info(f"Loaded {len(EXPENSE_CATEGORIES)} categories from config")
+        return jsonify({"categories": EXPENSE_CATEGORIES})
 
     except Exception as e:
         logger.error(f"Error loading categories: {e}")
