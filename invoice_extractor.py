@@ -30,12 +30,11 @@ ValidExpenseCategories = Enum(
 
 
 class InvoiceDetails(BaseModel):
-    amount: float = Field(
-        alias="Amount", description="Invoice amount. If it is a refund, give a negative number"
-    )
+    amount: float = Field(alias="Amount", description="Invoice amount")
     currency: str = Field(alias="Currency", description="Currency code (e.g., USD, GBP)")
     date: str = Field(alias="Date", description="Date in YYYY-MM-DD format")
     expense_category: ValidExpenseCategories = Field(alias="Expense category")
+    is_refund: bool = Field(alias="is_refund", description="Indicates if the invoice is a refund")
 
 
 IMAGE_RESOLUTION = 300  # DPI for image extraction from PDF
@@ -177,7 +176,7 @@ async def extract_invoice_details(file_path: Optional[str] = None) -> dict:
 
         # Convert to dictionary format expected by the API
         return {
-            "Amount": invoice_details.amount,
+            "Amount": invoice_details.amount * (-1 if invoice_details.is_refund else 1),
             "Currency": invoice_details.currency,
             "Date": invoice_details.date,
             "Expense category": invoice_details.expense_category.value,
