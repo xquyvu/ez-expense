@@ -2,7 +2,10 @@
 
 ## Installation
 
-`uvx playwright install chromium --with-deps --no-shell`
+```bash
+uvx playwright install chromium --with-deps --no-shell
+uv sync
+```
 
 ## Bugs to fix
 
