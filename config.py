@@ -6,7 +6,6 @@ that need to be shared across different components of the application.
 """
 
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -25,11 +24,6 @@ FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", 5001))
 EXPENSE_APP_URL = "myexpense.operations.dynamics.com"
 FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
-# Path configurations
-INPUT_DATA_PATH = Path("./input_data")
-RECEIPTS_PATH = INPUT_DATA_PATH / "receipts"
-EXPORTS_PATH = Path("./exports")
-
 # CSV column names
 EXPENSE_ID_COLUMN = "Created ID"
 EXPENSE_LINE_NUMBER_COLUMN = "Line number"
@@ -40,11 +34,6 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif"}
 
-# Create necessary directories
-INPUT_DATA_PATH.mkdir(exist_ok=True)
-RECEIPTS_PATH.mkdir(exist_ok=True)
-EXPORTS_PATH.mkdir(exist_ok=True)
-
 
 def get_debug_info():
     """Get debug information for troubleshooting."""
@@ -54,9 +43,6 @@ def get_debug_info():
         "BROWSER_PORT": BROWSER_PORT,
         "FRONTEND_PORT": FRONTEND_PORT,
         "FRONTEND_URL": FRONTEND_URL,
-        "INPUT_DATA_PATH": str(INPUT_DATA_PATH.absolute()),
-        "RECEIPTS_PATH": str(RECEIPTS_PATH.absolute()),
-        "EXPORTS_PATH": str(EXPORTS_PATH.absolute()),
     }
 
 
