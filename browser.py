@@ -17,6 +17,10 @@ BROWSER_CONFIG = {
         application_path="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         process_name="Microsoft Edge",
     ),
+    "chrome": BrowserConfig(
+        application_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        process_name="Google Chrome",
+    ),
 }
 
 
