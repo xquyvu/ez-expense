@@ -31,7 +31,11 @@ class BrowserProcess:
                 self.browser.application_path,
                 f"--remote-debugging-port={self.port}",
                 "--new",
-            ]
+                "--log-level=3",  # Only fatal errors (suppresses INFO/WARNING)
+                "--disable-logging",  # Disable Chrome's internal logging
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
     def close_browser_gracefully(self):
