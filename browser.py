@@ -18,22 +18,22 @@ class BrowserConfig(BaseModel):
 
 class PlatformHandler(ABC):
     """Abstract base class for platform-specific browser operations"""
-    
+
     @abstractmethod
     def get_browser_configs(self) -> Dict[str, BrowserConfig]:
         """Get browser configurations for this platform"""
         pass
-    
+
     @abstractmethod
     def is_browser_running(self, process_name: str) -> bool:
         """Check if browser is running"""
         pass
-    
+
     @abstractmethod
     def close_browser_gracefully(self, process_name: str) -> bool:
         """Gracefully close browser"""
         pass
-    
+
     @abstractmethod
     def force_close_browser(self, process_name: str) -> None:
         """Force close browser"""
@@ -42,7 +42,7 @@ class PlatformHandler(ABC):
 
 class MacOSHandler(PlatformHandler):
     """macOS-specific browser operations"""
-    
+
     def get_browser_configs(self) -> Dict[str, BrowserConfig]:
         return {
             "edge": BrowserConfig(
@@ -54,13 +54,11 @@ class MacOSHandler(PlatformHandler):
                 process_name="Google Chrome",
             ),
         }
-    
+
     def is_browser_running(self, process_name: str) -> bool:
-        result = subprocess.run(
-            ["pgrep", "-f", process_name], capture_output=True, text=True
-        )
+        result = subprocess.run(["pgrep", "-f", process_name], capture_output=True, text=True)
         return bool(result.stdout.strip())
-    
+
     def close_browser_gracefully(self, process_name: str) -> bool:
         try:
             applescript = f'''
@@ -76,14 +74,14 @@ class MacOSHandler(PlatformHandler):
         except Exception as e:
             logger.warning(f"Failed to gracefully close browser: {e}")
             return False
-    
+
     def force_close_browser(self, process_name: str) -> None:
         subprocess.run(["pkill", "-f", process_name], capture_output=True)
 
 
 class WindowsHandler(PlatformHandler):
     """Windows-specific browser operations"""
-    
+
     def get_browser_configs(self) -> Dict[str, BrowserConfig]:
         edge_paths = [
             "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
@@ -95,7 +93,7 @@ class WindowsHandler(PlatformHandler):
         ]
 
         config = {}
-        
+
         # Find Edge
         for path in edge_paths:
             if Path(path).exists():
@@ -115,15 +113,13 @@ class WindowsHandler(PlatformHandler):
                 break
 
         return config
-    
+
     def is_browser_running(self, process_name: str) -> bool:
         result = subprocess.run(
-            ["tasklist", "/FI", f"IMAGENAME eq {process_name}"],
-            capture_output=True,
-            text=True
+            ["tasklist", "/FI", f"IMAGENAME eq {process_name}"], capture_output=True, text=True
         )
         return process_name.lower() in result.stdout.lower()
-    
+
     def close_browser_gracefully(self, process_name: str) -> bool:
         try:
             subprocess.run(
@@ -136,16 +132,14 @@ class WindowsHandler(PlatformHandler):
         except Exception as e:
             logger.warning(f"Failed to gracefully close browser: {e}")
             return False
-    
+
     def force_close_browser(self, process_name: str) -> None:
-        subprocess.run(
-            ["taskkill", "/F", "/IM", process_name], capture_output=True
-        )
+        subprocess.run(["taskkill", "/F", "/IM", process_name], capture_output=True)
 
 
 class LinuxHandler(PlatformHandler):
     """Linux and other Unix-like systems browser operations"""
-    
+
     def get_browser_configs(self) -> Dict[str, BrowserConfig]:
         return {
             "edge": BrowserConfig(
@@ -157,37 +151,31 @@ class LinuxHandler(PlatformHandler):
                 process_name="chrome",
             ),
         }
-    
+
     def is_browser_running(self, process_name: str) -> bool:
-        result = subprocess.run(
-            ["pgrep", "-f", process_name], capture_output=True, text=True
-        )
+        result = subprocess.run(["pgrep", "-f", process_name], capture_output=True, text=True)
         return bool(result.stdout.strip())
-    
+
     def close_browser_gracefully(self, process_name: str) -> bool:
         try:
-            subprocess.run(
-                ["pkill", "-f", process_name], capture_output=True, text=True
-            )
+            subprocess.run(["pkill", "-f", process_name], capture_output=True, text=True)
             time.sleep(2)  # Give time for graceful shutdown
             return True
         except Exception as e:
             logger.warning(f"Failed to gracefully close browser: {e}")
             return False
-    
+
     def force_close_browser(self, process_name: str) -> None:
-        subprocess.run(
-            ["pkill", "-9", "-f", process_name], capture_output=True
-        )
+        subprocess.run(["pkill", "-9", "-f", process_name], capture_output=True)
 
 
 class PlatformHandlerFactory:
     """Factory to create the appropriate platform handler"""
-    
+
     @staticmethod
     def create_handler() -> PlatformHandler:
         system = platform.system().lower()
-        
+
         if system == "darwin":
             return MacOSHandler()
         elif system == "windows":
@@ -222,7 +210,7 @@ class BrowserProcess:
     def __init__(self, browser_name: str, port: int):
         self.port = port
         self.platform_handler = _platform_handler
-        
+
         if browser_name not in BROWSER_CONFIG:
             available_browsers = list(BROWSER_CONFIG.keys())
             raise ValueError(
