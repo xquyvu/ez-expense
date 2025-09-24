@@ -1999,12 +1999,99 @@ textarea.table-input.non-editable:focus {
         min-width: 40px !important;
         max-width: 40px !important;
     }
+}
 
-    .row-checkbox,
-    .select-all-checkbox {
-        width: 16px;
-        height: 16px;
+/* Exit App Button */
+.exit-app-btn {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    z-index: 1001 !important;
+    /* Higher than delete button */
+    background-color: #dc3545 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 50px !important;
+    padding: 0.8rem 1.2rem !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4) !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    white-space: nowrap !important;
+}
+
+.exit-app-btn:hover {
+    background-color: #c82333 !important;
+    transform: translateY(-2px) scale(1.05) !important;
+    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.6) !important;
+}
+
+.exit-app-btn:active {
+    transform: translateY(0) scale(0.98) !important;
+}
+
+.exit-app-btn.exit-confirmation-mode {
+    background-color: #fd7e14 !important;
+    box-shadow: 0 4px 12px rgba(253, 126, 20, 0.4) !important;
+    animation: pulse-warning 1.5s infinite;
+}
+
+.exit-app-btn.exit-confirmation-mode:hover {
+    background-color: #e8680c !important;
+    box-shadow: 0 6px 16px rgba(253, 126, 20, 0.6) !important;
+}
+
+.exit-app-btn i {
+    font-size: 0.9rem;
+}
+
+.exit-text {
+    font-size: 0.9rem;
+}
+
+/* Responsive adjustments for exit button */
+@media (max-width: 768px) {
+    .exit-app-btn {
+        top: 15px !important;
+        right: 15px !important;
+        padding: 0.7rem 1rem !important;
+        font-size: 0.85rem !important;
     }
+
+    .exit-text {
+        display: none;
+        /* Hide text on mobile, show only icon */
+    }
+}
+
+@media (max-width: 480px) {
+    .exit-app-btn {
+        top: 10px !important;
+        right: 10px !important;
+        padding: 0.6rem 0.8rem !important;
+        font-size: 0.8rem !important;
+        border-radius: 50% !important;
+        width: 40px !important;
+        height: 40px !important;
+        justify-content: center !important;
+    }
+
+    .exit-app-btn i {
+        font-size: 1rem;
+        margin: 0 !important;
+    }
+}
+
+/* Continue with existing styles */
+.row-checkbox,
+.select-all-checkbox {
+    width: 16px;
+    height: 16px;
+}
 }
 
 /* Validation Error Styles */

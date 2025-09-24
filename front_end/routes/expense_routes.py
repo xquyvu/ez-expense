@@ -834,3 +834,101 @@ async def fill_expense_report():
         return jsonify(
             {"success": False, "error": "Failed to fill expense report", "message": str(e)}
         ), 500
+
+
+@expense_bp.route("/exit", methods=["POST"])
+async def exit_application():
+    """
+    Exit the application gracefully by:
+    1. Closing the current Flask app tab
+    2. Shutting down the browser cleanly
+    3. Restarting the browser for normal use
+    """
+    try:
+        logger.info("Exit application requested")
+
+        # Import the playwright manager and browser utility
+        sys.path.append(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        )
+
+        from playwright_manager import (
+            get_browser_connection,
+            get_current_page,
+            stop_playwright,
+        )
+
+        # Get the current browser connection and page
+        browser = get_browser_connection()
+        current_page = get_current_page()
+
+        if current_page:
+            try:
+                # Close the current Flask app tab
+                await current_page.close()
+                logger.info("Flask app tab closed")
+            except Exception as e:
+                logger.warning(f"Error closing Flask app tab: {e}")
+
+        if browser:
+            try:
+                # Get all browser contexts and close them gracefully
+                contexts = browser.contexts
+                for context in contexts:
+                    await context.close()
+                logger.info("Browser contexts closed")
+
+                # Close the browser connection
+                await browser.close()
+                logger.info("Browser connection closed")
+            except Exception as e:
+                logger.warning(f"Error closing browser: {e}")
+
+        # Stop playwright
+        try:
+            await stop_playwright()
+            logger.info("Playwright stopped")
+        except Exception as e:
+            logger.warning(f"Error stopping Playwright: {e}")
+
+        # Start a new browser instance for normal use
+        try:
+            import platform
+            import subprocess
+
+            system = platform.system().lower()
+            if system == "darwin":  # macOS
+                subprocess.Popen(["open", "-a", "Google Chrome"])
+            elif system == "windows":
+                subprocess.Popen(["start", "chrome"], shell=True)
+            else:  # Linux
+                subprocess.Popen(["google-chrome"])
+
+            logger.info("New browser instance started")
+        except Exception as e:
+            logger.warning(f"Error starting new browser: {e}")
+
+        # Schedule app shutdown after a brief delay to allow response to be sent
+        import asyncio
+
+        async def shutdown_app():
+            await asyncio.sleep(1)  # Give time for response to be sent
+            logger.info("Shutting down Flask application")
+            import os
+            import signal
+
+            os.kill(os.getpid(), signal.SIGINT)
+
+        # Schedule shutdown
+        asyncio.create_task(shutdown_app())
+
+        return jsonify(
+            {
+                "success": True,
+                "message": "Application is shutting down. Browser will restart for normal use.",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error during application exit: {e}")
+        return jsonify({"success": False, "error": "Exit failed", "message": str(e)}), 500

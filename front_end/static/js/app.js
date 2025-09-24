@@ -9,7 +9,9 @@ class EZExpenseApp {
         this.receipts = new Map(); // Map of expense ID to array of receipt data
         this.selectedExpenses = new Set(); // Track selected expense IDs
         this.deleteConfirmationState = false; // Track if delete button is in confirmation mode
+        this.exitConfirmationState = false; // Track if exit button is in confirmation mode
         this.confirmationTimeout = null; // Track timeout for resetting confirmation
+        this.exitConfirmationTimeout = null; // Track timeout for resetting exit confirmation
         this.currentStep = 1;
         this.validCategories = new Set(); // Valid expense categories
         this.validCurrencies = new Set(); // Valid currency codes
@@ -72,6 +74,11 @@ class EZExpenseApp {
         // Click outside modal to close (event delegation)
         document.addEventListener('click', (e) => {
             console.log('Click detected on:', e.target.className, e.target.tagName, 'ID:', e.target.id);
+
+            // Reset exit confirmation if clicking outside the exit button
+            if (this.exitConfirmationState && !e.target.closest('#exit-app-btn')) {
+                this.resetExitConfirmationMode();
+            }
 
             // Check if we have any open modals or tooltips
             const openModals = document.querySelectorAll('.modal[style*="block"], .modal:not([style*="none"])');
@@ -1588,9 +1595,12 @@ class EZExpenseApp {
 
         console.log('Selected expenses after change:', Array.from(this.selectedExpenses));
 
-        // Reset confirmation mode when selection changes
+        // Reset confirmation modes when selection changes
         if (this.deleteConfirmationState) {
             this.resetDeleteConfirmationMode();
+        }
+        if (this.exitConfirmationState) {
+            this.resetExitConfirmationMode();
         }
 
         this.updateSelectAllCheckbox();
@@ -1773,6 +1783,104 @@ class EZExpenseApp {
                     Delete Selected (${this.selectedExpenses.size})
                 `;
             }
+        }
+    }
+
+    /**
+     * Handle exit app button confirmation flow
+     */
+    handleExitApp() {
+        if (!this.exitConfirmationState) {
+            // First click - enter confirmation mode
+            this.enterExitConfirmationMode();
+        } else {
+            // Second click - proceed with exit
+            this.exitApplication();
+        }
+    }
+
+    /**
+     * Enter exit confirmation mode
+     */
+    enterExitConfirmationMode() {
+        this.exitConfirmationState = true;
+
+        // Update button text and styling
+        const exitButton = document.getElementById('exit-app-btn');
+        if (exitButton) {
+            exitButton.innerHTML = `
+                <i class="fas fa-exclamation-triangle"></i>
+                <span class="exit-text">Click Again to Exit</span>
+            `;
+            exitButton.classList.add('exit-confirmation-mode');
+        }
+
+        // Reset confirmation mode after 5 seconds
+        if (this.exitConfirmationTimeout) {
+            clearTimeout(this.exitConfirmationTimeout);
+        }
+
+        this.exitConfirmationTimeout = setTimeout(() => {
+            this.resetExitConfirmationMode();
+        }, 5000);
+    }
+
+    /**
+     * Reset exit confirmation mode
+     */
+    resetExitConfirmationMode() {
+        this.exitConfirmationState = false;
+
+        if (this.exitConfirmationTimeout) {
+            clearTimeout(this.exitConfirmationTimeout);
+            this.exitConfirmationTimeout = null;
+        }
+
+        // Update button back to normal state
+        const exitButton = document.getElementById('exit-app-btn');
+        if (exitButton) {
+            exitButton.classList.remove('exit-confirmation-mode');
+            exitButton.innerHTML = `
+                <i class="fas fa-times"></i>
+                <span class="exit-text">Exit</span>
+            `;
+        }
+    }
+
+    /**
+     * Exit the application gracefully
+     */
+    async exitApplication() {
+        try {
+            this.showLoading('Exiting application...');
+
+            // Call the backend exit endpoint
+            const response = await fetch('/api/expenses/exit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.showToast(data.message || 'Application is shutting down...', 'success');
+
+                // Give a brief moment for the toast to be visible
+                setTimeout(() => {
+                    // The backend will close the browser and restart it
+                    // This page will be closed automatically
+                }, 2000);
+            } else {
+                throw new Error('Failed to exit application properly');
+            }
+
+        } catch (error) {
+            console.error('Error exiting application:', error);
+            this.showToast('Error during exit: ' + error.message, 'error');
+            this.resetExitConfirmationMode();
+        } finally {
+            this.hideLoading();
         }
     }
 
