@@ -14,8 +14,6 @@ datas = [
     # Frontend templates and static files
     (str(project_root / "front_end" / "templates"), "front_end/templates"),
     (str(project_root / "front_end" / "static"), "front_end/static"),
-    # Assets
-    (str(project_root / "assets"), "assets"),
     # Configuration files if they exist
 ]
 

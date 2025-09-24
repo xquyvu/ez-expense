@@ -19,9 +19,7 @@ if [ -d "../dist/EZ-Expense.app" ]; then
     cp -r "../dist/EZ-Expense.app" "$DIST_DIR/"
 fi
 
-# Copy assets folder (required by the application)
-echo "📁 Copying assets folder..."
-cp -r ../assets "$DIST_DIR/"
+# Assets folder no longer needed - removed
 
 # Copy launcher script
 cp run-ez-expense.sh "$DIST_DIR/"
@@ -64,7 +62,6 @@ WHAT'S INCLUDED:
 - run-ez-expense.sh: Easy launcher script
 - USER_GUIDE.md: Complete user guide
 - .env.template: Configuration template
-- assets/: Required application data files
 
 SYSTEM REQUIREMENTS:
 - macOS 10.15+ / Windows 10+ / Linux Ubuntu 18.04+
@@ -104,8 +101,17 @@ echo.
 echo Press Ctrl+C to stop the application.
 echo.
 
-REM Run the executable
-ez-expense.exe
+REM Run the executable (try .exe first, then without extension)
+if exist "ez-expense.exe" (
+    ez-expense.exe
+) else if exist "ez-expense" (
+    ez-expense
+) else (
+    echo ❌ Error: EZ-Expense executable not found!
+    echo Please make sure the executable is in the same folder as this script.
+    pause
+    exit /b 1
+)
 pause
 EOF
 
