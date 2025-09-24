@@ -1,0 +1,132 @@
+# -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
+from pathlib import Path
+
+# Get the current working directory (should be project root when script is run)
+project_root = Path(os.getcwd())
+
+# The deployment directory is where this spec file is located
+deployment_root = project_root / "deployment"
+
+# Define data files to include
+datas = [
+    # Frontend templates and static files
+    (str(project_root / "front_end" / "templates"), "front_end/templates"),
+    (str(project_root / "front_end" / "static"), "front_end/static"),
+    # Assets
+    (str(project_root / "assets"), "assets"),
+    # Configuration files if they exist
+]
+
+# Add .env file if it exists (users might have it)
+env_file = project_root / ".env"
+if env_file.exists():
+    datas.append((str(env_file), "."))
+
+# Hidden imports for dynamic imports and playwright
+hiddenimports = [
+    # Playwright and browser automation
+    "playwright",
+    "playwright._impl",
+    "playwright._impl._api_structures",
+    "playwright._impl._connection",
+    "playwright.async_api",
+    "playwright.sync_api",
+    # Web framework
+    "quart",
+    "quart.cors",
+    "quart_cors",
+    "hypercorn",
+    # Image processing
+    "PIL",
+    "PIL.Image",
+    "numpy",
+    # PDF processing
+    "pdfplumber",
+    # Data processing
+    "pandas",
+    "openpyxl",
+    # OpenAI
+    "openai",
+    # Other utilities
+    "requests",
+    "pydantic",
+    "dotenv",
+    "python_dotenv",
+    # Async support
+    "asyncio",
+    "threading",
+    "concurrent.futures",
+]
+
+# Exclude unnecessary modules to reduce size
+excludes = [
+    "tkinter",
+    "matplotlib",
+    "scipy",
+    "IPython",
+    "jupyter",
+    "notebook",
+    "PyQt5",
+    "PyQt6",
+    "PySide2",
+    "PySide6",
+]
+
+a = Analysis(
+    [str(project_root / "main.py")],
+    pathex=[str(project_root)],
+    binaries=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[str(deployment_root / "hooks")],
+    hooksconfig={},
+    runtime_hooks=[str(deployment_root / "hooks" / "hook-playwright.py")],
+    excludes=excludes,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=None,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name="ez-expense",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,  # Set to False for windowed app on Windows
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,  # Add path to .ico file if you have one
+)
+
+# Optional: Create a .app bundle on macOS
+if sys.platform == "darwin":
+    app = BUNDLE(
+        exe,
+        name="EZ-Expense.app",
+        icon=None,  # Add path to .icns file if you have one
+        bundle_identifier="com.ez-expense.app",
+        info_plist={
+            "NSHighResolutionCapable": "True",
+            "CFBundleShortVersionString": "1.0.0",
+            "CFBundleVersion": "1.0.0",
+            "CFBundleDisplayName": "EZ Expense",
+            "NSHumanReadableCopyright": "Copyright © 2025",
+        },
+    )

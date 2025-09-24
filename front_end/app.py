@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 import tempfile
+from pathlib import Path
 
 from dotenv import load_dotenv
 from quart import Quart, g, jsonify, render_template
@@ -26,14 +27,22 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import configuration
 
 # Configure logging for better exception visibility
+log_file_path = Path(os.getenv("DEBUG_LOG_TARGET", "ez-expense.log"))
+
+# Ensure the directory exists for the log file
+if log_file_path.name != "ez-expense.log":  # Only create directory if it's not the default
+    try:
+        log_file_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # If we can't create the directory, fall back to current directory
+        log_file_path = Path("ez-expense.log")
+
 logging.basicConfig(
     level=logging.DEBUG if FLASK_DEBUG else logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),  # Ensure output goes to stdout
-        logging.FileHandler(
-            os.getenv("DEBUG_LOG_TARGET", "ez-expense.log"), mode="a"
-        ),  # Also log to file
+        logging.FileHandler(str(log_file_path), mode="a"),  # Also log to file
     ],
 )
 logger = logging.getLogger(__name__)
