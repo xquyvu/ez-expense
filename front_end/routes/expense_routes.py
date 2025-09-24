@@ -748,6 +748,12 @@ async def fill_expense_report():
             expense_line = expense_line_mapping[expense_created_id]
             await expense_line.dispatch_event("click")
 
+            # Fill in additional information
+            await page.fill(
+                'textarea[name="TrvExpTrans_AdditionalInformation"]',
+                expense["Additional information"],
+            )
+
             # Log receipt details
             for _, receipt in enumerate(attached_receipts):
                 receipt_file_path = receipt["filePath"]

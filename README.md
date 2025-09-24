@@ -14,7 +14,7 @@
 - [x] WHEN IMPORTING EXPENSE DATA FROM MY EXPENSE, SPLIT AMOUNT AND CURRENCY INTO 2 COLUMNS
 - [x] filePath key for files that didn't get matched doesn't exist
 - [x] Refund not giving minus value
-- [ ] additional description for existing expense didn't get fill
+- [x] additional description for existing expense didn't get fill
 - [x] Ask the user to zoom out so that all expenses are visible
 
 ### Low priority
