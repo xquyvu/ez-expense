@@ -63,12 +63,12 @@ This creates `../releases/` folder with ZIP files ready for GitHub releases.
 
 ## Output
 
-### After `./deploy.sh build`:
+### After `./deploy.sh build`
 
 - `../dist/ez-expense` - Standalone executable
 - `../dist/EZ-Expense.app` - macOS app bundle
 
-### After `./deploy.sh releases`:
+### After `./deploy.sh releases`
 
 - `../releases/ez-expense-macos.zip` - macOS release package
 - `../releases/ez-expense-windows.zip` - Windows release package
