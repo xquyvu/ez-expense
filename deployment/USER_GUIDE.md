@@ -55,20 +55,28 @@ When you first run EZ-Expense:
 
 ### Environment Configuration
 
-The app needs some API keys to work properly. Create a `.env` file in the same folder as the executable:
+The app needs some configuration to work properly. You'll find a `.env.template` file in the same folder as the executable.
 
+**Setup Steps:**
+
+1. **Rename** `.env.template` to `.env`
+2. **Edit** the file with your settings:
+
+```bash
+# Choose your browser: chrome, edge
+BROWSER=edge
+
+# For extraction receipt details with AI (Optional)
+# These details can be found in our Azure OpenAI deployment
+AZURE_OPENAI_API_KEY=your_key_here
+AZURE_OPENAI_ENDPOINT=https://your_endpoint.openai.azure.com/
+
+# These are reasonable defaults, but you can change them if needed
+AZURE_OPENAI_API_VERSION=2024-12-01-preview
+AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
 ```
-# Required: Azure AI Vision (for receipt text extraction)
-AZURE_AI_VISION_ENDPOINT=your_endpoint_here
-AZURE_AI_VISION_KEY=your_key_here
 
-# Required: OpenAI (for intelligent matching)
-OPENAI_API_KEY=your_openai_key_here
-
-# Optional: Browser automation settings
-BROWSER_PORT=9222
-FRONTEND_PORT=3000
-```
+**Note**: The AI features are optional. The app will work for basic receipt processing without API keys.
 
 ### Troubleshooting
 
@@ -91,9 +99,10 @@ FRONTEND_PORT=3000
 
 #### API Errors
 
-- Make sure your `.env` file has valid API keys
-- Check your internet connection
-- Verify your Azure AI Vision and OpenAI credits/quotas
+- Make sure your `.env` file has valid configuration
+- Check your internet connection (if using AI features)
+- Verify your Azure OpenAI credits/quotas (if using AI features)
+- The app can work without API keys for basic functionality
 
 ### Getting Help
 
@@ -114,4 +123,4 @@ To update EZ-Expense:
 
 ---
 
-**Technical Note**: This app runs a local web server and browser automation. It's completely private - no data leaves your computer except for API calls to Azure AI Vision and OpenAI for processing.
+**Technical Note**: This app runs a local web server and browser automation. It's completely private - no data leaves your computer except for optional API calls to Azure OpenAI for AI-powered processing.

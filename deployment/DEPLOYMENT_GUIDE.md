@@ -1,106 +1,133 @@
 # EZ-Expense Deployment Guide
 
-## ✅ What You've Accomplished
+## Automated GitHub Releases
 
-You've successfully created a standalone executable for EZ-Expense! Here's what you now have:
+- **CI/CD**: Automatic building and releasing via GitHub Actions
+- **Cross-Platform**: Both macOS and Windows packages created automatically
+- **Professional**: Release notes and assets generated automatically
 
-### 📦 Distribution Package
+## Release Packages
 
-- **Location**: `ez-expense-distribution/` folder
-- **Size**: ~175MB (88MB executable + support files)
-- **Archive**: `ez-expense-macOS-20250924.zip` (173MB)
+Two optimized packages for end users:
 
-### 📋 Package Contents
+### macOS Package (`ez-expense-macos.zip`)
 
-```
-ez-expense-distribution/
-├── ez-expense                 # Main executable (all platforms)
-├── EZ-Expense.app            # macOS app bundle
-├── run-ez-expense.sh         # macOS/Linux launcher
-├── run-ez-expense.bat        # Windows launcher
+```text
+ez-expense-macos/
+├── EZ-Expense.app            # Native macOS app bundle
 ├── USER_GUIDE.md             # Complete user guide
-├── README.txt                # Quick start instructions
-└── .env.template             # Configuration template
+├── .env.template             # Configuration template
+└── README.txt                # Quick start instructions
 ```
 
-## 🚀 How Users Will Use It
+### Windows Package (`ez-expense-windows.zip`)
 
-### For Non-Technical Users
+```text
+ez-expense-windows/
+├── ez-expense.exe            # Windows executable
+├── run-ez-expense.bat        # Simple launcher
+├── USER_GUIDE.md             # Complete user guide
+├── .env.template             # Configuration template
+└── README.txt                # Quick start instructions
+```
 
-1. **Download & Extract**: Unzip the file
-2. **Setup API Keys**: Copy `.env.template` to `.env`, add their API keys
-3. **Run**: Double-click the launcher script
-4. **Use**: Browser opens automatically at `http://localhost:3000`
+## 🚀 How to Release
 
-### User Experience
+### Automated Releases (Recommended)
 
-- ✅ No Python installation needed
-- ✅ No package management
-- ✅ No command line knowledge required
-- ✅ Works offline (except for AI API calls)
-- ✅ Self-contained - no system pollution
+1. **Create a version tag**:
 
-## 🛠 Building for Other Platforms
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
 
-### For Windows
+2. **GitHub Actions automatically**:
+   - Builds both macOS and Windows packages
+   - Creates a GitHub release
+   - Uploads release assets
+   - Generates professional release notes
+
+3. **Users download** from: `https://github.com/xquyvu/ez-expense/releases`
+
+### Manual Local Build (For Testing)
 
 ```bash
-# On a Windows machine or VM:
-git clone <your-repo>
-cd ez-expense
-./build.bat
-./package.sh  # Use Git Bash or WSL
+# Build releases locally for testing
+./deploy.sh releases
 ```
 
-### For Linux
+This creates `releases/` folder with ZIP files ready for manual upload.
+
+## 🛠 Available Commands
+
+### Streamlined Deployment Commands
 
 ```bash
-# On a Linux machine:
-git clone <your-repo>
-cd ez-expense
-./build.sh
-./package.sh
+# Build executable only (for development/testing)
+./deploy.sh build
+
+# Test the executable
+./deploy.sh test
+
+# Build GitHub release packages (THE MAIN COMMAND)
+./deploy.sh releases
+
+# Run the application locally
+./deploy.sh run
 ```
 
-## 📤 Distribution Options
+### Command Details
 
-### 1. GitHub Releases (Recommended)
+- **`releases`**: Creates both macOS and Windows packages ready for GitHub releases
+- **`build`**: Just builds the executable for local testing
+- **`test`**: Validates that the executable works
+- **`run`**: Runs the application in development mode
+
+## 📤 Distribution Strategy
+
+### 1. GitHub Releases (Primary Method)
+
+- **Automatic**: Push tags trigger releases
+- **Professional**: Auto-generated release notes
+- **Secure**: GitHub hosting and download analytics
+- **Versioned**: Clear version management
+
+### 2. Manual Distribution (Backup)
+
+If needed, you can manually build and distribute:
 
 ```bash
-# Create a new release on GitHub
-# Upload the zip files as release assets
-# Users download directly from GitHub
+./deploy.sh releases
+# Upload the ZIP files from releases/ folder manually
 ```
-
-### 2. Cloud Storage
-
-- Upload to Google Drive, Dropbox, etc.
-- Share download links with users
-- Consider version numbering
-
-### 3. Company Internal
-
-- Upload to internal file server
-- Send via corporate email/Slack
-- Include setup instructions
 
 ## 🔧 Maintenance & Updates
 
 ### To Release Updates
 
-1. Make changes to your code
-2. Run `./build.sh` to rebuild executable
-3. Run `./package.sh` to create new distribution
-4. Create new zip with version number
-5. Distribute to users
+1. **Make changes** to your code
+2. **Push tag**: `git tag v1.0.1 && git push origin v1.0.1`
+3. **Automatic**: GitHub Actions builds and publishes release
+4. **Notify users** of the new release
+
+### CI/CD Pipeline
+
+The GitHub Actions workflow automatically:
+
+- ✅ Installs dependencies with `uv`
+- ✅ Builds both macOS and Windows packages
+- ✅ Creates professional release notes
+- ✅ Uploads release assets
+- ✅ Handles all packaging and distribution
 
 ### Version Management
 
 ```bash
-# Example versioning
-ez-expense-macOS-v1.0.0.zip
-ez-expense-windows-v1.0.0.zip
-ez-expense-linux-v1.0.0.zip
+# Semantic versioning examples
+git tag v1.0.0    # Major release
+git tag v1.0.1    # Bug fix
+git tag v1.1.0    # New features
 ```
 
 ## ⚠️ Important Notes for Users
@@ -127,13 +154,9 @@ ez-expense-linux-v1.0.0.zip
 
 ## 🎯 Success Metrics
 
-Your packaging solution achieves:
-
 - ✅ **Zero Setup**: Users don't need Python, pip, or technical knowledge
-- ✅ **Professional**: Looks and feels like commercial software
 - ✅ **Cross-Platform**: Works on macOS, Windows, Linux
 - ✅ **Self-Contained**: All dependencies bundled
-- ✅ **User-Friendly**: Clear instructions and error messages
 
 ## 🔮 Future Improvements
 
@@ -141,9 +164,8 @@ Consider these enhancements:
 
 1. **Auto-updater**: Automatic update mechanism
 2. **Installer**: MSI/PKG installers instead of zip files
-3. **Code Signing**: Remove security warnings
-4. **GUI Config**: Replace .env file with settings dialog
-5. **Crash Reporting**: Automatic error reporting
+3. **GUI Config**: Replace .env file with settings dialog
+4. **Crash Reporting**: Automatic error reporting
 
 ## 📞 User Support
 
@@ -154,7 +176,3 @@ When users have issues:
 3. Ensure ports 3000/9222 aren't in use
 4. Check system requirements (RAM, OS version)
 5. Look at terminal output for error messages
-
----
-
-**🎉 Congratulations!** You've successfully packaged your technical Python application into a user-friendly executable that non-technical users can run with just a double-click!

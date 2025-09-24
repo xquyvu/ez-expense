@@ -32,25 +32,12 @@ mkdir -p "$MACOS_DIR"
 cp -r ../dist/EZ-Expense.app "$MACOS_DIR/"
 cp USER_GUIDE.md "$MACOS_DIR/"
 
-# Create .env template
-cat > "$MACOS_DIR/.env.template" << 'EOF'
-# EZ-Expense Configuration File
-# Copy this file to .env and fill in your API keys
-
-# Required: Azure AI Vision (for receipt text extraction)
-AZURE_AI_VISION_ENDPOINT=your_endpoint_here
-AZURE_AI_VISION_KEY=your_key_here
-
-# Required: OpenAI (for intelligent matching)
-OPENAI_API_KEY=your_openai_key_here
-
-# Optional: Browser automation settings
-BROWSER_PORT=9222
-FRONTEND_PORT=3000
-
-# Optional: Debug settings
-FLASK_DEBUG=false
-EOF
+# Copy .env template from root
+if [ -f "../.env.template" ]; then
+    cp "../.env.template" "$MACOS_DIR/"
+else
+    echo "⚠️ Warning: .env.template not found in root directory"
+fi
 
 # Create macOS README
 cat > "$MACOS_DIR/README.txt" << 'EOF'
@@ -58,7 +45,7 @@ EZ-Expense for macOS
 ===================
 
 QUICK START:
-1. Copy .env.template to .env
+1. Rename the `.env.template` file to `.env`
 2. Edit .env with your API keys (see USER_GUIDE.md)
 3. Double-click EZ-Expense.app
 
@@ -66,9 +53,12 @@ SYSTEM REQUIREMENTS:
 - macOS 10.15 or later
 - 4GB RAM available
 - 500MB free disk space
-- Internet connection
+- Internet connection (for AI services)
 
-The app will open your browser at http://localhost:3000
+GETTING HELP:
+See USER_GUIDE.md for detailed instructions and troubleshooting.
+
+The app will open your browser automatically at http://localhost:3000
 EOF
 
 # Create Windows release (simulated - cross-platform executable)
@@ -80,7 +70,7 @@ mkdir -p "$WINDOWS_DIR"
 cp ../dist/ez-expense "$WINDOWS_DIR/ez-expense.exe"
 cp USER_GUIDE.md "$WINDOWS_DIR/"
 
-# Copy .env template
+# Copy .env template from macOS directory (already copied from root)
 cp "$MACOS_DIR/.env.template" "$WINDOWS_DIR/"
 
 # Create Windows launcher
@@ -123,9 +113,12 @@ SYSTEM REQUIREMENTS:
 - Windows 10 or later
 - 4GB RAM available
 - 500MB free disk space
-- Internet connection
+- Internet connection (for AI services)
 
-The app will open your browser at http://localhost:3000
+GETTING HELP:
+See USER_GUIDE.md for detailed instructions and troubleshooting.
+
+The app will open your browser automatically at http://localhost:3000
 Keep the command window open while using the app!
 EOF
 

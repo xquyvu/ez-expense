@@ -1,72 +1,79 @@
 # EZ-Expense Deployment Tools
 
-This folder contains all the tools and files needed to build and distribute the EZ-Expense application as a standalone executable.
+This folder contains all the tools and files needed to build and distribute the EZ-Expense application as standalone executables for GitHub releases.
 
 ## Quick Start
 
-1. **Build the executable:**
+### For GitHub Releases (Primary Method)
 
-   ```bash
-   cd deployment/
-   ./build.sh        # macOS/Linux
-   # or
-   build.bat         # Windows
-   ```
+```bash
+# Build GitHub release packages (macOS + Windows)
+./deploy.sh releases
+```
 
-2. **Test the build:**
+This creates `../releases/` folder with ZIP files ready for GitHub releases.
 
-   ```bash
-   ./test-executable.sh
-   ```
+### For Development
 
-3. **Create distribution package:**
+```bash
+# Build executable only
+./deploy.sh build
 
-   ```bash
-   ./package.sh
-   ```
+# Test the build
+./deploy.sh test
 
-4. **Run the application:**
-
-   ```bash
-   ./run-ez-expense.sh
-   ```
+# Run the application
+./deploy.sh run
+```
 
 ## Files in this folder
 
-### Build Files
+### Core Build Files
 
+- `build.sh` / `build.bat` - Build executable using PyInstaller
 - `ez-expense.spec` - PyInstaller configuration
-- `build.sh` / `build.bat` - Cross-platform build scripts
 - `hooks/hook-playwright.py` - Runtime configuration for Playwright
 
-### Distribution Files
+### Release & Distribution
 
-- `package.sh` - Creates user-friendly distribution package
-- `run-ez-expense.sh` - User-friendly launcher script
+- `build-releases.sh` - Creates GitHub release packages (macOS + Windows)
 - `test-executable.sh` - Quick executable validation
+- `run-ez-expense.sh` - Development launcher script
 
 ### Documentation
 
-- `DEPLOYMENT_GUIDE.md` - Comprehensive deployment guide
+- `DEPLOYMENT_GUIDE.md` - Complete deployment and CI/CD guide
 - `USER_GUIDE.md` - End-user documentation
+- `README.md` - This file
 
 ## How it works
 
-1. **Building**: The build scripts use PyInstaller to bundle the Python application into a standalone executable
-2. **Packaging**: The package script creates a distribution folder with all necessary files for end users
-3. **Distribution**: Users get a simple folder with an executable and documentation
+### Automated CI/CD (Recommended)
+
+1. **Tag Release**: Push a version tag (`git tag v1.0.0`)
+2. **GitHub Actions**: Automatically builds both platforms
+3. **Release**: Creates GitHub release with professional notes
+4. **Distribution**: Users download from GitHub releases
+
+### Manual Build Process
+
+1. **Building**: Uses PyInstaller to bundle Python application into standalone executables
+2. **Packaging**: Creates platform-specific packages with user guides and templates
+3. **Distribution**: Generates ZIP files ready for upload
 
 ## Output
 
-After building, you'll find:
+### After `./deploy.sh build`:
 
-- `../dist/ez-expense` - The standalone executable
-- `../dist/EZ-Expense.app` - macOS app bundle (macOS only)
+- `../dist/ez-expense` - Standalone executable
+- `../dist/EZ-Expense.app` - macOS app bundle
 
-After packaging, you'll find:
+### After `./deploy.sh releases`:
 
-- `ez-expense-distribution/` - Ready-to-distribute folder
-- Contains executable, documentation, and configuration templates
+- `../releases/ez-expense-macos.zip` - macOS release package
+- `../releases/ez-expense-windows.zip` - Windows release package
+
+Each package contains executable, user guide, configuration template, and platform-specific launchers.
 
 ## Requirements
 

@@ -11,10 +11,6 @@ case "$1" in
         echo "🧪 Testing EZ-Expense executable..."
         cd deployment && ./test-executable.sh
         ;;
-    "package")
-        echo "📦 Creating distribution package..."
-        cd deployment && ./package.sh
-        ;;
     "releases")
         echo "🚀 Building GitHub releases..."
         cd deployment && ./build-releases.sh
@@ -26,12 +22,11 @@ case "$1" in
     *)
         echo "EZ-Expense Deployment Helper"
         echo ""
-        echo "Usage: $0 {build|test|package|releases|run}"
+        echo "Usage: $0 {build|test|releases|run}"
         echo ""
         echo "Commands:"
         echo "  build      - Build the standalone executable"
         echo "  test       - Test the executable"
-        echo "  package    - Create distribution package"
         echo "  releases   - Build GitHub release packages (macOS + Windows)"
         echo "  run        - Run the application"
         echo ""

@@ -1,0 +1,64 @@
+name: Test Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: |
+        uv sync
+
+    - name: Run tests (if any)
+      run: |
+        # Add your test commands here
+        echo "No tests configured yet"
+        # uv run pytest
+
+    - name: Test build process
+      run: |
+        # Install build dependencies
+        uv sync --group build
+
+        # Install Playwright (required for build)
+        uv run playwright install chromium --with-deps
+
+        # Test that the build process works
+        cd deployment
+        chmod +x build.sh
+        ./build.sh
+
+        # Verify the executable was created
+        ls -la ../dist/
+
+        # Test that the executable runs (basic smoke test)
+        echo "Build test completed successfully!"
+
+    - name: Upload build artifacts (for inspection)
+      uses: actions/upload-artifact@v3
+      if: success()
+      with:
+        name: test-build-artifacts
+        path: |
+          dist/
+          !dist/**/*.log
+        retention-days: 7

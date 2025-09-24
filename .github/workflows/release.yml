@@ -1,0 +1,89 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v1.0.1, etc.
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest  # Use macOS to build both macOS app bundle and cross-platform executable
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: |
+        uv sync --group build
+
+    - name: Install Playwright browsers
+      run: |
+        uv run playwright install chromium --with-deps
+
+    - name: Build releases
+      run: |
+        cd deployment
+        chmod +x build-releases.sh
+        ./build-releases.sh
+
+    - name: Extract version from tag
+      id: extract_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Prepare release notes
+      id: release_notes
+      run: |
+        # Read template and substitute version
+        VERSION="${{ steps.extract_version.outputs.VERSION }}"
+        sed "s/\${VERSION}/$VERSION/g" .github/release-template.md > release-notes.md
+
+        # Set multiline output for GitHub Actions
+        {
+          echo 'RELEASE_NOTES<<EOF'
+          cat release-notes.md
+          echo EOF
+        } >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.extract_version.outputs.VERSION }}
+        release_name: EZ-Expense ${{ steps.extract_version.outputs.VERSION }}
+        body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+        draft: false
+        prerelease: false
+
+    - name: Upload macOS Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./releases/ez-expense-macos.zip
+        asset_name: ez-expense-macos.zip
+        asset_content_type: application/zip
+
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./releases/ez-expense-windows.zip
+        asset_name: ez-expense-windows.zip
+        asset_content_type: application/zip
