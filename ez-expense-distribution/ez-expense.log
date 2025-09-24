@@ -1,0 +1,8 @@
+2025-09-25 00:03:23,502 - front_end.app - INFO - Using temporary upload folder: /var/folders/07/hn6bxnh516s50n1sk_vmhfcm0000gn/T/ez-expense-uploads
+2025-09-25 00:03:30,479 - front_end.app - INFO - Expense routes registered successfully
+2025-09-25 00:03:32,192 - front_end.app - INFO - Receipt routes registered successfully
+2025-09-25 00:03:32,194 - hypercorn.error - INFO - Running on http://0.0.0.0:5001 (CTRL + C to quit)
+2025-09-25 00:03:33,479 - front_end.routes.expense_routes - INFO - Loaded 51 categories from /var/folders/07/hn6bxnh516s50n1sk_vmhfcm0000gn/T/_MEIdcEXmV/assets/category_list.txt
+2025-09-25 00:03:39,929 - playwright_manager - INFO - Current page cleared
+2025-09-25 00:03:39,930 - __main__ - INFO - Received signal SIGTERM (15). Initiating graceful shutdown...
+2025-09-25 00:03:39,931 - playwright_manager - INFO - Current page cleared

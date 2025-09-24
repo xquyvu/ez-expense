@@ -7,8 +7,8 @@ set -e
 
 echo "📦 Creating EZ-Expense distribution package..."
 
-# Create distribution directory
-DIST_DIR="ez-expense-distribution"
+# Create distribution directory in root folder
+DIST_DIR="../ez-expense-distribution"
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
@@ -18,6 +18,10 @@ cp -r ../dist/ez-expense "$DIST_DIR/"
 if [ -d "../dist/EZ-Expense.app" ]; then
     cp -r "../dist/EZ-Expense.app" "$DIST_DIR/"
 fi
+
+# Copy assets folder (required by the application)
+echo "📁 Copying assets folder..."
+cp -r ../assets "$DIST_DIR/"
 
 # Copy launcher script
 cp run-ez-expense.sh "$DIST_DIR/"
@@ -29,23 +33,19 @@ cp USER_GUIDE.md "$DIST_DIR/"
 # Create .env template
 cat > "$DIST_DIR/.env.template" << 'EOF'
 # EZ-Expense Configuration File
-# Copy this file to .env and fill in your API keys
+# Rename this file as .env and fill in your API keys
 
-# Required: Azure AI Vision (for receipt text extraction)
-# Get these from: https://portal.azure.com
-AZURE_AI_VISION_ENDPOINT=your_endpoint_here
-AZURE_AI_VISION_KEY=your_key_here
+# Choose your browser: chrome, edge
+BROWSER=edge
 
-# Required: OpenAI (for intelligent matching)
-# Get this from: https://platform.openai.com/api-keys
-OPENAI_API_KEY=your_openai_key_here
+# For extraction receipt details with AI (Optional)
+# These details can be found in our Azure OpenAI deployment
+AZURE_OPENAI_API_KEY=abcdefghi
+AZURE_OPENAI_ENDPOINT=https://jklmnopq.openai.azure.com/
 
-# Optional: Browser automation settings (usually don't need to change)
-BROWSER_PORT=9222
-FRONTEND_PORT=3000
-
-# Optional: Debug settings
-FLASK_DEBUG=false
+# These are reasonable defaults, but you can change them if needed
+AZURE_OPENAI_API_VERSION=2024-12-01-preview
+AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
 EOF
 
 # Create a simple README for the distribution
@@ -64,6 +64,7 @@ WHAT'S INCLUDED:
 - run-ez-expense.sh: Easy launcher script
 - USER_GUIDE.md: Complete user guide
 - .env.template: Configuration template
+- assets/: Required application data files
 
 SYSTEM REQUIREMENTS:
 - macOS 10.15+ / Windows 10+ / Linux Ubuntu 18.04+
