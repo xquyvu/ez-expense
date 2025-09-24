@@ -5,6 +5,7 @@
 The EZ Expense Flask application provides a comprehensive RESTful API for managing expenses and receipts. All endpoints return JSON responses with consistent structure.
 
 ## Base URL
+
 ```
 http://localhost:5001
 ```
@@ -12,6 +13,7 @@ http://localhost:5001
 ## Response Format
 
 All successful responses follow this structure:
+
 ```json
 {
   "success": true,
@@ -22,6 +24,7 @@ All successful responses follow this structure:
 ```
 
 Error responses:
+
 ```json
 {
   "error": "Error type",
@@ -32,9 +35,11 @@ Error responses:
 ## Health Check
 
 ### GET /health
+
 Check if the application is running.
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -45,9 +50,11 @@ Check if the application is running.
 ## Expense Endpoints
 
 ### POST /api/expenses/import
+
 Import expenses from external website using the existing `expense_importer.py` module.
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -65,9 +72,11 @@ Import expenses from external website using the existing `expense_importer.py` m
 ```
 
 ### POST /api/expenses/mock
+
 Get mock expense data for testing purposes.
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -87,13 +96,16 @@ Get mock expense data for testing purposes.
 ```
 
 ### POST /api/expenses/upload-csv
+
 Upload and parse a CSV file containing expense data.
 
 **Request:**
+
 - Content-Type: `multipart/form-data`
 - Form field: `file` (CSV file)
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -112,9 +124,11 @@ Upload and parse a CSV file containing expense data.
 ```
 
 ### POST /api/expenses/match-receipt
+
 Calculate confidence score for expense-receipt matching.
 
 **Request:**
+
 ```json
 {
   "expense_data": {
@@ -127,6 +141,7 @@ Calculate confidence score for expense-receipt matching.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -138,9 +153,11 @@ Calculate confidence score for expense-receipt matching.
 ```
 
 ### GET /api/expenses/list
+
 Get a list of all stored expenses (placeholder endpoint).
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -153,14 +170,17 @@ Get a list of all stored expenses (placeholder endpoint).
 ## Receipt Endpoints
 
 ### POST /api/receipts/upload
+
 Upload a receipt file (PDF, PNG, JPG, JPEG, GIF).
 
 **Request:**
+
 - Content-Type: `multipart/form-data`
 - Form field: `file` (receipt file)
 - Form field: `expense_id` (optional, expense ID this receipt belongs to)
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -177,9 +197,11 @@ Upload a receipt file (PDF, PNG, JPG, JPEG, GIF).
 ```
 
 ### GET /api/receipts/list
+
 Get a list of all uploaded receipt files.
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -197,30 +219,39 @@ Get a list of all uploaded receipt files.
 ```
 
 ### GET /api/receipts/download/{filename}
+
 Download a specific receipt file.
 
 **Parameters:**
+
 - `filename`: Name of the file to download
 
 **Response:**
+
 - File download (attachment)
 
 ### GET /api/receipts/preview/{filename}
+
 Preview a specific receipt file.
 
 **Parameters:**
+
 - `filename`: Name of the file to preview
 
 **Response:**
+
 - File content for display
 
 ### DELETE /api/receipts/delete/{filename}
+
 Delete a specific receipt file.
 
 **Parameters:**
+
 - `filename`: Name of the file to delete
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -246,10 +277,12 @@ Delete a specific receipt file.
 ## Integration Points
 
 ### expense_importer.py
+
 - Function: `import_expense()` → Returns pandas DataFrame
 - Used by: `/api/expenses/import`
 
 ### expense_matcher.py
+
 - Function: `receipt_match_score()` → Returns float confidence score
 - Used by: `/api/expenses/match-receipt`
 
@@ -275,11 +308,13 @@ Delete a specific receipt file.
 ## Testing
 
 A comprehensive test suite is available at:
+
 ```
 front_end/tests/test_phase2_backend_fixed.py
 ```
 
 Run tests with:
+
 ```bash
 cd front_end
 python tests/test_phase2_backend_fixed.py
