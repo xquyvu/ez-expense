@@ -97,8 +97,7 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
 
     expense_desc_checkbox = await expense_desc_column.query_selector("span.dyn-checkbox-span")
 
-    if not await expense_desc_checkbox.is_checked():
-        await expense_desc_checkbox.click()
+    await expense_desc_checkbox.set_checked(True)
 
     # endregion
 
@@ -147,6 +146,36 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
 
     if save_path:
         existing_expenses.to_csv(save_path, index=False)
+
+    # endregion
+
+    # region: Uncheck the additional information column
+    # Open the column selector again
+    await page.get_by_role("button", name="Grid options").click()
+    await page.get_by_title("Insert columns...").click()
+
+    # Navigate to the column selection dialog - wait for it to appear
+    await page.wait_for_selector("div.dialog-popup-content", timeout=10000)
+    dialog_content = await page.query_selector("div.dialog-popup-content")
+
+    expense_desc_rows = await dialog_content.query_selector_all(
+        "div.fixedDataTableCellGroupLayout_cellGroup"
+    )
+
+    # Find the expense description column using async loop
+    for row in expense_desc_rows:
+        row_html = await row.inner_html()
+        if (
+            "Additional information (Expense Description / Business Purpose)" in row_html
+            and "Expense lines" in row_html
+        ):
+            expense_desc_column = row
+            break
+
+    expense_desc_checkbox = await expense_desc_column.query_selector("span.dyn-checkbox-span")
+
+    await expense_desc_checkbox.set_checked(False)
+    await page.click('button[data-dyn-controlname="OK"]')
 
     # endregion
 
