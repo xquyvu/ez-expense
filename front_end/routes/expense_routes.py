@@ -738,6 +738,11 @@ async def fill_expense_report():
                 expense["Additional information"],
             )
 
+            # Wait for the text to be fully displayed in the textarea
+            await page.wait_for_function(
+                f"document.querySelector('textarea[name=\"TrvExpTrans_AdditionalInformation\"]').value === {repr(expense['Additional information'])}"
+            )
+
             # Log receipt details
             for _, receipt in enumerate(attached_receipts):
                 receipt_file_path = receipt["filePath"]
