@@ -17,10 +17,8 @@ datas = [
     # Configuration files if they exist
 ]
 
-# Add .env file if it exists (users might have it)
-env_file = project_root / ".env"
-if env_file.exists():
-    datas.append((str(env_file), "."))
+# NOTE: .env file is intentionally NOT included for security reasons
+# Users should create their own .env file in the same directory as the executable
 
 # Hidden imports for dynamic imports and playwright
 hiddenimports = [
