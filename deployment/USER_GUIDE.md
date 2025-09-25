@@ -1,59 +1,72 @@
 # EZ-Expense Standalone Application
 
-## Quick Start Guide
+EZ-Expense is a tool that helps you automatically match receipts to your expense reports using AI, then fill in the expense report in MyExpense for you.
 
-### What is EZ-Expense?
+## How to Use
 
-EZ-Expense is a tool that helps you automatically match receipts to your expense reports using AI. It can extract information from receipts and match them to existing expenses in your system.
+### Step 1: Import Your Expenses
 
-### System Requirements
+When you launch the app, it will open MyExpense page, and also a local web interface in your default browser.
 
-- **macOS**: 10.15 (Catalina) or later
-- **Windows**: Windows 10 or later
-- **Linux**: Ubuntu 18.04+ or equivalent
-- **RAM**: At least 4GB available
-- **Disk Space**: 500MB free space (for temporary files)
+1. Follow the instructions in the MyExpense app to navigate to your expense report in
+   MyExpense
+2. Import your expenses from MyExpense into the EZ-Expense app by clicking on the
+   `Import from My Expense` button in the web interface. The app will automatically
+   fetch your expenses by clicking through the MyExpense page.
 
-### First Time Setup
+### Step 2: Upload and match receipts
 
-#### 1. Download and Run
+There are multiple ways to upload receipts:
 
-- Download the `ez-expense` executable (or `EZ-Expense.app` on macOS)
-- On macOS: Double-click the `.app` file or run `./ez-expense` in Terminal
-- On Windows: Double-click `ez-expense.exe`
-- On Linux: Run `./ez-expense` in Terminal
+#### Using the bulk upload area (recommended)
 
-#### 2. Initial Browser Setup
+**This is the ideal workflow, which allows you to upload multiple receipts at once, and
+match them to multiple expenses in one go. It can also create new expenses for receipts
+that don't match any existing expenses.**
 
-When you first run EZ-Expense:
+1. Drag and drop receipts into the `Bulk Receipt Upload` area, or clicking on the
+"Attach Receipts" button and select the receipt files you want to process.
 
-1. The app will automatically install the required browser components (this may take 1-2 minutes)
-2. A browser window will open automatically
-3. A web interface will open at `http://localhost:3000`
+1. Click on "Match receipts with expenses" to start the matching process. The app will
+automatically attach receipts to expenses based on the invoice amount and date
 
-⚠️ **Important**: Keep the terminal/command window open while using the app!
+#### Uploading receipts to an existing expense
 
-### How to Use
+You can also upload receipts directly to an expense by clicking on the `Upload Receipt`
+button next to each expense item. This is useful if you want to match a receipt to a
+specific expense.
 
-#### Step 1: Import Your Expenses
+If you do it this way, no validation will be performed to check if the receipt matches
+the expense. It will just attach the receipt to the expense.
 
-1. Export your existing expenses from your expense management system (like Concur, Expensify, etc.)
-2. In the EZ-Expense web interface, click "Import Expenses"
-3. Upload your CSV file
+### Step 3: Review and adjust if needed
 
-#### Step 2: Upload Receipts
+After the matching process is complete, review the matched expenses and receipts. You
+will also need to manually enter the missing information such as:
 
-1. Click "Upload Receipts" in the web interface
-2. Drag and drop your receipt files (PDF, JPG, PNG supported)
-3. The AI will automatically extract information from each receipt
+- For expenses imported from MyExpense:
+  - Expense Description
+- For expenses created from receipts:
+  - Expense Description
+  - Merchant
+  - Other details are populated for you, please review if they make sense
 
-#### Step 3: Match and Verify
+There are validation checks in place to make sure the data is correct. If anything is
+incorrect, you will see them highlighted in red, otherwise, green. Make sure everything
+is green before proceeding to the next step.
 
-1. The app will automatically suggest matches between receipts and expenses
-2. Review each match and confirm or correct as needed
-3. Export your completed expense report
+### Step 4: Export back to MyExpense
 
-### Environment Configuration
+Follow the instructions in the last step of the web interface to export the matched
+expenses back to MyExpense. The app will automatically fill in the expense report in
+MyExpense for you.
+
+### Step 5: Submit your expense report in MyExpense
+
+You've made it! Now, go back to the MyExpense page, review the filled-in expense
+report, and submit it.
+
+### Step 0: Environment Configuration
 
 The app needs some configuration to work properly. You'll find a `.env.template` file in the same folder as the executable.
 
@@ -68,15 +81,13 @@ BROWSER=edge
 
 # For extraction receipt details with AI (Optional)
 # These details can be found in our Azure OpenAI deployment
-AZURE_OPENAI_API_KEY=your_key_here
-AZURE_OPENAI_ENDPOINT=https://your_endpoint.openai.azure.com/
+AZURE_OPENAI_API_KEY=abcdefghi
+AZURE_OPENAI_ENDPOINT=https://jklmnopq.openai.azure.com/
 
 # These are reasonable defaults, but you can change them if needed
 AZURE_OPENAI_API_VERSION=2024-12-01-preview
 AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
 ```
-
-**Note**: The AI features are optional. The app will work for basic receipt processing without API keys.
 
 ### Troubleshooting
 
@@ -85,17 +96,6 @@ AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
 - **macOS**: If you see "App can't be opened", right-click → Open, then click "Open" in the security dialog
 - **Windows**: If Windows Defender blocks it, click "More info" → "Run anyway"
 - **All platforms**: Make sure you have at least 4GB of RAM available
-
-#### Browser Issues
-
-- If the browser doesn't open automatically, manually go to `http://localhost:3000`
-- If you see connection errors, wait 30 seconds and refresh the page
-
-#### Performance Issues
-
-- The app uses significant memory (200-500MB) due to browser automation
-- Close other applications if your computer runs slowly
-- The first startup takes longer (30-60 seconds) as components initialize
 
 #### API Errors
 
@@ -108,10 +108,10 @@ AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
 
 If you encounter issues:
 
-1. Check the terminal/command window for error messages
+1. Check the 2 log files (`ez-expense.log` and `ez-expense-fe.log`) in the same folder as the executable for error messages
 2. Ensure your `.env` file is properly configured
 3. Try restarting the application
-4. Check that no other applications are using ports 3000 or 9222
+4. Check that no other applications are using ports 5001 or 9222. If there is, close them and restart EZ-Expense
 
 ### Updates
 
