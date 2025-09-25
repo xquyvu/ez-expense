@@ -6,6 +6,9 @@ on:
       - 'v*'  # Trigger on version tags like v1.0.0, v1.0.1, etc.
   workflow_dispatch:  # Allow manual triggering
 
+permissions:
+  contents: write  # Required to create releases and upload assets
+
 jobs:
   build-and-release:
     runs-on: macos-latest  # Use macOS to build both macOS app bundle and cross-platform executable
@@ -37,6 +40,13 @@ jobs:
         cd deployment
         chmod +x build-releases.sh
         ./build-releases.sh
+
+    - name: List release files
+      run: |
+        echo "Contents of releases directory:"
+        ls -la releases/
+        echo "Checking for ZIP files:"
+        ls -la releases/*.zip
 
     - name: Extract version from tag
       id: extract_version
