@@ -177,6 +177,9 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
     await expense_desc_checkbox.set_checked(False)
     await page.click('button[data-dyn-controlname="OK"]')
 
+    # My Expense requires us to reload the page for some reason. This is the poor man's way to do it.
+    await page.click('button[name="CommandButtonNext"]')
+
     # endregion
 
     return existing_expenses

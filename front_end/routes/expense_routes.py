@@ -734,16 +734,11 @@ async def fill_expense_report():
             expense_line = expense_line_mapping[expense_created_id]
             await expense_line.dispatch_event("click")
 
-            # Fill in additional information
-            await page.fill(
-                'textarea[name="TrvExpTrans_AdditionalInformation"]',
-                expense["Additional information"],
-            )
-
-            # Wait for the text to be fully displayed in the textarea
-            await page.wait_for_function(
-                f"document.querySelector('textarea[name=\"TrvExpTrans_AdditionalInformation\"]').value === {repr(expense['Additional information'])}"
-            )
+            # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
+            text_box = await page.query_selector('textarea[name="TrvExpTrans_AdditionalInformation"]')
+            await text_box.click()
+            await text_box.wait_for_element_state("editable")
+            await text_box.fill(expense["Additional information"])
 
             # Log receipt details
             for _, receipt in enumerate(attached_receipts):
@@ -778,7 +773,12 @@ async def fill_expense_report():
                 'input[name="DateInput"]',
                 datetime.strptime(expense["Date"], "%Y-%m-%d").strftime("%-m/%-d/%Y"),
             )
-            await page.fill('textarea[name="NotesInput"]', expense["Additional information"])
+
+            # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
+            text_box = await page.query_selector('textarea[name="NotesInput"]')
+            await text_box.click()
+            await text_box.wait_for_element_state("editable")
+            await text_box.fill(expense["Additional information"])
 
             await page.click('button[name="SaveButton"]')
             await page.wait_for_timeout(3000)
