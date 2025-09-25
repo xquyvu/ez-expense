@@ -34,30 +34,30 @@ print(f"🔧 [Quart] Environment loaded: {env_loaded}")
 try:
     # Get absolute path for frontend log file relative to .env location
     frontend_log_path = get_resource_path(DEBUG_LOG_TARGET_FRONT_END.strip('"'))
-    
+
     # Configure logging specifically for frontend modules
     frontend_logger = logging.getLogger('front_end')
     frontend_logger.setLevel(logging.DEBUG if FLASK_DEBUG else logging.INFO)
-    
+
     # Only add handlers if they haven't been added yet
     if not frontend_logger.handlers:
         formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        
+
         # Console handler
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         frontend_logger.addHandler(console_handler)
-        
+
         # File handler for frontend
         file_handler = logging.FileHandler(str(frontend_log_path), mode="a")
         file_handler.setFormatter(formatter)
         frontend_logger.addHandler(file_handler)
-        
+
         print(f"🔧 [Quart] Frontend logging configured to: {frontend_log_path}")
-    
+
     # Don't propagate to root logger to avoid duplicate messages
     frontend_logger.propagate = False
-    
+
 except Exception as e:
     print(f"❌ [Quart] Failed to configure frontend logging: {e}")
     # Fallback to default logger
