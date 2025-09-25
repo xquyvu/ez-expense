@@ -16,13 +16,13 @@ from pathlib import Path
 from quart import Quart, g, jsonify, render_template
 from quart_cors import cors
 
-from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY
+from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY, DEBUG_LOG_TARGET_FRONT_END
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import resource utils and load environment
-from resource_utils import load_env_file
+from resource_utils import load_env_file, get_resource_path
 
 print("🔧 [Quart] Loading environment in front_end/app.py...")
 env_loaded = load_env_file()
@@ -30,26 +30,41 @@ print(f"🔧 [Quart] Environment loaded: {env_loaded}")
 
 # Import configuration
 
-# Configure logging for better exception visibility
-log_file_path = Path(os.getenv("DEBUG_LOG_TARGET", "ez-expense.log"))
+# Configure logging for frontend with separate log file
+try:
+    # Get absolute path for frontend log file relative to .env location
+    frontend_log_path = get_resource_path(DEBUG_LOG_TARGET_FRONT_END.strip('"'))
+    
+    # Configure logging specifically for frontend modules
+    frontend_logger = logging.getLogger('front_end')
+    frontend_logger.setLevel(logging.DEBUG if FLASK_DEBUG else logging.INFO)
+    
+    # Only add handlers if they haven't been added yet
+    if not frontend_logger.handlers:
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        
+        # Console handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        frontend_logger.addHandler(console_handler)
+        
+        # File handler for frontend
+        file_handler = logging.FileHandler(str(frontend_log_path), mode="a")
+        file_handler.setFormatter(formatter)
+        frontend_logger.addHandler(file_handler)
+        
+        print(f"🔧 [Quart] Frontend logging configured to: {frontend_log_path}")
+    
+    # Don't propagate to root logger to avoid duplicate messages
+    frontend_logger.propagate = False
+    
+except Exception as e:
+    print(f"❌ [Quart] Failed to configure frontend logging: {e}")
+    # Fallback to default logger
+    frontend_logger = logging.getLogger(__name__)
 
-# Ensure the directory exists for the log file
-if log_file_path.name != "ez-expense.log":  # Only create directory if it's not the default
-    try:
-        log_file_path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        # If we can't create the directory, fall back to current directory
-        log_file_path = Path("ez-expense.log")
-
-logging.basicConfig(
-    level=logging.DEBUG if FLASK_DEBUG else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),  # Ensure output goes to stdout
-        logging.FileHandler(str(log_file_path), mode="a"),  # Also log to file
-    ],
-)
-logger = logging.getLogger(__name__)
+# Use the frontend logger
+logger = frontend_logger
 
 
 def create_app():
