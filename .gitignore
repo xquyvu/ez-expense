@@ -14,3 +14,4 @@ wheels/
 .DS_Store
 
 ez-expense.log
+ez-expense-fe.log
