@@ -20,6 +20,12 @@ Just click the app, and it just works. No installation required, no coding invol
 
 ## Demo
 
+See the tool in action!
+
+<video src="assets/Product demo.mp4" controls width="800">
+  Your browser does not support the video tag.
+</video>
+
 ## Download and use
 
 Go to the [Releases](https://github.com/xquyvu/ez-expense/releases) page to download the latest version for your OS. This contains the executable file and all necessary dependencies.
