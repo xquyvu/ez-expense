@@ -1,5 +1,6 @@
 import platform
 import subprocess
+import sys
 import time
 from abc import ABC, abstractmethod
 from logging import getLogger
@@ -7,6 +8,8 @@ from pathlib import Path
 from typing import Dict
 
 from pydantic import BaseModel
+
+from gui_dialogs import show_browser_confirmation_dialog
 
 logger = getLogger(__name__)
 
@@ -242,11 +245,29 @@ class BrowserProcess:
         if is_running:
             logger.info(f"Found existing {self.browser.process_name} process(es).")
 
-            input(
-                "Press Enter to continue. This will close and restart your browser, or Ctrl+C to cancel"
-            )
+            # Check if we're running in a terminal
+            try:
+                if sys.stdin and sys.stdin.isatty():
+                    # We have a terminal, use console input (traditional method)
+                    print(f"Found existing {self.browser.process_name} process(es).")
+                    input(
+                        "Press Enter to continue. This will close and restart your browser, or Ctrl+C to cancel: "
+                    )
+                    user_confirmed = True
+                else:
+                    # No terminal (GUI app), use GUI dialog
+                    user_confirmed = show_browser_confirmation_dialog()
+            except Exception as e:
+                logger.warning(f"Error checking terminal status: {e}")
+                # Fallback to GUI dialog
+                user_confirmed = show_browser_confirmation_dialog()
 
-            print(f"Gracefully closing {self.browser.process_name}...")
+            if not user_confirmed:
+                logger.info("User cancelled browser restart")
+                print("❌ Browser restart cancelled by user")
+                return False
+
+            print(f"🔄 Gracefully closing {self.browser.process_name}...")
             if self.close_browser_gracefully():
                 print("✅ Browser closed gracefully")
             else:

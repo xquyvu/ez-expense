@@ -124,5 +124,6 @@ if sys.platform == "darwin":
             "CFBundleVersion": "1.0.0",
             "CFBundleDisplayName": "EZ Expense",
             "NSHumanReadableCopyright": "Copyright © 2025",
+            "LSBackgroundOnly": False,
         },
     )
