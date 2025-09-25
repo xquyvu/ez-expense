@@ -2,13 +2,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
 from playwright.async_api import Page
 
 import playwright_manager
 from config import DEBUG
+from resource_utils import load_env_file
 
-load_dotenv()
+load_env_file()
 
 
 def set_expense_page(page: Page | None = None) -> None:

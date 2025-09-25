@@ -62,6 +62,16 @@ else
 fi
 
 echo -e "${GREEN}✅ Build completed!${NC}"
+
+echo -e "${BLUE}📋 Post-build setup...${NC}"
+# Copy .env.template to dist directory for user convenience
+if [ -f "../.env.template" ]; then
+    cp "../.env.template" "../dist/"
+    echo "   • Copied .env.template to dist/"
+else
+    echo -e "${YELLOW}   ⚠️ .env.template not found in project root${NC}"
+fi
+
 echo ""
 echo -e "${BLUE}📁 Output location:${NC}"
 if [ "$(uname)" == "Darwin" ]; then
@@ -90,7 +100,11 @@ fi
 echo ""
 echo -e "${GREEN}🎉 Your EZ-Expense standalone executable is ready!${NC}"
 echo -e "${YELLOW}📝 Next steps:${NC}"
-echo "   1. Test the executable thoroughly"
-echo "   2. Create a simple user guide"
-echo "   3. Consider code signing (for macOS/Windows)"
-echo "   4. Distribute to your users"
+echo "   1. Copy .env.template to .env in the dist/ folder"
+echo "   2. Edit the .env file with your API keys and configuration"
+echo "   3. Test the executable thoroughly"
+echo "   4. Consider code signing (for macOS/Windows)"
+echo "   5. Distribute to your users"
+echo ""
+echo -e "${YELLOW}⚠️  Important:${NC} Users must create their own .env file with their API keys"
+echo "   The .env.template file is provided as a reference."

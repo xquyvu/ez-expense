@@ -17,9 +17,10 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from config import EXPENSE_CATEGORIES
+from resource_utils import load_env_file
 
 # Load environment variables
-load_dotenv()
+load_env_file()
 
 ValidExpenseCategories = Enum(
     "ValidExpenseCategories",
