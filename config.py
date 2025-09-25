@@ -15,6 +15,7 @@ load_dotenv()
 # Debug and development settings
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+DEBUG_LOG_TARGET = os.getenv("DEBUG_LOG_TARGET", "ez-expense.log").strip('"')
 
 # Port configurations
 BROWSER_PORT = int(os.getenv("PORT", 9222))

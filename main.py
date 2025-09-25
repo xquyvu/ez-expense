@@ -6,10 +6,17 @@ import webbrowser
 from logging import getLogger
 from threading import Timer
 
-import playwright_manager
-from browser import BrowserProcess
-from config import BROWSER_PORT, EXPENSE_APP_URL, FRONTEND_PORT
-from resource_utils import load_env_file
+try:
+    import playwright_manager
+    from browser import BrowserProcess
+    from config import BROWSER_PORT, EXPENSE_APP_URL, FRONTEND_PORT, DEBUG_LOG_TARGET
+    from resource_utils import load_env_file, get_resource_path
+except ImportError as e:
+    print(f"❌ Import error: {e}")
+    sys.exit(1)
+except Exception as e:
+    print(f"❌ Configuration error: {e}")
+    sys.exit(1)
 
 logger = getLogger(__name__)
 
@@ -60,14 +67,28 @@ print(f"🔧 Environment loaded: {env_loaded}")
 
 # Configure logging for better debugging
 import logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('ez-expense.log'),
-        logging.StreamHandler()
-    ]
-)
+try:
+    # Get absolute path for log file relative to .env location
+    from pathlib import Path
+    log_path = get_resource_path(DEBUG_LOG_TARGET.strip('"'))
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler()
+        ]
+    )
+    print(f"🔧 Logging configured to: {log_path}")
+except Exception as e:
+    print(f"❌ Failed to configure logging: {e}")
+    # Fallback to console only
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler()]
+    )
 
 print(f"🔧 Debug mode: {os.getenv('DEBUG', 'Not set')}")
 print(f"🔧 Browser: {os.getenv('BROWSER', 'Not set')}")
@@ -168,6 +189,16 @@ async def start_quart_app():
             print("🔧 Opening browser to web interface...")
             webbrowser.open_new(f"http://127.0.0.1:{FRONTEND_PORT}")
 
+            # Show notification that the app is ready
+            try:
+                import subprocess
+                subprocess.run([
+                    "osascript", "-e",
+                    f'display notification "Web interface is now available at http://127.0.0.1:{FRONTEND_PORT}" with title "EZ-Expense Ready!" sound name "default"'
+                ], check=False, capture_output=True)
+            except Exception:
+                pass  # Silently ignore notification failures
+
         Timer(1, _open_browser).start()
 
         # Use hypercorn (Quart's recommended ASGI server) instead of Flask's built-in server
@@ -258,9 +289,27 @@ if __name__ == "__main__":
     print(f"🔧 Current working directory: {os.getcwd()}")
     print(f"🔧 Script path: {__file__ if '__file__' in globals() else 'Unknown'}")
 
+    # Show a macOS notification that the app is starting
+    try:
+        import subprocess
+        subprocess.run([
+            "osascript", "-e",
+            'display notification "EZ-Expense is starting up..." with title "EZ-Expense" sound name "default"'
+        ], check=False, capture_output=True)
+    except Exception:
+        pass  # Silently ignore notification failures
+
+    # Log startup information
+    logger.info("EZ-Expense application starting...")
+    logger.info(f"Python executable: {sys.executable}")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Script path: {__file__ if '__file__' in globals() else 'Unknown'}")
+    logger.info(f"Log file: {log_path}")
+
     try:
         import asyncio
         print("🔧 Starting asyncio event loop...")
+        logger.info("Starting asyncio event loop...")
         asyncio.run(run_expense_automation())
     except KeyboardInterrupt:
         print("\n🛑 Program interrupted by user")
