@@ -1,6 +1,24 @@
 # Easy expense
 
-Help you fill expense reports with just a few clicks. Just drag your receipts into the app, and let it do the rest.
+Get your expenses done in just a few clicks (using AI of course).
+
+## Introduction
+
+Doing the expenses is boring and painful.
+
+For every expense item, you need to identify the matching receipt files, whose names
+very often do not indicate what they are about. Then, uploads the the receipts one at a
+time, filling in details on a tool that is slow, unresponsive, and error prone.
+
+What if you could just, give the receipts to someone and say "Go figure it out"?
+
+This tool lets you do exactly just that. It uses AI and automation to parse the
+receipts, match them to the correct expense lines, then go and fill in the expense
+report without you needing to do a single thing.
+
+Just click the app, and it just works. No installation required, no coding involve.
+
+## Demo
 
 ## Download and use
 
