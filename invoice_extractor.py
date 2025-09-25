@@ -33,6 +33,8 @@ class InvoiceDetails(BaseModel):
     currency: str = Field(alias="Currency", description="Currency code (e.g., USD, GBP)")
     date: str = Field(alias="Date", description="Date in YYYY-MM-DD format")
     expense_category: ValidExpenseCategories = Field(alias="Expense category")
+    merchant: str = Field(alias="Merchant", description="Merchant name")
+    expense_description: str = Field(alias="Additional information", description="What the receipt is for, in no more than a few words")
     is_refund: bool = Field(alias="is_refund", description="Indicates if the invoice is a refund")
 
 
@@ -179,6 +181,8 @@ async def extract_invoice_details(file_path: Optional[str] = None) -> dict:
             "Currency": invoice_details.currency,
             "Date": invoice_details.date,
             "Expense category": invoice_details.expense_category.value,
+            "Merchant": invoice_details.merchant,
+            "Additional information": invoice_details.expense_description,
         }
 
     except Exception as e:

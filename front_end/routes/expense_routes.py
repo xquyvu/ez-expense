@@ -578,6 +578,8 @@ async def create_expenses_from_receipts():
                     "Date": invoice_details.get("Date", ""),
                     "Amount": invoice_details.get("Amount"),
                     "Currency": invoice_details.get("Currency"),
+                    "Merchant": invoice_details.get("Merchant", ""),
+                    "Additional information": invoice_details.get("Additional information", ""),
                     "Additional description": f"Expense from {receipt.get('name')}",
                     "Expense category": invoice_details.get("Expense category"),
                     "Payment method": "Cash",

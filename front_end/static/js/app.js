@@ -3521,6 +3521,16 @@ class EZExpenseApp {
                     console.log(`Updated confidence score: ${data.new_confidence_score}% for receipt moved to expense ${targetExpenseId}`);
                 }
 
+                // Update the target expense data if it was modified (e.g., merchant, additional information)
+                if (data.updated_expense_data) {
+                    const expenseIndex = this.expenses.findIndex(exp => exp.id === targetExpenseId);
+                    if (expenseIndex !== -1) {
+                        // Update the expense with the new data from backend
+                        this.expenses[expenseIndex] = { ...this.expenses[expenseIndex], ...data.updated_expense_data };
+                        console.log(`Updated expense ${targetExpenseId} data:`, data.updated_expense_data);
+                    }
+                }
+
                 // Update the frontend receipts data with the updated receipt
                 this.moveReceiptInFrontend(fromExpenseId, receiptIndex, targetExpenseId, updatedReceipt);
 
@@ -4012,6 +4022,25 @@ class EZExpenseApp {
 
                 console.log('Setting receipts for expense', expense.id, ':', formattedReceipts);
                 this.receipts.set(expense.id, formattedReceipts);
+
+                // Fill in merchant and additional information from receipt invoice details if available
+                // Only update if the expense fields are empty or undefined
+                const firstReceiptWithDetails = formattedReceipts.find(r => r.invoiceDetails);
+                if (firstReceiptWithDetails && firstReceiptWithDetails.invoiceDetails) {
+                    const invoiceDetails = firstReceiptWithDetails.invoiceDetails;
+
+                    // Update merchant if expense doesn't have one or it's empty
+                    if (invoiceDetails.Merchant && (!expense.Merchant || String(expense.Merchant).trim() === '')) {
+                        expense.Merchant = invoiceDetails.Merchant;
+                        console.log(`Updated expense ${expense.id} merchant to: ${expense.Merchant}`);
+                    }
+
+                    // Update additional information if expense doesn't have one or it's empty
+                    if (invoiceDetails['Additional information'] && (!expense['Additional information'] || String(expense['Additional information']).trim() === '')) {
+                        expense['Additional information'] = invoiceDetails['Additional information'];
+                        console.log(`Updated expense ${expense.id} additional information to: ${expense['Additional information']}`);
+                    }
+                }
             }
         });
 

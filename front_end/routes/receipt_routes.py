@@ -516,6 +516,22 @@ async def move_receipt():
         if match_score is not None:
             updated_receipt_data["confidence"] = match_score * 100
 
+        # Extract and include merchant and additional information if available in invoice details
+        updated_expense_data = None
+        if to_expense_data and receipt_data.get("invoiceDetails"):
+            invoice_details = receipt_data["invoiceDetails"]
+            updated_expense_data = to_expense_data.copy()
+
+            # Fill in merchant if expense doesn't have one or it's empty
+            if invoice_details.get("Merchant") and not updated_expense_data.get("Merchant", "").strip():
+                updated_expense_data["Merchant"] = invoice_details["Merchant"]
+                logger.info(f"Updated expense {to_expense_id} merchant to: {updated_expense_data['Merchant']}")
+
+            # Fill in additional information if expense doesn't have one or it's empty
+            if invoice_details.get("Additional information") and not updated_expense_data.get("Additional information", "").strip():
+                updated_expense_data["Additional information"] = invoice_details["Additional information"]
+                logger.info(f"Updated expense {to_expense_id} additional information to: {updated_expense_data['Additional information']}")
+
         # Return success response with the updated receipt data
         response_data = {
             "success": True,
@@ -524,6 +540,7 @@ async def move_receipt():
             "from_expense_id": from_expense_id,
             "to_expense_id": to_expense_id,
             "new_confidence_score": match_score * 100 if match_score is not None else None,
+            "updated_expense_data": updated_expense_data,  # Include updated expense data if changes were made
         }
 
         return jsonify(response_data)

@@ -13,7 +13,7 @@ def receipt_match_score(receipt: dict[str, Any], expense_line: dict[str, Any]) -
 
     if not invoice_details:
         # If no invoice details are present, we cannot match
-        return
+        return 0.0
 
     if all(
         [
@@ -57,13 +57,22 @@ def match_receipts_with_expenses(
             if receipt_match_score(receipt, expense_line) == 1.0:
                 expense_line["receipts"].append(receipt)
                 matched_expense_indices.append(expense_line_idx)
+
+                # Fill in merchant and additional information from invoice details if available
+                # Only update if the expense fields are empty or undefined
+                merchant_value = expense_line.get("Merchant") or ""
+                if invoice_details.get("Merchant") and not str(merchant_value).strip():
+                    expense_line["Merchant"] = invoice_details["Merchant"]
+
+                additional_info_value = expense_line.get("Additional information") or ""
+                if invoice_details.get("Additional information") and not str(additional_info_value).strip():
+                    expense_line["Additional information"] = invoice_details["Additional information"]
+
                 break
 
         else:
             # No match found for this receipt
             unmatched_receipts.append(receipt)
-
-    # BUG: THE FINAL EXPENSE DATA IS NOT UPDATED!!!
 
     return (
         expense_data,
