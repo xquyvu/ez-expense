@@ -84,6 +84,8 @@ uv run python main.py
 
 ## TODO
 
+- Find other ports if the current ones are not available
+- Allow option to quit the application on MacOS (currently the GUI is gone after opening the browser)
 - Add one-shot mode
 - Tidy up the repo
 - Test on Linux
