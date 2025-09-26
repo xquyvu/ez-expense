@@ -112,9 +112,9 @@ jobs:
         } else {
           Write-Output "❌ ERROR: ez-expense.exe not found at dist\ez-expense.exe"
           Write-Output "Contents of dist directory:"
-          if (Test-Path "dist\") { 
+          if (Test-Path "dist\") {
             Write-Output "dist directory exists, contents:"
-            Get-ChildItem "dist\" -Recurse | Select-Object Name, Length | Format-Table 
+            Get-ChildItem "dist\" -Recurse | Select-Object Name, Length | Format-Table
           } else {
             Write-Output "dist directory does not exist"
           }
