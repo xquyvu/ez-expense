@@ -23,10 +23,9 @@ Just click the app, and it just works. No installation required, no coding invol
 ### Option 1: Direct Download (Recommended)
 
 1. Go to [Releases](https://github.com/xquyvu/ez-expense/releases)
-2. Download the latest `EZ-Expense-unsigned.dmg`
-3. Open the DMG and drag the app to Applications
-4. **Right-click** the app and select "Open" (bypasses security warning)
-5. Click "Open" in the dialog - you're done!
+2. Download the latest `ez-expense-macos.zip`
+3. Extract the ZIP file
+4. Fill in the content of the `.env.template` file, and rename it to `.env`
 
 ### Option 2: Homebrew (Power Users)
 
@@ -40,7 +39,7 @@ brew install --cask ez-expense
 
 ```bash
 # After installing the app:
-xattr -cr /Applications/EZ-Expense.app
+xattr -cr /Applications/EZ-Expense.app # Replace this with the path to where you extracted the zip file
 ```
 
 ### ⚠️ Security Notice

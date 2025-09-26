@@ -88,7 +88,7 @@ git push --tags
 4. **Download and test:**
 
 - Once complete, go to "Releases"
-- Download the DMG/ZIP file
+- Download the ZIP file
 - Test the installation process
 
 ## 🔧 Files Added

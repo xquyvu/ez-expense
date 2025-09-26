@@ -124,31 +124,31 @@ else
     echo -e "${YELLOW}⚠️  Code signing skipped${NC}"
 fi
 
-# Create DMG installer
-echo -e "${BLUE}💿 Creating DMG installer...${NC}"
-if command -v create-dmg &> /dev/null; then
-    create-dmg \
-        --volname "${APP_NAME}" \
-        --volicon "../assets/icon.icns" \
-        --window-pos 200 120 \
-        --window-size 600 300 \
-        --icon-size 100 \
-        --icon "${APP_NAME}.app" 175 120 \
-        --hide-extension "${APP_NAME}.app" \
-        --app-drop-link 425 120 \
-        "../dist/${APP_NAME}.dmg" \
-        "../dist/${APP_NAME}.app"
-
-    # Sign the DMG if we have certificates
-    if [ -n "$DEVELOPER_ID_APPLICATION" ]; then
-        codesign --sign "$DEVELOPER_ID_APPLICATION" --timestamp "../dist/${APP_NAME}.dmg"
-        echo -e "${GREEN}✅ DMG signed${NC}"
-    fi
-
-    echo -e "${GREEN}✅ DMG created: ../dist/${APP_NAME}.dmg${NC}"
-else
-    echo -e "${YELLOW}⚠️  create-dmg not found. Install with: brew install create-dmg${NC}"
-fi
+# DMG creation removed - no longer building DMG installers
+# echo -e "${BLUE}💿 Creating DMG installer...${NC}"
+# if command -v create-dmg &> /dev/null; then
+#     create-dmg \
+#         --volname "${APP_NAME}" \
+#         --volicon "../assets/icon.icns" \
+#         --window-pos 200 120 \
+#         --window-size 600 300 \
+#         --icon-size 100 \
+#         --icon "${APP_NAME}.app" 175 120 \
+#         --hide-extension "${APP_NAME}.app" \
+#         --app-drop-link 425 120 \
+#         "../dist/${APP_NAME}.dmg" \
+#         "../dist/${APP_NAME}.app"
+# 
+#     # Sign the DMG if we have certificates
+#     if [ -n "$DEVELOPER_ID_APPLICATION" ]; then
+#         codesign --sign "$DEVELOPER_ID_APPLICATION" --timestamp "../dist/${APP_NAME}.dmg"
+#         echo -e "${GREEN}✅ DMG signed${NC}"
+#     fi
+# 
+#     echo -e "${GREEN}✅ DMG created: ../dist/${APP_NAME}.dmg${NC}"
+# else
+#     echo -e "${YELLOW}⚠️  create-dmg not found. Install with: brew install create-dmg${NC}"
+# fi
 
 echo -e "${BLUE}📋 Post-build information:${NC}"
 if [ -d "../dist/${APP_NAME}.app" ]; then
@@ -156,16 +156,11 @@ if [ -d "../dist/${APP_NAME}.app" ]; then
     echo "   • App Bundle size: $(du -sh "../dist/${APP_NAME}.app" | cut -f1)"
 fi
 
-if [ -f "../dist/${APP_NAME}.dmg" ]; then
-    echo "   • DMG Installer: ../dist/${APP_NAME}.dmg"
-    echo "   • DMG size: $(du -sh "../dist/${APP_NAME}.dmg" | cut -f1)"
-fi
-
 echo -e "${GREEN}🎉 Build complete!${NC}"
 
 echo -e "${YELLOW}📝 Next steps:${NC}"
 echo "   1. Test the app bundle: open ../dist/${APP_NAME}.app"
-echo "   2. Test the DMG installer (if created)"
+echo "   2. Create ZIP package for distribution"
 echo "   3. Distribute via:"
 echo "      - Direct download"
 echo "      - Homebrew cask"

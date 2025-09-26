@@ -21,7 +21,7 @@ cat > "../${TAP_NAME}/Casks/ez-expense.rb" << EOF
 cask "ez-expense" do
   version "$VERSION"
 
-  url "https://github.com/${GITHUB_USER}/${REPO_NAME}/releases/download/v#{version}/EZ-Expense-unsigned.dmg"
+  url "https://github.com/${GITHUB_USER}/${REPO_NAME}/releases/download/v#{version}/ez-expense-macos.zip"
   name "EZ Expense"
   desc "Expense management and receipt processing application"
   homepage "https://github.com/${GITHUB_USER}/${REPO_NAME}"

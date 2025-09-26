@@ -8,7 +8,7 @@ The GitHub Actions workflow will:
 
 1. **Build** your app on macOS, Linux, and Windows
 2. **Code sign** and **notarize** the macOS version (prevents Gatekeeper blocking)
-3. **Create DMG installer** for easy distribution
+3. **Create ZIP packages** for easy distribution
 4. **Generate Homebrew cask** for package manager installation
 5. **Create GitHub releases** with all artifacts
 
@@ -100,8 +100,8 @@ Once built, your app can be distributed via:
 
 ### 1. Direct Download (Automatic)
 
-- Users download the DMG from GitHub Releases
-- Drag app to Applications folder
+- Users download the ZIP package from GitHub Releases
+- Extract and copy app to Applications folder
 - **No security warnings** (if properly signed/notarized)
 
 ### 2. Homebrew Cask (Semi-Automatic)
