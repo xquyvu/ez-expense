@@ -20,9 +20,11 @@ Just click the app, and it just works. No installation required, no coding invol
 
 ## Demo
 
-See the tool in action!
+See the tool in action by clicking on the image below:
 
-[![Product Demo Video](https://img.youtube.com/vi/-om3waHSL3c/maxresdefault.jpg)](https://www.youtube.com/watch?v=-om3waHSL3c)
+👇👇👇👇👇🎥🎥🎥🎥🎥🎥👇👇👇👇👇
+
+[![Product Demo Video](assets/video_thumbnail.png)](https://www.youtube.com/watch?v=-om3waHSL3c)
 
 ## Download and use
 
