@@ -18,6 +18,11 @@ on:
           - prerelease
           - release
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   build-macos:
     runs-on: macos-latest
