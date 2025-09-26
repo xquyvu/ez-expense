@@ -2,36 +2,30 @@
 
 Automated expense matching tool that extracts data from receipts and matches them with expense reports.
 
-## 🚀 Features
+## Downloads
 
-- Extract data from PDF receipts using AI
-- Match receipts with existing expense entries
-- Web-based interface for easy management
-- Support for multiple currencies and formats
+- **macOS** (Intel & Apple Silicon): `ez-expense-macos.zip`
+- **Windows** (64-bit): `ez-expense-windows.zip`  
+- **Linux** (64-bit): `ez-expense-linux.zip`
 
-## 📦 Downloads
+## Quick Setup
 
-### macOS
+1. Download the appropriate ZIP file for your platform
+2. Extract the ZIP file to a folder of your choice
+3. Copy `.env.template` to `.env`
+4. Edit `.env` file with your API keys
+5. Run the executable (see README.txt in the package for platform-specific instructions)
 
-- **File**: `ez-expense-macos.zip`
-- **Requirements**: macOS 10.15 or later
-- **Installation**: Extract and double-click `EZ-Expense.app`
+## System Requirements
 
-### Windows
+- 4GB RAM available
+- 500MB free disk space  
+- Internet connection for AI services
+- macOS 10.15+, Windows 10+, or Linux (64-bit)
 
-- **File**: `ez-expense-windows.zip`
-- **Requirements**: Windows 10 or later
-- **Installation**: Extract and run `run-ez-expense.bat`
+## Getting Help
 
-## ⚙️ Setup
+- See `USER_GUIDE.md` included in each download
+- Report issues: [GitHub Issues](https://github.com/xquyvu/ez-expense/issues)
 
-1. Copy `.env.template` to `.env`
-2. Add your API keys (Azure AI Vision + OpenAI)
-3. See `USER_GUIDE.md` for detailed setup instructions
-
-## 🆘 Support
-
-See the included `USER_GUIDE.md` for troubleshooting and detailed usage instructions.
-
----
 Built automatically with GitHub Actions
