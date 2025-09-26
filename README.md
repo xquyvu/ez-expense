@@ -43,7 +43,7 @@ uv sync
 
 ## TODO
 
-- Add demo video
+- Add one-shot mode
 - Tidy up the repo
-- Test on Linux and Windows
+- Test on Linux
 - Check if the tests are still valid
