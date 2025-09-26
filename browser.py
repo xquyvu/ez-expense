@@ -140,7 +140,7 @@ class WindowsHandler(PlatformHandler):
         try:
             # Use PowerShell for more reliable process termination
             cmd = f"taskkill /IM {process_name} /T"
-            result = subprocess.run(
+            subprocess.run(
                 ["powershell", "-c", cmd],
                 capture_output=True,
                 text=True,
@@ -156,7 +156,9 @@ class WindowsHandler(PlatformHandler):
                 )
 
             time.sleep(2)  # Give time for graceful shutdown
-            return result.returncode == 0
+            
+            # Verify processes are actually gone
+            return not self.is_browser_running(process_name)
         except Exception as e:
             logger.warning(f"Failed to gracefully close browser: {e}")
             return False
@@ -179,11 +181,25 @@ class WindowsHandler(PlatformHandler):
                     capture_output=True,
                     text=True,
                 )
+                
+            # Give processes time to terminate
+            time.sleep(1)
+            
+            # If processes still exist, try more aggressive termination
+            if self.is_browser_running(process_name):
+                logger.warning("Processes still running after force close, trying alternative method")
+                # Try direct taskkill as fallback
+                subprocess.run(["taskkill", "/F", "/IM", process_name], capture_output=True)
+                if "msedge" in process_name.lower():
+                    subprocess.run(["taskkill", "/F", "/IM", "msedgewebview2.exe"], capture_output=True)
+                
         except Exception as e:
             logger.warning(f"Failed to force close browser: {e}")
-            # Fallback to direct taskkill
+            # Final fallback to direct taskkill
             try:
                 subprocess.run(["taskkill", "/F", "/IM", process_name], capture_output=True)
+                if "msedge" in process_name.lower():
+                    subprocess.run(["taskkill", "/F", "/IM", "msedgewebview2.exe"], capture_output=True)
             except Exception:
                 pass
 
