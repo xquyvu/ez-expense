@@ -731,8 +731,11 @@ async def fill_expense_report():
             logger.info(f"Expense {expense_created_id}: {len(attached_receipts)} receipts attached")
 
             # Select the expense line
-            expense_line = expense_line_mapping[expense_created_id]
-            await expense_line.dispatch_event("click")
+            expense_line_to_fill = expense_line_mapping[expense_created_id]
+
+            await expense_line_to_fill.scroll_into_view_if_needed()
+            await expense_line_to_fill.click()
+            await page.wait_for_timeout(500)
 
             # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
             text_box = await page.query_selector('textarea[name="TrvExpTrans_AdditionalInformation"]')
