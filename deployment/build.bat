@@ -41,11 +41,11 @@ if exist "dist" rmdir /s /q dist
 echo 🔨 Building executable with PyInstaller...
 if "%PYTHON_CMD%"=="uv run" (
     cd ..
-    uv run pyinstaller deployment\ez-expense.spec --clean --noconfirm
+    uv run pyinstaller deployment\ez-expense.spec --clean --noconfirm --target-arch=x86_64
     cd deployment
 ) else (
     cd ..
-    python -m PyInstaller deployment\ez-expense.spec --clean --noconfirm
+    python -m PyInstaller deployment\ez-expense.spec --clean --noconfirm --target-arch=x86_64
     cd deployment
 )
 

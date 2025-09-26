@@ -23,24 +23,45 @@ mkdir -p ../releases
 echo -e "${BLUE}🔨 Building executable...${NC}"
 ./build.sh
 
-# Create macOS release
-echo -e "${BLUE}📱 Creating macOS release package...${NC}"
-MACOS_DIR="../releases/ez-expense-macos"
-mkdir -p "$MACOS_DIR"
+# Detect what was built
+HAS_MACOS_APP=false
+HAS_WINDOWS_EXE=false
 
-# Copy macOS app bundle
-cp -r ../dist/EZ-Expense.app "$MACOS_DIR/"
-cp USER_GUIDE.md "$MACOS_DIR/"
+if [ -d "../dist/EZ-Expense.app" ]; then
+    HAS_MACOS_APP=true
+    echo -e "${GREEN}✅ Found macOS app bundle${NC}"
+fi
+
+if [ -f "../dist/ez-expense.exe" ] || [ -f "../dist/ez-expense" ]; then
+    HAS_WINDOWS_EXE=true
+    echo -e "${GREEN}✅ Found Windows/Linux executable${NC}"
+fi
+
+# Create macOS release only if we have the app bundle
+if [ "$HAS_MACOS_APP" = true ]; then
+    echo -e "${BLUE}📱 Creating macOS release package...${NC}"
+    MACOS_DIR="../releases/ez-expense-macos"
+    mkdir -p "$MACOS_DIR"
+
+    # Copy macOS app bundle
+    cp -r ../dist/EZ-Expense.app "$MACOS_DIR/"
+    cp USER_GUIDE.md "$MACOS_DIR/"
+else
+    echo -e "${YELLOW}⚠️ Skipping macOS release - no app bundle found${NC}"
+fi
 
 # Copy .env template from root
 if [ -f "../.env.template" ]; then
-    cp "../.env.template" "$MACOS_DIR/"
+    if [ "$HAS_MACOS_APP" = true ]; then
+        cp "../.env.template" "$MACOS_DIR/"
+    fi
 else
     echo "⚠️ Warning: .env.template not found in root directory"
 fi
 
-# Create macOS README
-cat > "$MACOS_DIR/README.txt" << 'EOF'
+# Create macOS README only if we have the app
+if [ "$HAS_MACOS_APP" = true ]; then
+    cat > "$MACOS_DIR/README.txt" << 'EOF'
 EZ-Expense for macOS
 ===================
 
@@ -60,21 +81,34 @@ See USER_GUIDE.md for detailed instructions and troubleshooting.
 
 The app will open your browser automatically at http://localhost:3000
 EOF
+fi
 
-# Create Windows release (simulated - cross-platform executable)
-echo -e "${BLUE}💻 Creating Windows release package...${NC}"
-WINDOWS_DIR="../releases/ez-expense-windows"
-mkdir -p "$WINDOWS_DIR"
+# Create Windows release if we have executable
+if [ "$HAS_WINDOWS_EXE" = true ]; then
+    echo -e "${BLUE}💻 Creating Windows release package...${NC}"
+    WINDOWS_DIR="../releases/ez-expense-windows"
+    mkdir -p "$WINDOWS_DIR"
 
-# Copy executable (rename to .exe for Windows)
-cp ../dist/ez-expense "$WINDOWS_DIR/ez-expense.exe"
-cp USER_GUIDE.md "$WINDOWS_DIR/"
+    # Copy executable - handle both .exe and non-.exe names
+    if [ -f "../dist/ez-expense.exe" ]; then
+        cp "../dist/ez-expense.exe" "$WINDOWS_DIR/"
+    elif [ -f "../dist/ez-expense" ]; then
+        cp "../dist/ez-expense" "$WINDOWS_DIR/ez-expense.exe"
+    fi
 
-# Copy .env template from macOS directory (already copied from root)
-cp "$MACOS_DIR/.env.template" "$WINDOWS_DIR/"
+    cp USER_GUIDE.md "$WINDOWS_DIR/"
 
-# Create Windows launcher
-cat > "$WINDOWS_DIR/run-ez-expense.bat" << 'EOF'
+    # Copy .env template from root
+    if [ -f "../.env.template" ]; then
+        cp "../.env.template" "$WINDOWS_DIR/"
+    fi
+else
+    echo -e "${YELLOW}⚠️ Skipping Windows release - no executable found${NC}"
+fi
+
+# Create Windows launcher and README only if we have the executable
+if [ "$HAS_WINDOWS_EXE" = true ]; then
+    cat > "$WINDOWS_DIR/run-ez-expense.bat" << 'EOF'
 @echo off
 echo 🚀 Starting EZ-Expense...
 echo.
@@ -99,8 +133,8 @@ ez-expense.exe
 pause
 EOF
 
-# Create Windows README
-cat > "$WINDOWS_DIR/README.txt" << 'EOF'
+    # Create Windows README
+    cat > "$WINDOWS_DIR/README.txt" << 'EOF'
 EZ-Expense for Windows
 =====================
 
@@ -121,33 +155,55 @@ See USER_GUIDE.md for detailed instructions and troubleshooting.
 The app will open your browser automatically at http://localhost:3000
 Keep the command window open while using the app!
 EOF
+fi
 
 # Create ZIP files for releases
 echo -e "${BLUE}📦 Creating release archives...${NC}"
 cd ../releases
 
-# Create macOS zip
-zip -r "ez-expense-macos.zip" "ez-expense-macos/"
-echo -e "${GREEN}✅ Created: ez-expense-macos.zip${NC}"
+# Check if zip command is available
+if ! command -v zip &> /dev/null; then
+    echo -e "${RED}❌ zip command not found. Please install zip utility.${NC}"
+    echo "zip is required to create release archives."
+    exit 1
+fi
 
-# Create Windows zip
-zip -r "ez-expense-windows.zip" "ez-expense-windows/"
-echo -e "${GREEN}✅ Created: ez-expense-windows.zip${NC}"
+# Create macOS archive if we have it
+if [ "$HAS_MACOS_APP" = true ]; then
+    zip -r "ez-expense-macos.zip" "ez-expense-macos/"
+    echo -e "${GREEN}✅ Created: ez-expense-macos.zip${NC}"
+fi
+
+# Create Windows archive if we have it
+if [ "$HAS_WINDOWS_EXE" = true ]; then
+    zip -r "ez-expense-windows.zip" "ez-expense-windows/"
+    echo -e "${GREEN}✅ Created: ez-expense-windows.zip${NC}"
+fi
 
 # Show results
 echo ""
 echo -e "${GREEN}🎉 GitHub releases ready!${NC}"
 echo ""
-echo -e "${BLUE}📁 Release files:${NC}"
-ls -la *.zip
-echo ""
-echo -e "${BLUE}📊 File sizes:${NC}"
-du -sh *.zip
-echo ""
-echo -e "${YELLOW}📋 Next steps:${NC}"
-echo "1. Go to https://github.com/xquyvu/ez-expense/releases"
-echo "2. Click 'Create a new release'"
-echo "3. Upload both zip files:"
-echo "   • ez-expense-macos.zip"
-echo "   • ez-expense-windows.zip"
-echo "4. Add release notes and publish"
+
+if [ -f "ez-expense-macos.zip" ] || [ -f "ez-expense-windows.zip" ]; then
+    echo -e "${BLUE}📁 Release files:${NC}"
+    ls -la *.zip 2>/dev/null || true
+    echo ""
+    echo -e "${BLUE}📊 File sizes:${NC}"
+    du -sh *.zip 2>/dev/null || true
+    echo ""
+    echo -e "${YELLOW}📋 Next steps:${NC}"
+    echo "1. Go to https://github.com/xquyvu/ez-expense/releases"
+    echo "2. Click 'Create a new release'"
+    echo "3. Upload the archive file(s):"
+    if [ -f "ez-expense-macos.zip" ]; then
+        echo "   • ez-expense-macos.zip"
+    fi
+    if [ -f "ez-expense-windows.zip" ]; then
+        echo "   • ez-expense-windows.zip"
+    fi
+    echo "4. Add release notes and publish"
+else
+    echo -e "${RED}❌ No release packages were created${NC}"
+    echo "Make sure you have built executables in ../dist/"
+fi
