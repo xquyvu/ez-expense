@@ -24,7 +24,9 @@ See the tool in action by clicking on the image below:
 
 👇👇👇👇👇🎥🎥🎥🎥🎥🎥👇👇👇👇👇
 
-[![Product Demo Video](assets/video_thumbnail.png)](https://www.youtube.com/watch?v=-om3waHSL3c)
+<a href="https://www.youtube.com/watch?v=-om3waHSL3c">
+  <img src="assets/video_thumbnail.png" alt="Product Demo Video" width="400">
+</a>
 
 ## Download and use
 
