@@ -39,6 +39,8 @@ Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to u
 ## Installation and run for development
 
 ```bash
+git clone https://github.com/xquyvu/ez-expense.git
+cd ez-expense
 uvx playwright install chromium --with-deps --no-shell
 uv sync
 ```
