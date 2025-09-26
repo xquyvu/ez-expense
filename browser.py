@@ -118,26 +118,74 @@ class WindowsHandler(PlatformHandler):
         return config
 
     def is_browser_running(self, process_name: str) -> bool:
-        result = subprocess.run(
-            ["tasklist", "/FI", f"IMAGENAME eq {process_name}"], capture_output=True, text=True
-        )
-        return process_name.lower() in result.stdout.lower()
-
-    def close_browser_gracefully(self, process_name: str) -> bool:
         try:
-            subprocess.run(
-                ["taskkill", "/IM", process_name, "/T"],
+            result = subprocess.run(
+                [
+                    "powershell",
+                    "-c",
+                    f"Get-Process -Name '{process_name.replace('.exe', '')}' -ErrorAction SilentlyContinue",
+                ],
                 capture_output=True,
                 text=True,
             )
+            return bool(result.stdout.strip())
+        except Exception:
+            # Fallback to tasklist method
+            result = subprocess.run(
+                ["tasklist", "/FI", f"IMAGENAME eq {process_name}"], capture_output=True, text=True
+            )
+            return process_name.lower() in result.stdout.lower()
+
+    def close_browser_gracefully(self, process_name: str) -> bool:
+        try:
+            # Use PowerShell for more reliable process termination
+            cmd = f"taskkill /IM {process_name} /T"
+            result = subprocess.run(
+                ["powershell", "-c", cmd],
+                capture_output=True,
+                text=True,
+            )
+
+            # Also close WebView2 processes for Edge
+            if "msedge" in process_name.lower():
+                webview_cmd = "taskkill /IM msedgewebview2.exe /T 2>$null"
+                subprocess.run(
+                    ["powershell", "-c", webview_cmd],
+                    capture_output=True,
+                    text=True,
+                )
+
             time.sleep(2)  # Give time for graceful shutdown
-            return True
+            return result.returncode == 0
         except Exception as e:
             logger.warning(f"Failed to gracefully close browser: {e}")
             return False
 
     def force_close_browser(self, process_name: str) -> None:
-        subprocess.run(["taskkill", "/F", "/IM", process_name], capture_output=True)
+        try:
+            # Use PowerShell for more reliable force termination
+            cmd = f"taskkill /F /IM {process_name}"
+            subprocess.run(
+                ["powershell", "-c", cmd],
+                capture_output=True,
+                text=True,
+            )
+
+            # Also force close WebView2 processes for Edge
+            if "msedge" in process_name.lower():
+                webview_cmd = "taskkill /F /IM msedgewebview2.exe 2>$null"
+                subprocess.run(
+                    ["powershell", "-c", webview_cmd],
+                    capture_output=True,
+                    text=True,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to force close browser: {e}")
+            # Fallback to direct taskkill
+            try:
+                subprocess.run(["taskkill", "/F", "/IM", process_name], capture_output=True)
+            except Exception:
+                pass
 
 
 class LinuxHandler(PlatformHandler):
