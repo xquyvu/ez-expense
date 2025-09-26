@@ -111,6 +111,115 @@ jobs:
         }
       shell: pwsh
 
+    # macOS Code Signing and Notarization
+    - name: Import signing certificate (macOS)
+      if: matrix.platform == 'macos' && secrets.SIGNING_CERTIFICATE_P12_DATA != ''
+      env:
+        SIGNING_CERTIFICATE_P12_DATA: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA }}
+        SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      run: |
+        # Create certificate file from base64 encoded data
+        echo "$SIGNING_CERTIFICATE_P12_DATA" | base64 --decode > certificate.p12
+        
+        # Create temporary keychain
+        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        
+        # Import certificate
+        security import certificate.p12 -k build.keychain -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+        
+        # Set partition list
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+        
+        # Clean up
+        rm certificate.p12
+
+    - name: Sign macOS app bundle
+      if: matrix.platform == 'macos' && secrets.SIGNING_CERTIFICATE_P12_DATA != ''
+      env:
+        APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+      run: |
+        if [ -d "dist/EZ-Expense.app" ]; then
+          # Sign all executables and libraries in the app bundle
+          find "dist/EZ-Expense.app" -type f \( -name "*.dylib" -o -name "*.so" -o -perm +111 \) -exec codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime {} \;
+          
+          # Sign the main executable
+          codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime "dist/EZ-Expense.app/Contents/MacOS/ez-expense"
+          
+          # Sign the entire app bundle
+          codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime "dist/EZ-Expense.app"
+          
+          # Verify code signing
+          codesign --verify --verbose "dist/EZ-Expense.app"
+          echo "✅ App bundle signed successfully"
+        else
+          echo "ℹ️ No app bundle found to sign"
+        fi
+
+    - name: Notarize macOS app bundle
+      if: matrix.platform == 'macos' && secrets.SIGNING_CERTIFICATE_P12_DATA != ''
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        if [ -d "dist/EZ-Expense.app" ]; then
+          # Create ZIP for notarization
+          cd dist
+          zip -r "EZ-Expense-notarize.zip" "EZ-Expense.app"
+
+          # Submit for notarization
+          xcrun notarytool submit "EZ-Expense-notarize.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple notarization ticket
+          xcrun stapler staple "EZ-Expense.app"
+          
+          # Clean up
+          rm "EZ-Expense-notarize.zip"
+          cd ..
+          echo "✅ App bundle notarized successfully"
+        else
+          echo "ℹ️ No app bundle found to notarize"
+        fi
+
+    - name: Create macOS DMG installer
+      if: matrix.platform == 'macos'
+      env:
+        APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+      run: |
+        if [ -d "dist/EZ-Expense.app" ]; then
+          # Install create-dmg
+          brew install create-dmg
+
+          # Create DMG
+          create-dmg \
+            --volname "EZ-Expense" \
+            --window-pos 200 120 \
+            --window-size 600 300 \
+            --icon-size 100 \
+            --icon "EZ-Expense.app" 175 120 \
+            --hide-extension "EZ-Expense.app" \
+            --app-drop-link 425 120 \
+            "dist/EZ-Expense-macos.dmg" \
+            "dist/EZ-Expense.app"
+
+          # Sign the DMG if we have signing certificates
+          if [ ! -z "$APPLE_DEVELOPER_ID_APPLICATION" ]; then
+            codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp "dist/EZ-Expense-macos.dmg"
+            echo "✅ DMG signed successfully"
+          else
+            echo "ℹ️ DMG created without signing"
+          fi
+        else
+          echo "ℹ️ No app bundle found, skipping DMG creation"
+        fi
+
     - name: Create release package
       run: |
         mkdir -p release-package
@@ -236,11 +345,22 @@ jobs:
         fi
       shell: bash
 
-    - name: Upload artifact
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.package_name }}
-        path: ${{ matrix.package_name }}.zip
+        path: |
+          release-package/**/*
+        retention-days: 30
+
+    - name: Upload macOS DMG artifact
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v4
+      with:
+        name: EZ-Expense-macos-dmg
+        path: |
+          dist/EZ-Expense-macos.dmg
+        retention-days: 30
 
   release:
     needs: build
@@ -270,15 +390,13 @@ jobs:
           echo "## EZ-Expense $VERSION" > release-notes.md
           echo "" >> release-notes.md
           echo "### Downloads" >> release-notes.md
-          echo "- **macOS**: Download \`ez-expense-macos.zip\`" >> release-notes.md
+          echo "- **macOS**: Download \`ez-expense-macos.zip\` or \`EZ-Expense-macos.dmg\`" >> release-notes.md
           echo "- **Windows**: Download \`ez-expense-windows.zip\`" >> release-notes.md
           echo "- **Linux**: Download \`ez-expense-linux.zip\`" >> release-notes.md
           echo "" >> release-notes.md
           echo "### Setup" >> release-notes.md
-          echo "1. Extract the ZIP file" >> release-notes.md
-          echo "2. Copy \`.env.template\` to \`.env\`" >> release-notes.md
-          echo "3. Edit \`.env\` with your API keys and configuration" >> release-notes.md
-          echo "4. Run the executable" >> release-notes.md
+          echo "1. **macOS DMG**: Just drag to Applications folder" >> release-notes.md
+          echo "2. **ZIP files**: Extract, copy \`.env.template\` to \`.env\`, edit with your API keys, then run the executable" >> release-notes.md
         fi
 
     - name: Create Release and Upload Assets
@@ -295,3 +413,4 @@ jobs:
           artifacts/ez-expense-macos/ez-expense-macos.zip
           artifacts/ez-expense-windows/ez-expense-windows.zip
           artifacts/ez-expense-linux/ez-expense-linux.zip
+          artifacts/EZ-Expense-macos-dmg/EZ-Expense-macos.dmg
