@@ -11,6 +11,7 @@ Use the **simple build workflow** that requires no setup:
 3. Works immediately with your existing setup
 
 **Trigger a build:**
+
 ```bash
 git tag v1.0.0
 git push --tags
@@ -28,12 +29,12 @@ Use the **full build workflow** with code signing:
 
 ## 📦 Distribution Methods Comparison
 
-| Method | User Experience | Setup Complexity | Cost | Security Warnings |
-|--------|------------------|------------------|------|-------------------|
-| **GitHub Actions (Signed)** | ⭐⭐⭐⭐⭐ Perfect | 🔧🔧🔧 Complex | $99/year | ❌ None |
-| **GitHub Actions (Unsigned)** | ⭐⭐⭐ Good | 🔧 Simple | Free | ⚠️ Bypassable |
-| **Homebrew Cask** | ⭐⭐⭐⭐⭐ Perfect | 🔧🔧 Medium | Free* | ❌ None (if signed) |
-| **Direct Download** | ⭐⭐⭐ Good | 🔧 Simple | Free | ⚠️ Depends on signing |
+| Method                        | User Experience | Setup Complexity | Cost     | Security Warnings    |
+| ----------------------------- | --------------- | ---------------- | -------- | -------------------- |
+| **GitHub Actions (Signed)**   | ⭐⭐⭐⭐⭐ Perfect   | 🔧🔧🔧 Complex      | $99/year | ❌ None               |
+| **GitHub Actions (Unsigned)** | ⭐⭐⭐ Good        | 🔧 Simple         | Free     | ⚠️ Bypassable         |
+| **Homebrew Cask**             | ⭐⭐⭐⭐⭐ Perfect   | 🔧🔧 Medium        | Free*    | ❌ None (if signed)   |
+| **Direct Download**           | ⭐⭐⭐ Good        | 🔧 Simple         | Free     | ⚠️ Depends on signing |
 
 *Homebrew cask submission is free, but signing requires Developer Account
 
@@ -49,19 +50,22 @@ Looking at the YouTube Music Desktop app (YTMD) that you mentioned works without
 **For your app, I recommend:**
 
 ### Phase 1: Quick Launch (Now)
+
 - Use `simple-build.yml` workflow
 - Users can bypass warnings with right-click → Open
 - Get user feedback and validate your app
 
 ### Phase 2: Professional Release (Later)
+
 - Get Apple Developer Account
-- Set up `build-and-release.yml` workflow  
+- Set up `build-and-release.yml` workflow
 - Create Homebrew tap for easy installation
 - No more user warnings
 
 ## 🚦 Getting Started
 
 1. **Commit the workflows:**
+
 ```bash
 git add .github/workflows/
 git commit -m "Add GitHub Actions workflows for automated builds"
@@ -69,17 +73,20 @@ git push
 ```
 
 2. **Create your first release:**
+
 ```bash
 git tag v1.0.0
 git push --tags
 ```
 
 3. **Monitor the build:**
+
 - Go to your GitHub repository
 - Click "Actions" tab
 - Watch the build progress
 
 4. **Download and test:**
+
 - Once complete, go to "Releases"
 - Download the DMG/ZIP file
 - Test the installation process
@@ -87,7 +94,7 @@ git push --tags
 ## 🔧 Files Added
 
 - `.github/workflows/build-and-release.yml` - Full workflow with code signing
-- `.github/workflows/simple-build.yml` - Simple workflow without signing  
+- `.github/workflows/simple-build.yml` - Simple workflow without signing
 - `deployment/GITHUB_ACTIONS_SETUP.md` - Detailed setup guide
 - `deployment/build-macos-signed.sh` - Local build script with signing
 

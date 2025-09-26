@@ -20,7 +20,7 @@ mkdir -p "../${TAP_NAME}/Casks"
 cat > "../${TAP_NAME}/Casks/ez-expense.rb" << EOF
 cask "ez-expense" do
   version "$VERSION"
-  
+
   url "https://github.com/${GITHUB_USER}/${REPO_NAME}/releases/download/v#{version}/EZ-Expense-unsigned.dmg"
   name "EZ Expense"
   desc "Expense management and receipt processing application"

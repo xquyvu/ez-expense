@@ -15,7 +15,7 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
       run: |
         # Install create-dmg
         brew install create-dmg
-        
+
         # Create DMG (unsigned)
         create-dmg \
           --volname "EZ-Expense" \
@@ -55,7 +55,7 @@ jobs:
           --app-drop-link 425 120 \
           "dist/EZ-Expense-unsigned.dmg" \
           "dist/EZ-Expense.app" || true
-        
+
         # If create-dmg fails, create a simple zip
         if [ ! -f "dist/EZ-Expense-unsigned.dmg" ]; then
           cd dist
@@ -84,36 +84,36 @@ jobs:
         generate_release_notes: true
         body: |
           ## ⚠️ Security Notice
-          
+
           This app is **not code signed**. macOS will show security warnings.
-          
+
           ## Installation Instructions
-          
+
           ### Option 1: Right-click to Open
           1. Download the DMG file below
           2. Open the DMG and drag the app to Applications
           3. **Right-click** the app in Applications and select "Open"
           4. Click "Open" in the security dialog
-          
+
           ### Option 2: Remove Quarantine (Advanced)
           ```bash
           # Download and install the app, then run:
           xattr -cr /Applications/EZ-Expense.app
           ```
-          
+
           ### Option 3: System Preferences
           1. Try to open the app (it will be blocked)
           2. Go to System Preferences → Security & Privacy
           3. Click "Allow Anyway" next to the EZ-Expense entry
           4. Try opening the app again and click "Open"
-          
+
           ## Why This Happens
-          
+
           macOS blocks unsigned apps to protect users. To remove these warnings,
           we would need to:
           - Purchase Apple Developer Account ($99/year)
           - Code sign and notarize the app
-          
+
           ## What's Changed
           See the full changelog below.
       env:
@@ -122,7 +122,7 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -157,7 +157,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
