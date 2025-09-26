@@ -1,8 +1,122 @@
-# EZ-Expense Deployment Tools
+# macOS Distribution Options Summary
 
-This folder contains all the tools and files needed to build and distribute the EZ-Expense application as standalone executables for GitHub releases.
+You have multiple ways to distribute your macOS app to avoid Gatekeeper blocking:
 
-## Quick Start
+## 🚀 Quick Start (Recommended for Testing)
+
+Use the **simple build workflow** that requires no setup:
+
+1. The app will be unsigned (users see warnings but can bypass them)
+2. No Apple Developer Account needed ($0 cost)
+3. Works immediately with your existing setup
+
+**Trigger a build:**
+
+```bash
+git tag v1.0.0
+git push --tags
+```
+
+## 🔐 Professional Distribution (Recommended for Production)
+
+Use the **full build workflow** with code signing:
+
+1. **Pros:** No user warnings, professional appearance, trusted by macOS
+2. **Cons:** Requires Apple Developer Account ($99/year) and setup
+3. **Best for:** Apps you plan to distribute widely
+
+**Setup required:** Follow `GITHUB_ACTIONS_SETUP.md`
+
+## 📦 Distribution Methods Comparison
+
+| Method                        | User Experience | Setup Complexity | Cost     | Security Warnings    |
+| ----------------------------- | --------------- | ---------------- | -------- | -------------------- |
+| **GitHub Actions (Signed)**   | ⭐⭐⭐⭐⭐ Perfect   | 🔧🔧🔧 Complex      | $99/year | ❌ None               |
+| **GitHub Actions (Unsigned)** | ⭐⭐⭐ Good        | 🔧 Simple         | Free     | ⚠️ Bypassable         |
+| **Homebrew Cask**             | ⭐⭐⭐⭐⭐ Perfect   | 🔧🔧 Medium        | Free*    | ❌ None (if signed)   |
+| **Direct Download**           | ⭐⭐⭐ Good        | 🔧 Simple         | Free     | ⚠️ Depends on signing |
+
+*Homebrew cask submission is free, but signing requires Developer Account
+
+## 🏆 Recommendation Based on YTMD Success
+
+Looking at the YouTube Music Desktop app (YTMD) that you mentioned works without blocking:
+
+1. **They use Homebrew distribution**: `brew install th-ch/youtube-music/youtube-music`
+2. **They provide signed releases**: No security warnings for users
+3. **They use GitHub Actions**: Automated builds with proper code signing
+4. **Multiple platforms**: macOS, Linux, Windows support
+
+**For your app, I recommend:**
+
+### Phase 1: Quick Launch (Now)
+
+- Use `simple-build.yml` workflow
+- Users can bypass warnings with right-click → Open
+- Get user feedback and validate your app
+
+### Phase 2: Professional Release (Later)
+
+- Get Apple Developer Account
+- Set up `build-and-release.yml` workflow
+- Create Homebrew tap for easy installation
+- No more user warnings
+
+## 🚦 Getting Started
+
+1. **Commit the workflows:**
+
+```bash
+git add .github/workflows/
+git commit -m "Add GitHub Actions workflows for automated builds"
+git push
+```
+
+2. **Create your first release:**
+
+```bash
+git tag v1.0.0
+git push --tags
+```
+
+3. **Monitor the build:**
+
+- Go to your GitHub repository
+- Click "Actions" tab
+- Watch the build progress
+
+4. **Download and test:**
+
+- Once complete, go to "Releases"
+- Download the ZIP file
+- Test the installation process
+
+## 🔧 Files Added
+
+- `.github/workflows/build-and-release.yml` - Full workflow with code signing
+- `.github/workflows/simple-build.yml` - Simple workflow without signing
+- `deployment/GITHUB_ACTIONS_SETUP.md` - Detailed setup guide
+- `deployment/build-macos-signed.sh` - Local build script with signing
+
+## 📞 Support
+
+If you encounter issues:
+
+1. **Check GitHub Actions logs** for detailed error messages
+2. **Test locally first** using the build scripts in `deployment/`
+3. **Start with simple workflow** before attempting code signing
+4. **Verify PyInstaller spec** works on your development machine
+
+## 🎯 Next Steps
+
+1. Test the simple build workflow first
+2. Get user feedback on your app
+3. Consider upgrading to signed builds when ready
+4. Set up Homebrew tap for easier distribution
+
+The key insight from YTMD's success is that **proper signing + convenient distribution (Homebrew) = great user experience**. But you can start simple and upgrade later!
+
+## Previous Deployment Tools
 
 ### For GitHub Releases (Primary Method)
 

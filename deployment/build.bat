@@ -13,7 +13,7 @@ if not exist "..\main.py" (
 
 REM Check if uv is available, otherwise use pip
 where uv >nul 2>nul
-if "%PYTHON_CMD%"=="uv run" (
+if %errorlevel% equ 0 (
     echo ✅ Using uv for package management...
     set PYTHON_CMD=uv run
     cd ..
@@ -41,11 +41,11 @@ if exist "dist" rmdir /s /q dist
 echo 🔨 Building executable with PyInstaller...
 if "%PYTHON_CMD%"=="uv run" (
     cd ..
-    uv run pyinstaller deployment\ez-expense.spec --clean --noconfirm --target-arch=x86_64
+    uv run pyinstaller deployment\ez-expense.spec --clean --noconfirm
     cd deployment
 ) else (
     cd ..
-    python -m PyInstaller deployment\ez-expense.spec --clean --noconfirm --target-arch=x86_64
+    python -m PyInstaller deployment\ez-expense.spec --clean --noconfirm
     cd deployment
 )
 

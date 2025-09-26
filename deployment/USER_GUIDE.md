@@ -97,6 +97,22 @@ AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
 - **Windows**: If Windows Defender blocks it, click "More info" → "Run anyway"
 - **All platforms**: Make sure you have at least 4GB of RAM available
 
+#### App starts, but closes immediately, or run into porting issue
+
+You likely have something already running on port 5001 and / or 9222. Please free them up by:
+
+- Windows:
+
+```cmd
+for /f "tokens=5" %a in ('netstat -ano ^| findstr :5001') do taskkill /PID %a /F
+```
+
+- macOS/Linux:
+
+```bash
+uv run -m lsof -ti:5001 | xargs kill -9
+```
+
 #### API Errors
 
 - Make sure your `.env` file has valid configuration

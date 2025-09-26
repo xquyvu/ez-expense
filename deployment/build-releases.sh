@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Build EZ-Expense releases for GitHub
-# Creates separate packages for macOS and Windows
+# Creates separate packages based on current platform
 
 set -e
 
-echo "🚀 Building EZ-Expense releases for GitHub..."
+echo "🚀 Building EZ-Expense release for current platform..."
 
 # Colors for output
 RED='\033[0;31m'
@@ -13,6 +13,23 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Detect current platform
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    PLATFORM="macos"
+    EXECUTABLE_NAME="ez-expense"
+    PACKAGE_NAME="ez-expense-macos"
+elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+    PLATFORM="windows"
+    EXECUTABLE_NAME="ez-expense.exe"
+    PACKAGE_NAME="ez-expense-windows"
+else
+    PLATFORM="linux"
+    EXECUTABLE_NAME="ez-expense"
+    PACKAGE_NAME="ez-expense-linux"
+fi
+
+echo -e "${BLUE}📱 Detected platform: $PLATFORM${NC}"
 
 # Clean previous releases
 echo -e "${BLUE}🧹 Cleaning previous release artifacts...${NC}"
@@ -23,55 +40,69 @@ mkdir -p ../releases
 echo -e "${BLUE}🔨 Building executable...${NC}"
 ./build.sh
 
-# Detect what was built
-HAS_MACOS_APP=false
-HAS_WINDOWS_EXE=false
+# Create platform-specific release package
+echo -e "${BLUE}📦 Creating $PLATFORM release package...${NC}"
+RELEASE_DIR="../releases/$PACKAGE_NAME"
+mkdir -p "$RELEASE_DIR"
 
-if [ -d "../dist/EZ-Expense.app" ]; then
-    HAS_MACOS_APP=true
-    echo -e "${GREEN}✅ Found macOS app bundle${NC}"
-fi
+if [ "$PLATFORM" = "macos" ]; then
+    # Copy macOS app bundle if it exists
+    if [ -d "../dist/EZ-Expense.app" ]; then
+        cp -r ../dist/EZ-Expense.app "$RELEASE_DIR/"
+        echo -e "${GREEN}✅ Included macOS app bundle${NC}"
+    fi
 
-if [ -f "../dist/ez-expense.exe" ] || [ -f "../dist/ez-expense" ]; then
-    HAS_WINDOWS_EXE=true
-    echo -e "${GREEN}✅ Found Windows/Linux executable${NC}"
-fi
+    # Always copy the command-line executable
+    if [ -f "../dist/$EXECUTABLE_NAME" ]; then
+        cp ../dist/$EXECUTABLE_NAME "$RELEASE_DIR/"
+        echo -e "${GREEN}✅ Included command-line executable${NC}"
+    fi
 
-# Create macOS release only if we have the app bundle
-if [ "$HAS_MACOS_APP" = true ]; then
-    echo -e "${BLUE}📱 Creating macOS release package...${NC}"
-    MACOS_DIR="../releases/ez-expense-macos"
-    mkdir -p "$MACOS_DIR"
-
-    # Copy macOS app bundle
-    cp -r ../dist/EZ-Expense.app "$MACOS_DIR/"
-    cp USER_GUIDE.md "$MACOS_DIR/"
-else
-    echo -e "${YELLOW}⚠️ Skipping macOS release - no app bundle found${NC}"
-fi
-
-# Copy .env template from root
-if [ -f "../.env.template" ]; then
-    if [ "$HAS_MACOS_APP" = true ]; then
-        cp "../.env.template" "$MACOS_DIR/"
+    # Copy run script
+    if [ -f "run-ez-expense.sh" ]; then
+        cp run-ez-expense.sh "$RELEASE_DIR/"
+        chmod +x "$RELEASE_DIR/run-ez-expense.sh"
+        echo -e "${GREEN}✅ Included run script${NC}"
     fi
 else
-    echo "⚠️ Warning: .env.template not found in root directory"
+    # Copy executable for other platforms
+    if [ -f "../dist/$EXECUTABLE_NAME" ]; then
+        cp ../dist/$EXECUTABLE_NAME "$RELEASE_DIR/"
+        chmod +x "$RELEASE_DIR/$EXECUTABLE_NAME"
+        echo -e "${GREEN}✅ Included $PLATFORM executable${NC}"
+    else
+        echo -e "${RED}❌ Error: Expected executable ../dist/$EXECUTABLE_NAME not found${NC}"
+        exit 1
+    fi
 fi
 
-# Create macOS README only if we have the app
-if [ "$HAS_MACOS_APP" = true ]; then
-    cat > "$MACOS_DIR/README.txt" << 'EOF'
+# Copy common files
+cp USER_GUIDE.md "$RELEASE_DIR/"
+echo -e "${GREEN}✅ Included user guide${NC}"
+
+# Copy .env.template if it exists
+if [ -f "../.env.template" ]; then
+    cp ../.env.template "$RELEASE_DIR/"
+    echo -e "${GREEN}✅ Included .env.template${NC}"
+else
+    echo -e "${YELLOW}⚠️ .env.template not found${NC}"
+fi
+
+# Create platform-specific README
+echo -e "${BLUE}📝 Creating platform-specific README...${NC}"
+if [ "$PLATFORM" = "macos" ]; then
+    cat > "$RELEASE_DIR/README.txt" << 'EOF'
 EZ-Expense for macOS
 ===================
 
 QUICK START:
 1. Rename the `.env.template` file to `.env`
 2. Edit .env with your API keys (see USER_GUIDE.md)
-3. Double-click EZ-Expense.app
+3. For app bundle: Double-click EZ-Expense.app
+   For command line: Run ./ez-expense in Terminal
 
 SYSTEM REQUIREMENTS:
-- macOS 10.15 or later
+- macOS 10.15 or later (supports both Intel and Apple Silicon)
 - 4GB RAM available
 - 500MB free disk space
 - Internet connection (for AI services)
@@ -81,34 +112,32 @@ See USER_GUIDE.md for detailed instructions and troubleshooting.
 
 The app will open your browser automatically at http://localhost:3000
 EOF
-fi
 
-# Create Windows release if we have executable
-if [ "$HAS_WINDOWS_EXE" = true ]; then
-    echo -e "${BLUE}💻 Creating Windows release package...${NC}"
-    WINDOWS_DIR="../releases/ez-expense-windows"
-    mkdir -p "$WINDOWS_DIR"
+elif [ "$PLATFORM" = "windows" ]; then
+    cat > "$RELEASE_DIR/README.txt" << 'EOF'
+EZ-Expense for Windows
+=====================
 
-    # Copy executable - handle both .exe and non-.exe names
-    if [ -f "../dist/ez-expense.exe" ]; then
-        cp "../dist/ez-expense.exe" "$WINDOWS_DIR/"
-    elif [ -f "../dist/ez-expense" ]; then
-        cp "../dist/ez-expense" "$WINDOWS_DIR/ez-expense.exe"
-    fi
+QUICK START:
+1. Copy .env.template to .env
+2. Edit .env with your API keys (see USER_GUIDE.md)
+3. Double-click ez-expense.exe
 
-    cp USER_GUIDE.md "$WINDOWS_DIR/"
+SYSTEM REQUIREMENTS:
+- Windows 10 or later (64-bit)
+- 4GB RAM available
+- 500MB free disk space
+- Internet connection (for AI services)
 
-    # Copy .env template from root
-    if [ -f "../.env.template" ]; then
-        cp "../.env.template" "$WINDOWS_DIR/"
-    fi
-else
-    echo -e "${YELLOW}⚠️ Skipping Windows release - no executable found${NC}"
-fi
+GETTING HELP:
+See USER_GUIDE.md for detailed instructions and troubleshooting.
 
-# Create Windows launcher and README only if we have the executable
-if [ "$HAS_WINDOWS_EXE" = true ]; then
-    cat > "$WINDOWS_DIR/run-ez-expense.bat" << 'EOF'
+The app will open your browser automatically at http://localhost:3000
+Keep the command window open while using the app!
+EOF
+
+    # Create Windows launcher script
+    cat > "$RELEASE_DIR/run-ez-expense.bat" << 'EOF'
 @echo off
 echo 🚀 Starting EZ-Expense...
 echo.
@@ -133,18 +162,19 @@ ez-expense.exe
 pause
 EOF
 
-    # Create Windows README
-    cat > "$WINDOWS_DIR/README.txt" << 'EOF'
-EZ-Expense for Windows
-=====================
+else
+    # Linux README
+    cat > "$RELEASE_DIR/README.txt" << 'EOF'
+EZ-Expense for Linux
+===================
 
 QUICK START:
 1. Copy .env.template to .env
 2. Edit .env with your API keys (see USER_GUIDE.md)
-3. Double-click run-ez-expense.bat
+3. Run ./ez-expense in terminal
 
 SYSTEM REQUIREMENTS:
-- Windows 10 or later
+- Linux (64-bit) with glibc 2.17 or later
 - 4GB RAM available
 - 500MB free disk space
 - Internet connection (for AI services)
@@ -153,12 +183,11 @@ GETTING HELP:
 See USER_GUIDE.md for detailed instructions and troubleshooting.
 
 The app will open your browser automatically at http://localhost:3000
-Keep the command window open while using the app!
+Keep the terminal open while using the app!
 EOF
 fi
-
-# Create ZIP files for releases
-echo -e "${BLUE}📦 Creating release archives...${NC}"
+# Create ZIP archive
+echo -e "${BLUE}📦 Creating release archive...${NC}"
 cd ../releases
 
 # Check if zip command is available
@@ -168,7 +197,40 @@ if ! command -v zip &> /dev/null; then
     exit 1
 fi
 
-# Create macOS archive if we have it
+# Create platform-specific archive
+if [ -d "$PACKAGE_NAME" ]; then
+    cd "$PACKAGE_NAME"
+    zip -r "../$PACKAGE_NAME.zip" .
+    cd ..
+    echo -e "${GREEN}✅ Created $PACKAGE_NAME.zip${NC}"
+
+    # Show file sizes
+    echo ""
+    echo -e "${BLUE}📊 Release package info:${NC}"
+    echo "   Archive: $(du -sh $PACKAGE_NAME.zip | cut -f1)"
+    echo "   Contents:"
+    unzip -l "$PACKAGE_NAME.zip" | tail -n +4 | head -n -2 | awk '{print "   - " $4}'
+else
+    echo -e "${RED}❌ Error: Release directory $PACKAGE_NAME not found${NC}"
+    exit 1
+fi
+
+cd ../deployment
+
+echo ""
+echo -e "${GREEN}🎉 Release package created successfully!${NC}"
+echo -e "${BLUE}📁 Location: releases/$PACKAGE_NAME.zip${NC}"
+echo ""
+echo -e "${YELLOW}� Next steps for distribution:${NC}"
+echo "   1. Test the release package thoroughly"
+echo "   2. Upload to GitHub Releases"
+echo "   3. Update release notes with setup instructions"
+echo "   4. Consider code signing (for enhanced security)"
+echo ""
+echo -e "${YELLOW}⚠️  Important reminders:${NC}"
+echo "   • Users must create their own .env file"
+echo "   • API keys should never be bundled in releases"
+echo "   • Test on target platform before distributing"
 if [ "$HAS_MACOS_APP" = true ]; then
     zip -r "ez-expense-macos.zip" "ez-expense-macos/"
     echo -e "${GREEN}✅ Created: ez-expense-macos.zip${NC}"

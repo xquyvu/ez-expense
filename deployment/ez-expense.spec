@@ -54,6 +54,24 @@ hiddenimports = [
     "asyncio",
     "threading",
     "concurrent.futures",
+    # Additional Windows-specific imports
+    "multiprocessing",
+    "multiprocessing.spawn",
+    "multiprocessing.pool",
+    "subprocess",
+    "socket",
+    "ssl",
+    "certifi",
+    "charset_normalizer",
+    "urllib3",
+    # Quart/Hypercorn dependencies that might be missed
+    "h11",
+    "wsproto",
+    "trio",
+    "sniffio",
+    # Additional Playwright dependencies
+    "greenlet",
+    "pyee",
 ]
 
 # Exclude unnecessary modules to reduce size
@@ -105,7 +123,7 @@ exe = EXE(
     console=True,  # Set to False for windowed app on Windows
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch='x86_64',  # Explicitly specify 64-bit architecture
+    target_arch=None,  # Let PyInstaller auto-detect architecture to avoid conflicts
     codesign_identity=None,
     entitlements_file=None,
     icon=None,  # Add path to .ico file if you have one
