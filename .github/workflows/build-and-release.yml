@@ -177,7 +177,7 @@ jobs:
         EOF
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: EZ-Expense-macOS
         path: |
@@ -245,7 +245,7 @@ jobs:
         tar -czf dist/ez-expense-linux.tar.gz -C dist ez-expense
 
     - name: Upload Linux artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: EZ-Expense-Linux
         path: dist/ez-expense-linux.tar.gz
@@ -277,7 +277,7 @@ jobs:
         Compress-Archive -Path "dist/ez-expense.exe" -DestinationPath "dist/ez-expense-windows.zip"
 
     - name: Upload Windows artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: EZ-Expense-Windows
         path: dist/ez-expense-windows.zip
