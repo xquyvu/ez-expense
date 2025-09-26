@@ -24,7 +24,7 @@ See the tool in action by clicking on the image below:
 
 👇👇👇👇👇🎥🎥🎥🎥🎥🎥👇👇👇👇👇
 
-<a href="https://www.youtube.com/watch?v=-om3waHSL3c">
+<a href="https://microsofteur-my.sharepoint.com/:v:/g/personal/vuquy_microsoft_com/EfkkIOuyr6xJi215xCZbS50BkEFFnWr2-sugqljIYg7-Ow?e=G6FzfQ">
   <img src="assets/video_thumbnail.png" alt="Product Demo Video" width="400">
 </a>
 
