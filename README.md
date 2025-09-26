@@ -18,6 +18,36 @@ report without you needing to do a single thing.
 
 Just click the app, and it just works. No installation required, no coding involve.
 
+## 📥 Installation
+
+### Option 1: Direct Download (Recommended)
+
+1. Go to [Releases](https://github.com/xquyvu/ez-expense/releases)
+2. Download the latest `EZ-Expense-unsigned.dmg`
+3. Open the DMG and drag the app to Applications
+4. **Right-click** the app and select "Open" (bypasses security warning)
+5. Click "Open" in the dialog - you're done!
+
+### Option 2: Homebrew (Power Users)
+
+```bash
+# Add the tap and install
+brew tap xquyvu/ez-expense
+brew install --cask ez-expense
+```
+
+### Option 3: Remove Quarantine (Advanced)
+
+```bash
+# After installing the app:
+xattr -cr /Applications/EZ-Expense.app
+```
+
+### ⚠️ Security Notice
+
+This app is not code-signed (requires $99/year Apple Developer Account).
+macOS will show a security warning, but you can safely bypass it using the methods above.
+
 ## Demo
 
 See the tool in action by clicking on the image below:

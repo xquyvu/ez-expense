@@ -1,0 +1,190 @@
+name: Simple Build (No Code Signing)
+
+# This workflow builds your app without code signing
+# Users will see security warnings but can bypass them
+# Use this if you don't have an Apple Developer Account
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: |
+        uv sync --group build
+        uv run playwright install chromium --with-deps
+
+    - name: Build app
+      run: |
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+
+    - name: Create simple DMG
+      run: |
+        # Install create-dmg
+        brew install create-dmg
+        
+        # Create DMG (unsigned)
+        create-dmg \
+          --volname "EZ-Expense" \
+          --window-pos 200 120 \
+          --window-size 600 300 \
+          --icon-size 100 \
+          --icon "EZ-Expense.app" 175 120 \
+          --hide-extension "EZ-Expense.app" \
+          --app-drop-link 425 120 \
+          "dist/EZ-Expense-unsigned.dmg" \
+          "dist/EZ-Expense.app" || true
+        
+        # If create-dmg fails, create a simple zip
+        if [ ! -f "dist/EZ-Expense-unsigned.dmg" ]; then
+          cd dist
+          zip -r "EZ-Expense-unsigned.zip" "EZ-Expense.app"
+          cd ..
+        fi
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: EZ-Expense-macOS-unsigned
+        path: |
+          dist/EZ-Expense.app
+          dist/EZ-Expense-unsigned.dmg
+          dist/EZ-Expense-unsigned.zip
+        retention-days: 30
+
+    - name: Create Release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/EZ-Expense-unsigned.dmg
+          dist/EZ-Expense-unsigned.zip
+        draft: true
+        generate_release_notes: true
+        body: |
+          ## ⚠️ Security Notice
+          
+          This app is **not code signed**. macOS will show security warnings.
+          
+          ## Installation Instructions
+          
+          ### Option 1: Right-click to Open
+          1. Download the DMG file below
+          2. Open the DMG and drag the app to Applications
+          3. **Right-click** the app in Applications and select "Open"
+          4. Click "Open" in the security dialog
+          
+          ### Option 2: Remove Quarantine (Advanced)
+          ```bash
+          # Download and install the app, then run:
+          xattr -cr /Applications/EZ-Expense.app
+          ```
+          
+          ### Option 3: System Preferences
+          1. Try to open the app (it will be blocked)
+          2. Go to System Preferences → Security & Privacy
+          3. Click "Allow Anyway" next to the EZ-Expense entry
+          4. Try opening the app again and click "Open"
+          
+          ## Why This Happens
+          
+          macOS blocks unsigned apps to protect users. To remove these warnings,
+          we would need to:
+          - Purchase Apple Developer Account ($99/year)
+          - Code sign and notarize the app
+          
+          ## What's Changed
+          See the full changelog below.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Install dependencies
+      run: |
+        uv sync --group build
+        uv run playwright install chromium --with-deps
+
+    - name: Build Linux executable
+      run: |
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+        tar -czf dist/ez-expense-linux.tar.gz -C dist ez-expense
+
+    - name: Upload to release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/ez-expense-linux.tar.gz
+        draft: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Install dependencies
+      run: |
+        uv sync --group build
+        uv run playwright install chromium --with-deps
+
+    - name: Build Windows executable
+      run: |
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+        Compress-Archive -Path "dist/ez-expense.exe" -DestinationPath "dist/ez-expense-windows.zip"
+
+    - name: Upload to release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/ez-expense-windows.zip
+        draft: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

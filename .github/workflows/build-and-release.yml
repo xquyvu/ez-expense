@@ -1,0 +1,283 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'draft'
+        type: choice
+        options:
+          - draft
+          - prerelease
+          - release
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: |
+        uv sync --group build
+        uv run playwright install chromium --with-deps
+
+    - name: Import signing certificate
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      env:
+        SIGNING_CERTIFICATE_P12_DATA: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA }}
+        SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+      run: |
+        # Create certificate file from base64 encoded data
+        echo "$SIGNING_CERTIFICATE_P12_DATA" | base64 --decode > certificate.p12
+        
+        # Create temporary keychain
+        security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+        
+        # Import certificate
+        security import certificate.p12 -k build.keychain -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+        
+        # Allow codesign to access the key
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+        
+        # Clean up
+        rm certificate.p12
+
+    - name: Build unsigned app (for PR/testing)
+      if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
+      run: |
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+        
+    - name: Build and sign app (for release)
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      env:
+        APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      run: |
+        # Build the app
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+        
+        # Sign all executables and libraries in the app bundle
+        find "dist/EZ-Expense.app" -type f \( -name "*.dylib" -o -name "*.so" -o -perm +111 \) -exec codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime {} \;
+        
+        # Sign the main executable
+        codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime "dist/EZ-Expense.app/Contents/MacOS/ez-expense"
+        
+        # Sign the entire app bundle
+        codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime "dist/EZ-Expense.app"
+        
+        # Verify code signing
+        codesign --verify --verbose "dist/EZ-Expense.app"
+
+    - name: Notarize app
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        # Create ZIP for notarization
+        cd dist
+        zip -r "EZ-Expense-notarize.zip" "EZ-Expense.app"
+        
+        # Submit for notarization
+        xcrun notarytool submit "EZ-Expense-notarize.zip" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --wait
+        
+        # Staple notarization ticket
+        xcrun stapler staple "EZ-Expense.app"
+        
+        # Clean up
+        rm "EZ-Expense-notarize.zip"
+        cd ..
+
+    - name: Create DMG installer
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      env:
+        APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+      run: |
+        # Install create-dmg
+        brew install create-dmg
+        
+        # Create DMG
+        create-dmg \
+          --volname "EZ-Expense" \
+          --window-pos 200 120 \
+          --window-size 600 300 \
+          --icon-size 100 \
+          --icon "EZ-Expense.app" 175 120 \
+          --hide-extension "EZ-Expense.app" \
+          --app-drop-link 425 120 \
+          "dist/EZ-Expense.dmg" \
+          "dist/EZ-Expense.app"
+        
+        # Sign the DMG
+        codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp "dist/EZ-Expense.dmg"
+
+    - name: Create Homebrew cask (for releases)
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      run: |
+        # Calculate SHA256 of DMG
+        DMG_SHA256=$(shasum -a 256 "dist/EZ-Expense.dmg" | cut -d' ' -f1)
+        
+        # Get version from tag
+        VERSION=${GITHUB_REF#refs/tags/v}
+        
+        # Create cask file
+        mkdir -p homebrew-cask
+        cat > homebrew-cask/ez-expense.rb << EOF
+        cask "ez-expense" do
+          version "$VERSION"
+          sha256 "$DMG_SHA256"
+        
+          url "https://github.com/${{ github.repository }}/releases/download/v#{version}/EZ-Expense.dmg"
+          name "EZ Expense"
+          desc "Expense management application"
+          homepage "https://github.com/${{ github.repository }}"
+        
+          livecheck do
+            url :url
+            strategy :github_latest
+          end
+        
+          app "EZ-Expense.app"
+        
+          zap trash: [
+            "~/Library/Application Support/EZ-Expense",
+            "~/Library/Preferences/com.ez-expense.app.plist",
+            "~/Library/Caches/com.ez-expense.app",
+          ]
+        end
+        EOF
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: EZ-Expense-macOS
+        path: |
+          dist/EZ-Expense.app
+          dist/EZ-Expense.dmg
+          homebrew-cask/ez-expense.rb
+        retention-days: 30
+
+    - name: Create Release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/EZ-Expense.dmg
+          homebrew-cask/ez-expense.rb
+        draft: ${{ github.event.inputs.release_type == 'draft' || github.event.inputs.release_type == '' }}
+        prerelease: ${{ github.event.inputs.release_type == 'prerelease' }}
+        generate_release_notes: true
+        body: |
+          ## Installation Options
+          
+          ### 1. Direct Download (Recommended)
+          Download the DMG file below and drag the app to your Applications folder.
+          
+          ### 2. Homebrew (Coming Soon)
+          ```bash
+          brew install --cask xquyvu/ez-expense/ez-expense
+          ```
+          
+          ### 3. Manual Installation
+          If you get a security warning:
+          1. Right-click the app and select "Open"
+          2. Or run: `xattr -cr /Applications/EZ-Expense.app`
+          
+          ## What's Changed
+          See the full changelog below.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Build for other platforms (if needed)
+  build-linux:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Install dependencies
+      run: |
+        uv sync --group build
+        uv run playwright install chromium --with-deps
+
+    - name: Build Linux executable
+      run: |
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+        tar -czf dist/ez-expense-linux.tar.gz -C dist ez-expense
+
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: EZ-Expense-Linux
+        path: dist/ez-expense-linux.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Install dependencies
+      run: |
+        uv sync --group build
+        uv run playwright install chromium --with-deps
+
+    - name: Build Windows executable
+      run: |
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+        Compress-Archive -Path "dist/ez-expense.exe" -DestinationPath "dist/ez-expense-windows.zip"
+
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: EZ-Expense-Windows
+        path: dist/ez-expense-windows.zip
