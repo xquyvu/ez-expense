@@ -363,7 +363,7 @@ jobs:
       with:
         name: ${{ matrix.package_name }}
         path: |
-          release-package/**/*
+          ${{ matrix.package_name }}.zip
         retention-days: 30
 
     - name: Upload macOS DMG artifact
