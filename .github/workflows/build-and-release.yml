@@ -21,6 +21,8 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+    env:
+      HAS_SIGNING_SECRETS: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA != '' && secrets.SIGNING_CERTIFICATE_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
 
     steps:
     - name: Checkout code
@@ -42,7 +44,7 @@ jobs:
         uv run playwright install chromium --with-deps
 
     - name: Import signing certificate
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && env.HAS_SIGNING_SECRETS == 'true'
       env:
         SIGNING_CERTIFICATE_P12_DATA: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA }}
         SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
@@ -56,9 +58,7 @@ jobs:
         security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
 
         # Import certificate
-        security import certificate.p12 -k build.keychain -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-
-        # Allow codesign to access the key
+        security import certificate.p12 -k build.keychain -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign        # Allow codesign to access the key
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
 
         # Clean up
@@ -70,7 +70,7 @@ jobs:
         uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
 
     - name: Build and sign app (for release)
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && env.HAS_SIGNING_SECRETS == 'true'
       env:
         APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -92,8 +92,14 @@ jobs:
         # Verify code signing
         codesign --verify --verbose "dist/EZ-Expense.app"
 
+    - name: Build unsigned app (for release without signing)
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && env.HAS_SIGNING_SECRETS != 'true'
+      run: |
+        # Build the app without signing
+        uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
+
     - name: Notarize app
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && env.HAS_SIGNING_SECRETS == 'true'
       env:
         APPLE_ID: ${{ secrets.APPLE_ID }}
         APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -117,8 +123,8 @@ jobs:
         rm "EZ-Expense-notarize.zip"
         cd ..
 
-    - name: Create DMG installer
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    - name: Create signed DMG installer
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && env.HAS_SIGNING_SECRETS == 'true'
       env:
         APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
       run: |
@@ -134,17 +140,35 @@ jobs:
           --icon "EZ-Expense.app" 175 120 \
           --hide-extension "EZ-Expense.app" \
           --app-drop-link 425 120 \
-          "dist/EZ-Expense.dmg" \
+          "dist/EZ-Expense-macos.dmg" \
           "dist/EZ-Expense.app"
 
         # Sign the DMG
-        codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp "dist/EZ-Expense.dmg"
+        codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp "dist/EZ-Expense-macos.dmg"
+
+    - name: Create unsigned DMG installer
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && env.HAS_SIGNING_SECRETS != 'true'
+      run: |
+        # Install create-dmg
+        brew install create-dmg
+
+        # Create DMG (unsigned)
+        create-dmg \
+          --volname "EZ-Expense" \
+          --window-pos 200 120 \
+          --window-size 600 300 \
+          --icon-size 100 \
+          --icon "EZ-Expense.app" 175 120 \
+          --hide-extension "EZ-Expense.app" \
+          --app-drop-link 425 120 \
+          "dist/EZ-Expense-macos.dmg" \
+          "dist/EZ-Expense.app"
 
     - name: Create Homebrew cask (for releases)
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
       run: |
         # Calculate SHA256 of DMG
-        DMG_SHA256=$(shasum -a 256 "dist/EZ-Expense.dmg" | cut -d' ' -f1)
+        DMG_SHA256=$(shasum -a 256 "dist/EZ-Expense-macos.dmg" | cut -d' ' -f1)
 
         # Get version from tag
         VERSION=${GITHUB_REF#refs/tags/v}
@@ -156,7 +180,7 @@ jobs:
           version "$VERSION"
           sha256 "$DMG_SHA256"
 
-          url "https://github.com/${{ github.repository }}/releases/download/v#{version}/EZ-Expense.dmg"
+          url "https://github.com/${{ github.repository }}/releases/download/v#{version}/EZ-Expense-macos.dmg"
           name "EZ Expense"
           desc "Expense management application"
           homepage "https://github.com/${{ github.repository }}"
@@ -182,7 +206,7 @@ jobs:
         name: EZ-Expense-macOS
         path: |
           dist/EZ-Expense.app
-          dist/EZ-Expense.dmg
+          dist/EZ-Expense-macos.dmg
           homebrew-cask/ez-expense.rb
         retention-days: 30
 
@@ -191,7 +215,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/EZ-Expense.dmg
+          dist/EZ-Expense-macos.dmg
           homebrew-cask/ez-expense.rb
         draft: ${{ github.event.inputs.release_type == 'draft' || github.event.inputs.release_type == '' }}
         prerelease: ${{ github.event.inputs.release_type == 'prerelease' }}
