@@ -36,11 +36,19 @@ Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to u
 
 **IMPORTANT:** You will need to provide your OpenAI API key to the app. Follow the instructions in the User Guide to set it up.
 
-## Installation for development
+## Installation and run for development
 
 ```bash
 uvx playwright install chromium --with-deps --no-shell
 uv sync
+```
+
+Then, modify your `.env` file as per the instructions in `deployment/USER_GUIDE.md`.
+
+Run the app:
+
+```bash
+uv run python main.py
 ```
 
 ## TODO
