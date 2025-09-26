@@ -54,6 +54,24 @@ hiddenimports = [
     "asyncio",
     "threading",
     "concurrent.futures",
+    # Additional Windows-specific imports
+    "multiprocessing",
+    "multiprocessing.spawn",
+    "multiprocessing.pool",
+    "subprocess",
+    "socket",
+    "ssl",
+    "certifi",
+    "charset_normalizer",
+    "urllib3",
+    # Quart/Hypercorn dependencies that might be missed
+    "h11",
+    "wsproto",
+    "trio",
+    "sniffio",
+    # Additional Playwright dependencies
+    "greenlet",
+    "pyee",
 ]
 
 # Exclude unnecessary modules to reduce size

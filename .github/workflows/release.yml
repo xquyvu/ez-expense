@@ -64,7 +64,7 @@ jobs:
     - name: Install Playwright browsers (Windows)
       if: matrix.platform == 'windows'
       run: |
-        uv run playwright install chromium
+        uv run playwright install chromium --with-deps
 
     - name: Build executable (Unix)
       if: matrix.platform != 'windows'
@@ -73,12 +73,43 @@ jobs:
         chmod +x build.sh
         ./build.sh
 
+    - name: Verify build output (Unix)
+      if: matrix.platform != 'windows'
+      run: |
+        echo "Checking build output..."
+        if [ -f "dist/${{ matrix.executable_name }}" ]; then
+          file_size_mb=$(du -m "dist/${{ matrix.executable_name }}" | cut -f1)
+          echo "✅ Executable found: ${{ matrix.executable_name }} (${file_size_mb} MB)"
+          ls -la dist/
+        else
+          echo "❌ ERROR: ${{ matrix.executable_name }} not found!"
+          echo "Contents of dist directory:"
+          ls -la dist/ || echo "dist directory doesn't exist"
+          exit 1
+        fi
+
     - name: Build executable (Windows)
       if: matrix.platform == 'windows'
       run: |
         cd deployment
         .\build.bat
       shell: cmd
+
+    - name: Verify build output (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        echo "Checking build output..."
+        if (Test-Path "..\dist\ez-expense.exe") {
+          $fileSize = (Get-Item "..\dist\ez-expense.exe").length / 1MB
+          Write-Output "✅ Executable found: ez-expense.exe ($([math]::Round($fileSize, 2)) MB)"
+          Get-ChildItem "..\dist\" -Recurse | Select-Object Name, Length | Format-Table
+        } else {
+          Write-Output "❌ ERROR: ez-expense.exe not found!"
+          Write-Output "Contents of dist directory:"
+          if (Test-Path "..\dist\") { Get-ChildItem "..\dist\" -Recurse | Select-Object Name, Length | Format-Table }
+          exit 1
+        }
+      shell: pwsh
 
     - name: Create release package
       run: |

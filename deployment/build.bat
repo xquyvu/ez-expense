@@ -13,7 +13,7 @@ if not exist "..\main.py" (
 
 REM Check if uv is available, otherwise use pip
 where uv >nul 2>nul
-if "%PYTHON_CMD%"=="uv run" (
+if %errorlevel% equ 0 (
     echo ✅ Using uv for package management...
     set PYTHON_CMD=uv run
     cd ..
