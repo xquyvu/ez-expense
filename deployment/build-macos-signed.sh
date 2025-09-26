@@ -138,13 +138,13 @@ fi
 #         --app-drop-link 425 120 \
 #         "../dist/${APP_NAME}.dmg" \
 #         "../dist/${APP_NAME}.app"
-# 
+#
 #     # Sign the DMG if we have certificates
 #     if [ -n "$DEVELOPER_ID_APPLICATION" ]; then
 #         codesign --sign "$DEVELOPER_ID_APPLICATION" --timestamp "../dist/${APP_NAME}.dmg"
 #         echo -e "${GREEN}✅ DMG signed${NC}"
 #     fi
-# 
+#
 #     echo -e "${GREEN}✅ DMG created: ../dist/${APP_NAME}.dmg${NC}"
 # else
 #     echo -e "${YELLOW}⚠️  create-dmg not found. Install with: brew install create-dmg${NC}"
