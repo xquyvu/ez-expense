@@ -22,9 +22,7 @@ Just click the app, and it just works. No installation required, no coding invol
 
 See the tool in action!
 
-[🎥 **Watch the Product Demo Video** 📺](assets/Product%20demo.mp4)
-
-*Click the link above to download and watch the demo video showing the tool in action.*
+[![Product Demo Video](https://img.youtube.com/vi/-om3waHSL3c/maxresdefault.jpg)](https://www.youtube.com/watch?v=-om3waHSL3c)
 
 ## Download and use
 
