@@ -83,7 +83,7 @@ jobs:
     - name: Create release package
       run: |
         mkdir -p release-package
-        
+
         if [ "${{ matrix.platform }}" = "macos" ]; then
           # Copy macOS app bundle if it exists
           if [ -d "dist/EZ-Expense.app" ]; then
@@ -103,20 +103,20 @@ jobs:
           cat > release-package/README.txt << 'EOF'
         EZ-Expense for macOS
         ===================
-        
+
         QUICK START:
         1. Copy .env.template to .env
         2. Edit .env with your API keys (see USER_GUIDE.md)
         3. Double-click EZ-Expense.app OR run ./ez-expense in Terminal
-        
+
         SYSTEM REQUIREMENTS:
         - macOS 10.15 or later (supports both Intel and Apple Silicon)
         - 4GB RAM available
         - Internet connection (for AI services)
-        
+
         The app will open your browser at http://localhost:3000
         EOF
-          
+
         elif [ "${{ matrix.platform }}" = "windows" ]; then
           # Copy Windows executable
           cp dist/${{ matrix.executable_name }} release-package/
@@ -126,7 +126,7 @@ jobs:
         @echo off
         echo 🚀 Starting EZ-Expense...
         echo.
-        
+
         if not exist ".env" (
             echo ⚠️  No .env file found!
             echo Please copy .env.template to .env and fill in your API keys.
@@ -134,11 +134,11 @@ jobs:
             pause
             exit /b 1
         )
-        
+
         echo Starting EZ-Expense...
         echo The app will open your browser at http://localhost:3000
         echo Keep this window open while using the app!
-        
+
         ez-expense.exe
         pause
         EOF
@@ -146,21 +146,21 @@ jobs:
           cat > release-package/README.txt << 'EOF'
         EZ-Expense for Windows
         =====================
-        
+
         QUICK START:
         1. Copy .env.template to .env
         2. Edit .env with your API keys (see USER_GUIDE.md)
         3. Double-click run-ez-expense.bat
-        
+
         SYSTEM REQUIREMENTS:
         - Windows 10 or later (64-bit)
         - 4GB RAM available
         - Internet connection (for AI services)
-        
+
         The app will open your browser at http://localhost:3000
         Keep the command window open while using the app!
         EOF
-          
+
         else
           # Linux
           cp dist/${{ matrix.executable_name }} release-package/
@@ -170,22 +170,22 @@ jobs:
           cat > release-package/README.txt << 'EOF'
         EZ-Expense for Linux
         ===================
-        
+
         QUICK START:
         1. Copy .env.template to .env
         2. Edit .env with your API keys (see USER_GUIDE.md)
         3. Run ./ez-expense in terminal
-        
+
         SYSTEM REQUIREMENTS:
         - Linux (64-bit) with glibc 2.17 or later
         - 4GB RAM available
         - Internet connection (for AI services)
-        
+
         The app will open your browser at http://localhost:3000
         Keep the terminal open while using the app!
         EOF
         fi
-        
+
         # Copy environment template to all platforms
         if [ -f ".env.template" ]; then
           cp .env.template release-package/

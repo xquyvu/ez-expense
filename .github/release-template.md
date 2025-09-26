@@ -5,7 +5,7 @@ Automated expense matching tool that extracts data from receipts and matches the
 ## Downloads
 
 - **macOS** (Intel & Apple Silicon): `ez-expense-macos.zip`
-- **Windows** (64-bit): `ez-expense-windows.zip`  
+- **Windows** (64-bit): `ez-expense-windows.zip`
 - **Linux** (64-bit): `ez-expense-linux.zip`
 
 ## Quick Setup
@@ -19,7 +19,7 @@ Automated expense matching tool that extracts data from receipts and matches the
 ## System Requirements
 
 - 4GB RAM available
-- 500MB free disk space  
+- 500MB free disk space
 - Internet connection for AI services
 - macOS 10.15+, Windows 10+, or Linux (64-bit)
 
