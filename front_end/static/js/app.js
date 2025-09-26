@@ -1,5 +1,5 @@
 /**
- * EZ Expense Frontend Application
+ * Hyper Velocity Expense Frontend Application
  * Handles all client-side functionality for the expense management system
  */
 
@@ -36,7 +36,7 @@ class EZExpenseApp {
             console.error('Column config not loaded!');
         }
 
-        console.log('EZ Expense App initialized');
+        console.log('Hyper Velocity Expense App initialized');
     }
 
     /**
