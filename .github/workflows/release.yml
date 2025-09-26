@@ -101,14 +101,25 @@ jobs:
       if: matrix.platform == 'windows'
       run: |
         echo "Checking build output..."
-        if (Test-Path "..\dist\ez-expense.exe") {
-          $fileSize = (Get-Item "..\dist\ez-expense.exe").length / 1MB
+        echo "Current working directory:"
+        pwd
+        echo "Contents of current directory:"
+        dir
+        if (Test-Path "dist\ez-expense.exe") {
+          $fileSize = (Get-Item "dist\ez-expense.exe").length / 1MB
           Write-Output "✅ Executable found: ez-expense.exe ($([math]::Round($fileSize, 2)) MB)"
-          Get-ChildItem "..\dist\" -Recurse | Select-Object Name, Length | Format-Table
+          Get-ChildItem "dist\" -Recurse | Select-Object Name, Length | Format-Table
         } else {
-          Write-Output "❌ ERROR: ez-expense.exe not found!"
+          Write-Output "❌ ERROR: ez-expense.exe not found at dist\ez-expense.exe"
           Write-Output "Contents of dist directory:"
-          if (Test-Path "..\dist\") { Get-ChildItem "..\dist\" -Recurse | Select-Object Name, Length | Format-Table }
+          if (Test-Path "dist\") { 
+            Write-Output "dist directory exists, contents:"
+            Get-ChildItem "dist\" -Recurse | Select-Object Name, Length | Format-Table 
+          } else {
+            Write-Output "dist directory does not exist"
+          }
+          Write-Output "Searching for ez-expense.exe in all subdirectories:"
+          Get-ChildItem -Recurse -Name "ez-expense.exe" -ErrorAction SilentlyContinue
           exit 1
         }
       shell: pwsh
