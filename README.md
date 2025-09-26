@@ -22,9 +22,9 @@ Just click the app, and it just works. No installation required, no coding invol
 
 See the tool in action!
 
-<video src="assets/Product demo.mp4" controls width="800">
-  Your browser does not support the video tag.
-</video>
+[🎥 **Watch the Product Demo Video** 📺](assets/Product%20demo.mp4)
+
+*Click the link above to download and watch the demo video showing the tool in action.*
 
 ## Download and use
 
