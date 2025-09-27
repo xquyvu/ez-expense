@@ -1,4 +1,4 @@
-# Easy expense
+# Hyper Velocity Expense
 
 Get your expenses done in just a few clicks (using AI of course).
 
@@ -18,35 +18,27 @@ report without you needing to do a single thing.
 
 Just click the app, and it just works. No installation required, no coding involve.
 
-## 📥 Installation
-
-### Option 1: Direct Download (Recommended)
+## 📥 Download and use
 
 1. Go to [Releases](https://github.com/xquyvu/ez-expense/releases)
-2. Download the latest `ez-expense-macos.zip`
+2. Download the latest ZIP corresponding to your platform. This contains the executable file and all necessary dependencies.
 3. Extract the ZIP file
 4. Fill in the content of the `.env.template` file, and rename it to `.env`
 
-### Option 2: Homebrew (Power Users)
+Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to use the app.
 
-```bash
-# Add the tap and install
-brew tap xquyvu/ez-expense
-brew install --cask ez-expense
-```
+**IMPORTANT:** You will need to provide your OpenAI API key to the app. Follow the instructions in the User Guide to set it up.
 
-### Option 3: Remove Quarantine (Advanced)
+**For MacOS**
+
+This app is not code-signed (requires $99/year Apple Developer Account).
+macOS will show a security warning, but you can safely bypass it using the methods above.
 
 ```bash
 # After installing the app, replace this with the path to where you extracted the zip file
 xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
 xattr -cr <path_to_your_extracted_package>/ez-expense
 ```
-
-### ⚠️ Security Notice
-
-This app is not code-signed (requires $99/year Apple Developer Account).
-macOS will show a security warning, but you can safely bypass it using the methods above.
 
 ## Demo
 
@@ -57,14 +49,6 @@ See the tool in action by clicking on the image below:
 <a href="https://microsofteur-my.sharepoint.com/:v:/g/personal/vuquy_microsoft_com/EfkkIOuyr6xJi215xCZbS50BkEFFnWr2-sugqljIYg7-Ow?e=G6FzfQ">
   <img src="assets/video_thumbnail.png" alt="Product Demo Video" width="400">
 </a>
-
-## Download and use
-
-Go to the [Releases](https://github.com/xquyvu/ez-expense/releases) page to download the latest version for your OS. This contains the executable file and all necessary dependencies.
-
-Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to use the app.
-
-**IMPORTANT:** You will need to provide your OpenAI API key to the app. Follow the instructions in the User Guide to set it up.
 
 ## Installation and run for development
 
@@ -85,6 +69,7 @@ uv run python main.py
 
 ## TODO
 
+- Clean up the instructions in the UI, make names consistent.
 - Find other ports if the current ones are not available
 - Add one-shot mode
 - Tidy up the repo
