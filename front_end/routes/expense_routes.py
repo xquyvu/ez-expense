@@ -738,7 +738,9 @@ async def fill_expense_report():
             await page.wait_for_timeout(500)
 
             # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
-            text_box = await page.query_selector('textarea[name="TrvExpTrans_AdditionalInformation"]')
+            text_box = await page.query_selector(
+                'textarea[name="TrvExpTrans_AdditionalInformation"]'
+            )
             await text_box.click()
             await text_box.wait_for_element_state("editable")
             await text_box.fill(expense["Additional information"])
@@ -751,6 +753,7 @@ async def fill_expense_report():
 
                 # Upload receipt
                 async with page.expect_file_chooser() as file_chooser_info:
+                    await page.wait_for_selector('button[name="UploadControlBrowseButton"]')
                     await page.click('button[name="UploadControlBrowseButton"]')
 
                 file_chooser = await file_chooser_info.value
@@ -793,6 +796,7 @@ async def fill_expense_report():
 
                 # Upload receipt
                 async with page.expect_file_chooser() as file_chooser_info:
+                    await page.wait_for_selector('button[name="UploadControlBrowseButton"]')
                     await page.click('button[name="UploadControlBrowseButton"]')
 
                 file_chooser = await file_chooser_info.value
