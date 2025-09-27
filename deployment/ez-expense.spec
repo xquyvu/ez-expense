@@ -151,9 +151,9 @@ if sys.platform == "darwin":
         cipher=None,
         noarchive=False,
     )
-    
+
     launcher_pyz = PYZ(launcher_a.pure, launcher_a.zipped_data, cipher=None)
-    
+
     launcher_exe = EXE(
         launcher_pyz,
         launcher_a.scripts,
@@ -176,7 +176,7 @@ if sys.platform == "darwin":
         entitlements_file=None,
         icon=None,
     )
-    
+
     app = BUNDLE(
         launcher_exe,
         name="EZ-Expense.app",

@@ -39,12 +39,12 @@ def get_console_executable_path():
         # The console executable should be in the same directory as the .app bundle
         app_bundle_parent = Path(sys.executable).parent.parent.parent.parent
         console_exe = app_bundle_parent / "ez-expense"
-        
+
         # If not found next to .app, try the dist directory
         if not console_exe.exists():
             dist_dir = app_bundle_parent.parent / "dist"
             console_exe = dist_dir / "ez-expense"
-            
+
         return console_exe
     else:
         # Running in development - look for the built executable
@@ -54,22 +54,22 @@ def main():
     """Main launcher function"""
     logger = setup_logging()
     logger.info("Starting EZ Expense Launcher")
-    
+
     try:
         # Find the console executable
         console_exe = get_console_executable_path()
-        
+
         if not console_exe.exists():
             error_msg = f"Console executable not found at: {console_exe}"
             logger.error(error_msg)
             show_error_dialog(error_msg)
             return 1
-        
+
         logger.info(f"Found console executable at: {console_exe}")
-        
+
         # Make sure it's executable
         os.chmod(console_exe, 0o755)
-        
+
         # Create AppleScript to open Terminal and run the app
         applescript = f'''
         tell application "Terminal"
@@ -80,19 +80,19 @@ def main():
             set normal text color of newWindow to {{65535, 65535, 65535}}
         end tell
         '''
-        
+
         logger.info("Opening Terminal with ez-expense")
         result = subprocess.run(["osascript", "-e", applescript], capture_output=True, text=True)
-        
+
         if result.returncode != 0:
             error_msg = f"Failed to open Terminal: {result.stderr}"
             logger.error(error_msg)
             show_error_dialog(error_msg)
             return 1
-        
+
         logger.info("Successfully launched ez-expense in Terminal")
         return 0
-        
+
     except Exception as e:
         error_msg = f"Unexpected error: {str(e)}"
         logger.error(error_msg)
