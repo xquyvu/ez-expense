@@ -11,9 +11,11 @@ deployment_root = project_root / "deployment"
 
 # Define data files to include
 datas = [
-    # Frontend templates and static files
+    # Frontend files
     (str(project_root / "front_end" / "templates"), "front_end/templates"),
     (str(project_root / "front_end" / "static"), "front_end/static"),
+    # App launcher script
+    (str(deployment_root / "app-launcher.sh"), "."),
     # Configuration files if they exist
 ]
 
@@ -120,7 +122,7 @@ exe = EXE(
     upx=False,  # Disable UPX compression which can cause compatibility issues
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,  # Set to False for windowed app on Windows
+    console=True,  # Keep console visible for macOS terminal experience
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,  # Let PyInstaller auto-detect architecture to avoid conflicts
@@ -129,10 +131,54 @@ exe = EXE(
     icon=None,  # Add path to .ico file if you have one
 )
 
-# Optional: Create a .app bundle on macOS
+# Optional: Create a .app bundle on macOS that opens Terminal
 if sys.platform == "darwin":
+    # Create a separate analysis for the app launcher
+    launcher_a = Analysis(
+        [str(project_root / "app_launcher.py")],
+        pathex=[str(project_root)],
+        binaries=[],
+        datas=[
+            # No need for the shell script - app_launcher.py handles Terminal opening directly
+        ] + datas,
+        hiddenimports=[],
+        hookspath=[],
+        hooksconfig={},
+        runtime_hooks=[],
+        excludes=excludes,
+        win_no_prefer_redirects=False,
+        win_private_assemblies=False,
+        cipher=None,
+        noarchive=False,
+    )
+    
+    launcher_pyz = PYZ(launcher_a.pure, launcher_a.zipped_data, cipher=None)
+    
+    launcher_exe = EXE(
+        launcher_pyz,
+        launcher_a.scripts,
+        launcher_a.binaries,
+        launcher_a.zipfiles,
+        launcher_a.datas,
+        [],
+        name="EZ-Expense-Launcher",
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=False,
+        upx_exclude=[],
+        runtime_tmpdir=None,
+        console=False,  # No console for launcher
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon=None,
+    )
+    
     app = BUNDLE(
-        exe,
+        launcher_exe,
         name="EZ-Expense.app",
         icon=None,  # Add path to .icns file if you have one
         bundle_identifier="com.ez-expense.app",
@@ -143,5 +189,10 @@ if sys.platform == "darwin":
             "CFBundleDisplayName": "EZ Expense",
             "NSHumanReadableCopyright": "Copyright © 2025",
             "LSBackgroundOnly": False,
+            "LSUIElement": False,  # Ensure app appears in dock
+            "NSAppTransportSecurity": {
+                "NSAllowsArbitraryLoads": True  # Allow localhost connections
+            },
+            "CFBundleExecutable": "EZ-Expense-Launcher",  # Use the launcher executable
         },
     )
