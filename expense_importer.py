@@ -1,12 +1,18 @@
+import io
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import requests
+import urllib3
 from playwright.async_api import Page
 
 import playwright_manager
 from config import DEBUG
 from resource_utils import load_env_file
+
+# Disable urllib3 SSL warnings when using verify=False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 load_env_file()
 
@@ -141,7 +147,23 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
         await page.click('button[name="DownloadButton"]')
 
     download = await download_info.value
-    existing_expenses = pd.read_excel(download.url)
+
+    # Download Excel file using requests to handle SSL properly
+    try:
+        # Use requests with verify=False to bypass SSL certificate verification
+        # This resolves issues with packaged applications on macOS
+        response = requests.get(download.url, verify=False, timeout=30)
+        response.raise_for_status()
+
+        # Read Excel data from the downloaded content
+        existing_expenses = pd.read_excel(io.BytesIO(response.content))
+    except Exception as e:
+        print(
+            f"⚠️  Failed to download Excel file via requests, falling back to direct pandas read: {e}"
+        )
+        # Fallback to direct pandas read (may fail in packaged apps but works in development)
+        existing_expenses = pd.read_excel(download.url)
+
     existing_expenses = postprocess_expense_data(existing_expenses)
 
     if save_path:
