@@ -38,8 +38,9 @@ brew install --cask ez-expense
 ### Option 3: Remove Quarantine (Advanced)
 
 ```bash
-# After installing the app:
-xattr -cr /Applications/EZ-Expense.app # Replace this with the path to where you extracted the zip file
+# After installing the app, replace this with the path to where you extracted the zip file
+xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
+xattr -cr <path_to_your_extracted_package>/ez-expense
 ```
 
 ### ⚠️ Security Notice
