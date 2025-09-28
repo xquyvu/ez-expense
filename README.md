@@ -68,8 +68,8 @@ uv run python main.py
 
 ## TODO
 
-- Clean up the instructions in the UI, make names consistent.
 - Find other ports if the current ones are not available
+- Make names consistent (HVE, EZ-Expense, Hyper Velocity Expense)
 - Add one-shot mode
 - Tidy up the repo
 - Test on Linux
