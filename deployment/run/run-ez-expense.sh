@@ -19,19 +19,7 @@ echo ""
 if [ ! -f ".env" ]; then
     echo -e "${YELLOW}⚠️  No .env file found!${NC}"
     echo ""
-    echo "EZ-Expense needs API keys to work properly."
-    echo "Please create a .env file with the following content:"
-    echo ""
-    echo -e "${GREEN}# Required: Azure AI Vision (for receipt text extraction)"
-    echo "AZURE_AI_VISION_ENDPOINT=your_endpoint_here"
-    echo "AZURE_AI_VISION_KEY=your_key_here"
-    echo ""
-    echo "# Required: OpenAI (for intelligent matching)"
-    echo "OPENAI_API_KEY=your_openai_key_here"
-    echo ""
-    echo "# Optional: Browser automation settings"
-    echo "BROWSER_PORT=9222"
-    echo "FRONTEND_PORT=3000${NC}"
+    echo "Please create a .env file following the .env.template file for this to work properly"
     echo ""
     echo -e "${YELLOW}Would you like to continue anyway? (y/N)${NC}"
     read -r response
@@ -44,12 +32,12 @@ fi
 # Check if executable exists
 if [ ! -f "../dist/ez-expense" ]; then
     echo -e "${RED}❌ Executable not found!${NC}"
-    echo "Please run ./build.sh first to create the executable."
+    echo "Please run ./build/build.sh first to create the executable."
     exit 1
 fi
 
 echo -e "${GREEN}✅ Starting EZ-Expense...${NC}"
-echo -e "${BLUE}💡 The app will open your browser automatically at http://localhost:3000${NC}"
+echo -e "${BLUE}💡 The app will open your browser automatically at http://localhost:5001${NC}"
 echo -e "${YELLOW}⚠️  Keep this terminal window open while using the app!${NC}"
 echo ""
 echo "Press Ctrl+C to stop the application."

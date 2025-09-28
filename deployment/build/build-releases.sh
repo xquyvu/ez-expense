@@ -59,8 +59,8 @@ if [ "$PLATFORM" = "macos" ]; then
     fi
 
     # Copy run script
-    if [ -f "run-ez-expense.sh" ]; then
-        cp run-ez-expense.sh "$RELEASE_DIR/"
+    if [ -f "../run/run-ez-expense.sh" ]; then
+        cp ../run/run-ez-expense.sh "$RELEASE_DIR/"
         chmod +x "$RELEASE_DIR/run-ez-expense.sh"
         echo -e "${GREEN}✅ Included run script${NC}"
     fi
@@ -77,7 +77,7 @@ else
 fi
 
 # Copy common files
-cp USER_GUIDE.md "$RELEASE_DIR/"
+cp ../USER_GUIDE.md "$RELEASE_DIR/"
 echo -e "${GREEN}✅ Included user guide${NC}"
 
 # Copy .env.template if it exists
@@ -88,103 +88,16 @@ else
     echo -e "${YELLOW}⚠️ .env.template not found${NC}"
 fi
 
-# Create platform-specific README
-echo -e "${BLUE}📝 Creating platform-specific README...${NC}"
-if [ "$PLATFORM" = "macos" ]; then
-    cat > "$RELEASE_DIR/README.txt" << 'EOF'
-EZ-Expense for macOS
-===================
+# Copy README template
+echo -e "${BLUE}📝 Copying README template...${NC}"
+cp ../readme-templates/README.txt "$RELEASE_DIR/"
 
-QUICK START:
-1. Rename the `.env.template` file to `.env`
-2. Edit .env with your API keys (see USER_GUIDE.md)
-3. For app bundle: Double-click EZ-Expense.app
-   For command line: Run ./ez-expense in Terminal
-
-SYSTEM REQUIREMENTS:
-- macOS 10.15 or later (supports both Intel and Apple Silicon)
-- 4GB RAM available
-- 500MB free disk space
-- Internet connection (for AI services)
-
-GETTING HELP:
-See USER_GUIDE.md for detailed instructions and troubleshooting.
-
-The app will open your browser automatically at http://localhost:3000
-EOF
-
-elif [ "$PLATFORM" = "windows" ]; then
-    cat > "$RELEASE_DIR/README.txt" << 'EOF'
-EZ-Expense for Windows
-=====================
-
-QUICK START:
-1. Copy .env.template to .env
-2. Edit .env with your API keys (see USER_GUIDE.md)
-3. Double-click ez-expense.exe
-
-SYSTEM REQUIREMENTS:
-- Windows 10 or later (64-bit)
-- 4GB RAM available
-- 500MB free disk space
-- Internet connection (for AI services)
-
-GETTING HELP:
-See USER_GUIDE.md for detailed instructions and troubleshooting.
-
-The app will open your browser automatically at http://localhost:3000
-Keep the command window open while using the app!
-EOF
-
-    # Create Windows launcher script
-    cat > "$RELEASE_DIR/run-ez-expense.bat" << 'EOF'
-@echo off
-echo 🚀 Starting EZ-Expense...
-echo.
-
-REM Check if .env file exists
-if not exist ".env" (
-    echo ⚠️  No .env file found!
-    echo.
-    echo Please copy .env.template to .env and fill in your API keys.
-    echo See USER_GUIDE.md for detailed instructions.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo ✅ Starting EZ-Expense...
-echo 💡 The app will open your browser at http://localhost:3000
-echo ⚠️  Keep this window open while using the app!
-echo.
-
-ez-expense.exe
-pause
-EOF
-
-else
-    # Linux README
-    cat > "$RELEASE_DIR/README.txt" << 'EOF'
-EZ-Expense for Linux
-===================
-
-QUICK START:
-1. Copy .env.template to .env
-2. Edit .env with your API keys (see USER_GUIDE.md)
-3. Run ./ez-expense in terminal
-
-SYSTEM REQUIREMENTS:
-- Linux (64-bit) with glibc 2.17 or later
-- 4GB RAM available
-- 500MB free disk space
-- Internet connection (for AI services)
-
-GETTING HELP:
-See USER_GUIDE.md for detailed instructions and troubleshooting.
-
-The app will open your browser automatically at http://localhost:3000
-Keep the terminal open while using the app!
-EOF
+# Create Windows launcher script if on Windows
+if [ "$PLATFORM" = "windows" ]; then
+    if [ -f "../run/run-ez-expense.bat" ]; then
+        cp ../run/run-ez-expense.bat "$RELEASE_DIR/"
+        echo -e "${GREEN}✅ Included Windows run script${NC}"
+    fi
 fi
 # Create ZIP archive
 echo -e "${BLUE}📦 Creating release archive...${NC}"
@@ -208,14 +121,13 @@ if [ -d "$PACKAGE_NAME" ]; then
     echo ""
     echo -e "${BLUE}📊 Release package info:${NC}"
     echo "   Archive: $(du -sh $PACKAGE_NAME.zip | cut -f1)"
-    echo "   Contents:"
-    unzip -l "$PACKAGE_NAME.zip" | tail -n +4 | head -n -2 | awk '{print "   - " $4}'
+    echo "   Contents: $(unzip -l "$PACKAGE_NAME.zip" | grep -c '.*')"
 else
     echo -e "${RED}❌ Error: Release directory $PACKAGE_NAME not found${NC}"
     exit 1
 fi
 
-cd ../deployment
+cd ..
 
 echo ""
 echo -e "${GREEN}🎉 Release package created successfully!${NC}"

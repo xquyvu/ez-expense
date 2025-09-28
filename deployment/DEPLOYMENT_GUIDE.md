@@ -142,7 +142,7 @@ git tag v1.1.0    # New features
 
 - **Memory**: App uses 200-500MB RAM due to browser automation
 - **Browser**: Chromium is automatically installed by Playwright
-- **Ports**: Uses ports 3000 and 9222 locally
+- **Ports**: Uses ports 5001 and 9222 locally
 - **APIs**: Requires internet for Azure AI Vision and OpenAI
 
 ### Support Strategy
@@ -173,6 +173,6 @@ When users have issues:
 
 1. Check their `.env` file configuration
 2. Verify API keys are valid
-3. Ensure ports 3000/9222 aren't in use
+3. Ensure ports 5001/9222 aren't in use
 4. Check system requirements (RAM, OS version)
 5. Look at terminal output for error messages
