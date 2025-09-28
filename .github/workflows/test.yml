@@ -43,12 +43,12 @@ jobs:
         uv run playwright install chromium --with-deps
 
         # Test that the build process works
-        cd deployment
+        cd deployment/build
         chmod +x build.sh
         ./build.sh
 
         # Verify the executable was created
-        ls -la ../dist/
+        ls -la ../../dist/
 
         # Test that the executable runs (basic smoke test)
         echo "Build test completed successfully!"
