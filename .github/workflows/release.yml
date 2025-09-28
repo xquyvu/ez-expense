@@ -165,16 +165,39 @@ jobs:
         id: extract_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Check if test release
+        id: check_test
+        run: |
+          VERSION="${{ steps.extract_version.outputs.VERSION }}"
+          if [[ "$VERSION" == *"-test"* ]]; then
+            echo "IS_TEST=true" >> $GITHUB_OUTPUT
+            echo "DRAFT=true" >> $GITHUB_OUTPUT
+            echo "PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_TEST=false" >> $GITHUB_OUTPUT
+            echo "DRAFT=false" >> $GITHUB_OUTPUT
+            echo "PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Prepare release notes
         id: release_notes
         run: |
           # Read template and substitute version
           VERSION="${{ steps.extract_version.outputs.VERSION }}"
+          IS_TEST="${{ steps.check_test.outputs.IS_TEST }}"
+
           if [ -f ".github/release-template.md" ]; then
             sed "s/\${VERSION}/$VERSION/g" .github/release-template.md > release-notes.md
           else
-            echo "## EZ-Expense $VERSION" > release-notes.md
-            echo "" >> release-notes.md
+            if [ "$IS_TEST" = "true" ]; then
+              echo "## EZ-Expense $VERSION (Test Release)" > release-notes.md
+              echo "" >> release-notes.md
+              echo "⚠️ **This is a test release and should not be used in production.**" >> release-notes.md
+              echo "" >> release-notes.md
+            else
+              echo "## EZ-Expense $VERSION" > release-notes.md
+              echo "" >> release-notes.md
+            fi
             echo "### Downloads" >> release-notes.md
             echo "- **macOS**: Download \`ez-expense-macos.zip\`" >> release-notes.md
             echo "- **Windows**: Download \`ez-expense-windows.zip\`" >> release-notes.md
@@ -190,10 +213,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.extract_version.outputs.VERSION }}
-          name: EZ-Expense ${{ steps.extract_version.outputs.VERSION }}
+          name: EZ-Expense ${{ steps.extract_version.outputs.VERSION }}${{ steps.check_test.outputs.IS_TEST == 'true' && ' (Test)' || '' }}
           body_path: release-notes.md
-          draft: false
-          prerelease: false
+          draft: ${{ steps.check_test.outputs.DRAFT == 'true' }}
+          prerelease: ${{ steps.check_test.outputs.PRERELEASE == 'true' }}
+          make_latest: ${{ steps.check_test.outputs.IS_TEST == 'false' }}
           files: |
             artifacts/ez-expense-macos/ez-expense-macos.zip
             artifacts/ez-expense-windows/ez-expense-windows.zip
