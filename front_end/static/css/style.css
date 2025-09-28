@@ -2112,15 +2112,73 @@ textarea.table-input.non-editable:focus {
     color: #dc3545;
 }
 
+/* Navigation confirmation status styles */
+.navigation-confirmation-status {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border: 2px solid;
+    margin-top: 0.5rem;
+}
+
+.navigation-confirmation-status.validation-passed {
+    border-color: #28a745;
+    background-color: #d4f7d4;
+    color: #155724;
+}
+
+.navigation-confirmation-status.validation-failed {
+    border-color: #dc3545;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.navigation-confirmation-status.validation-passed i {
+    color: #28a745;
+}
+
+.navigation-confirmation-status.validation-failed i {
+    color: #dc3545;
+}
+
+/* Zoom confirmation status styles */
+.zoom-confirmation-status {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border: 2px solid;
+    margin-top: 0.5rem;
+}
+
+.zoom-confirmation-status.validation-passed {
+    border-color: #28a745;
+    background-color: #d4f7d4;
+    color: #155724;
+}
+
+.zoom-confirmation-status.validation-failed {
+    border-color: #dc3545;
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.zoom-confirmation-status.validation-passed i {
+    color: #28a745;
+}
+
+.zoom-confirmation-status.validation-failed i {
+    color: #dc3545;
+}
+
 /* Button disabled styles */
-.btn:disabled {
+.btn:disabled,
+.btn-disabled {
     opacity: 0.6;
     cursor: not-allowed;
     background-color: #6c757d !important;
     border-color: #6c757d !important;
 }
 
-.btn:disabled:hover {
+.btn:disabled:hover,
+.btn-disabled:hover {
     transform: none !important;
     background-color: #6c757d !important;
     border-color: #6c757d !important;

@@ -14,7 +14,7 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1><i class="fas fa-receipt"></i>Hyper Velocity Expense</h1>
+                <h1>⚡️Hyper Velocity Expense⚡️</h1>
                 <p class="subtitle">Get your expenses done in a few clicks, literally</p>
             </div>
         </header>
@@ -25,13 +25,29 @@
             <section class="section" id="import-section">
                 <div class="section-header">
                     <h2><i class="fas fa-download"></i> Step 1: Import Expenses</h2>
-                    <p>Get your expense data from your expense system</p>
+                    <p>Import the expenses you want to fill from MyExpense</p>
                 </div>
                 <div style="margin-bottom: 1rem; padding: 1rem; border-left: 4px solid #2196F3; background-color: #f8f9fa;">
-                    <p style="color: #000; margin: 0; font-weight: 500;">Please navigate to an existing expense report in My Expense before
-                        proceeding.</p>
+                    <p style="color: #000; margin: 0; font-weight: 500;">
+                        <i class="fas fa-info-circle" style="color: #2196F3; margin-right: 0.5rem;"></i>
+                        This app has opened a MyExpense in a new tab.
+                    </p>
+                    <p style="color: #000; margin: 0; font-weight: 500;">
+                        <i class="fas fa-exclamation-triangle" style="color: #ff9800; margin-right: 0.5rem;"></i>
+                        Please navigate to an existing expense report you want to fill in that exact tab before proceeding.
+                    </p>
+                    <p style="color: #000; margin: 0; font-weight: 500;">
+                        <i class="fas fa-lightbulb" style="color: #ffc107; margin-right: 0.5rem;"></i>
+                        You can use the "Bring MyExpense to Front" button below to locate that page.
+                    </p>
                 </div>
-                <div style="margin-bottom: 1rem; padding: 1rem; border-left: 4px solid #ff9800; background-color: #fff3e0;">
+                <div>
+                    <button id="bring-to-front-btn" class="btn btn-secondary" style="background-color: #17a2b8; border-color: #17a2b8;">
+                        <i class="fas fa-window-restore"></i> Bring MyExpense to Front
+                    </button>
+                </div>
+                <div
+                    style="margin-bottom: 1rem; margin-top: 1rem; padding: 1rem; border-left: 4px solid #ff9800; background-color: #fff3e0;">
                     <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
                         <input type="checkbox" id="navigation-checkbox" style="margin-top: 0.25rem; cursor: pointer;">
                         <span style="color: #000; font-weight: 500;">
@@ -40,12 +56,9 @@
                         </span>
                     </label>
                 </div>
-                <div class="action-buttons">
+                <div>
                     <button id="import-from-website-btn" class="btn btn-primary" style="display: none;">
                         <i class="fas fa-building"></i> Import from My Expense
-                    </button>
-                    <button id="bring-to-front-btn" class="btn btn-secondary" style="background-color: #17a2b8; border-color: #17a2b8;">
-                        <i class="fas fa-window-restore"></i> Bring MyExpense to Front
                     </button>
                 </div>
                 <div id="import-status" class="status-message"></div>
@@ -54,22 +67,20 @@
             <!-- Step 2: Review, Edit, and Attach Receipts -->
             <section class="section" id="expenses-section" style="display: none;">
                 <div class="section-header">
-                    <h2><i class="fas fa-table"></i> Step 2: Review, Edit, and Attach Receipts</h2>
+                    <h2><i class="fas fa-table"></i> Step 2: Upload Then Match Receipts, Review Expenses</h2>
                 </div>
                 <div class="receipts-info">
                     <div class="info-card">
                         <i class="fas fa-info-circle"></i>
                         <div>
-                            <strong>How to manage expenses and receipts:</strong>
-                            <ul>
-                                <li>Edit any expense data directly in the table</li>
-                                <li>Match receipts to expenses by:</li>
-                                <ul>
-                                    <li>Clicking "Attach Receipt" button in each row </li>
-                                    <li>Dragging and dropping files from the file explorer or from the
-                                        section below directly onto the table rows</li>
-                                </ul>
-                            </ul>
+                            <strong>This is all about matching the receipts with your expenses. There are 2 ways:</strong>
+                            <ol style="margin-left: 0; padding-left: 1.2rem;">
+                                <li>📦 Via the Bulk Receipt Upload Area <b>(Recommended)</b></li>
+                                <li>🔍 Manually matching receipts (multiple or one at a time) to each expense
+                                    line</li>
+                            </ol>
+                            💡 You can add receipts by clicking on the "Upload Receipts" button, or dragging and dropping the files to the
+                            app
                         </div>
                     </div>
                 </div>
@@ -90,20 +101,21 @@
                     <div class="section-header" style="margin-bottom: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
-                                <h3><i class="fas fa-receipt"></i> Bulk Receipt Upload</h3>
-                                <p>Upload multiple receipts that you'll match to expenses below</p>
+                                <h3>📦 Bulk Receipt Upload Area</h3>
+                                <ol style="margin-left: 0; padding-left: 1.2rem;">
+                                    <li>📤 Upload receipts that you want to match with existing expenses, or
+                                        create new expense entries from
+                                    </li>
+                                    <li>🌟 Match the receipts (automatically or manually) to the imported expenses
+                                    </li>
+                                    <li>🌟 Create new expense entries (automatically or manually) for unmatched
+                                        receipts</li>
+                                </ol>
                             </div>
                             <div style="display: flex; align-items: center; gap: 1rem;">
                                 <!-- Bulk Receipt Action Buttons -->
                                 <div class="bulk-receipt-actions" id="bulk-receipt-actions">
                                     <!-- Buttons will be added here dynamically -->
-                                </div>
-                                <div class="ai-extraction-control">
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #666;">
-                                        <input type="checkbox" id="ai-extraction-checkbox" checked style="cursor: pointer;">
-                                        <i class="fas fa-brain" style="color: #4CAF50;"></i>
-                                        Extract invoice details with AI
-                                    </label>
                                 </div>
                             </div>
                         </div>
@@ -112,7 +124,7 @@
                         <div class="receipt-cell" id="bulk-receipt-cell">
                             <!-- Receipt previews will be added here dynamically using the same pattern as table receipts -->
                             <button onclick="app.selectBulkReceipts()" class="attach-receipt-btn">
-                                <i class="fas fa-paperclip"></i> Attach Receipts
+                                <i class="fas fa-paperclip"></i> Upload Receipts
                             </button>
                             <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
                                 onchange="app.handleBulkReceiptSelection(this.files)">
@@ -142,7 +154,7 @@
                 <!-- Export Section (formerly Step 4) -->
                 <div class="section-header" style="margin-top: 2rem;">
                     <h3><i class="fas fa-file-export"></i> Fill Expense Report</h3>
-                    <p>Fill in your expense report with matched receipts</p>
+                    <p>Automatically fill in your expense report and upload receipts</p>
                 </div>
                 <div class="export-summary">
                     <div class="summary-stats">
@@ -166,6 +178,12 @@
                         <span id="validation-text">All validation tests have passed</span>
                     </div>
                 </div>
+                <div class="zoom-confirmation-status" id="zoom-confirmation-status" style="margin-top: 0.5rem; display: none;">
+                    <div class="validation-message" id="zoom-status-message">
+                        <i class="fas fa-exclamation-triangle" id="zoom-status-icon"></i>
+                        <span id="zoom-status-text">Please confirm that you have zoomed out the My Expense page</span>
+                    </div>
+                </div>
                 <div style="margin-top: 1rem; padding: 1rem; border-left: 4px solid #ff9800; background-color: #fff3e0;">
                     <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
                         <input type="checkbox" id="zoom-confirmation-checkbox" style="margin-top: 0.25rem; cursor: pointer;">
@@ -176,12 +194,7 @@
                         </span>
                     </label>
                 </div>
-                <div class="zoom-confirmation-status" id="zoom-confirmation-status" style="margin-top: 0.5rem; display: none;">
-                    <div class="validation-message" id="zoom-status-message">
-                        <i class="fas fa-exclamation-triangle" id="zoom-status-icon"></i>
-                        <span id="zoom-status-text">Please confirm that you have zoomed out the My Expense page</span>
-                    </div>
-                </div>
+
                 <div class="export-actions" style="margin-top: 1rem;">
                     <button id="fill-expense-report-btn" class="btn btn-primary">
                         <i class="fas fa-file-upload"></i> Fill Expense Report

@@ -845,6 +845,12 @@ class EZExpenseApp {
             } else {
                 importBtn.style.display = 'none';
             }
+            this.updateNavigationStatus();
+        });
+
+        // Zoom confirmation checkbox event
+        document.getElementById('zoom-confirmation-checkbox').addEventListener('change', (e) => {
+            this.updateValidationStatus();
         });
 
         // Table management events
@@ -1418,6 +1424,33 @@ class EZExpenseApp {
         }
 
         this.showToast(errorMessage, 'warning');
+    }
+
+    /**
+     * Update navigation confirmation status display
+     */
+    updateNavigationStatus() {
+        const navigationConfirmationStatus = document.getElementById('navigation-confirmation-status');
+        const navigationStatusMessage = document.getElementById('navigation-status-message');
+        const navigationStatusIcon = document.getElementById('navigation-status-icon');
+        const navigationStatusText = document.getElementById('navigation-status-text');
+        const navigationCheckbox = document.getElementById('navigation-checkbox');
+
+        if (!navigationConfirmationStatus || !navigationCheckbox) return;
+
+        const isNavigationConfirmed = navigationCheckbox.checked;
+
+        if (!isNavigationConfirmed) {
+            navigationConfirmationStatus.style.display = 'block';
+            navigationConfirmationStatus.className = 'navigation-confirmation-status validation-failed';
+            navigationStatusIcon.className = 'fas fa-exclamation-triangle';
+            navigationStatusText.textContent = 'Please confirm that you have navigated to the expense report';
+        } else {
+            navigationConfirmationStatus.style.display = 'block';
+            navigationConfirmationStatus.className = 'navigation-confirmation-status validation-passed';
+            navigationStatusIcon.className = 'fas fa-check-circle';
+            navigationStatusText.textContent = 'Navigation status confirmed';
+        }
     }
 
     /**
@@ -2320,7 +2353,7 @@ class EZExpenseApp {
         // Always show the attach receipt button
         html += `
             <button onclick="app.selectReceipt(${expenseId})" class="attach-receipt-btn">
-                <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Add More Receipts' : 'Attach Receipts'}
+                <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Upload Receipts' : 'Upload Receipts'}
             </button>
             <input type="file" id="receipt-input-${expenseId}" accept="image/*,.pdf" multiple style="display: none;"
                    onchange="app.handleMultipleReceiptSelection(${expenseId}, this.files)">
@@ -4243,26 +4276,35 @@ class EZExpenseApp {
         if (!actionsContainer) return;
 
         const receipts = this.bulkReceipts;
-        let html = '';
+        const hasReceipts = receipts.length > 0;
 
-        // Always show the attach receipt button
-        html += `
-            <button onclick="app.selectBulkReceipts()" class="btn btn-primary btn-sm">
-                <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Add More Receipts' : 'Attach Receipts'}
-            </button>
-        `;
+        // Always show match and create buttons, but disable them when there are no receipts
+        const disabledAttr = !hasReceipts ? 'disabled' : '';
+        const disabledClass = !hasReceipts ? 'btn-disabled' : '';
+        const altText = !hasReceipts ? 'title="Requires receipts in the Bulk Receipt Upload Area"' : '';
 
-        // Show match button when there are receipts
-        if (receipts.length > 0) {
-            html += `
-                <button onclick="app.matchReceiptsWithExpenses()" class="btn btn-success btn-sm">
+        let html = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 0.5rem; width: 100%;">
+                <!-- Top row -->
+                <button onclick="app.selectBulkReceipts()" class="btn btn-primary btn-sm">
+                    <i class="fas fa-paperclip"></i> ${hasReceipts ? 'Upload Receipts' : 'Upload Receipts'}
+                </button>
+                <button onclick="app.matchReceiptsWithExpenses()" class="btn btn-success btn-sm ${disabledClass}" ${disabledAttr} ${altText}>
                     <i class="fas fa-link"></i> Match receipts with expenses
                 </button>
-                <button onclick="app.createExpensesFromReceipts()" class="btn btn-secondary btn-sm">
-                    <i class="fas fa-magic"></i> Create expenses from receipts
+
+                <!-- Bottom row -->
+                <div class="ai-extraction-control" style="display: flex; align-items: center; justify-content: flex-end; padding: 0.5rem; background-color: transparent; border: none; box-shadow: none;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #666; margin: 0; cursor: pointer;">
+                        <input type="checkbox" id="ai-extraction-checkbox" checked style="cursor: pointer;">
+                        🤖 Extract invoice details with AI
+                    </label>
+                </div>
+                <button onclick="app.createExpensesFromReceipts()" class="btn btn-primary btn-sm ${disabledClass}" style="background-color: #6f42c1; border-color: #6f42c1;" ${disabledAttr} ${altText}>
+                    <i class="fas fa-plus"></i> Create expenses from receipts
                 </button>
-            `;
-        }
+            </div>
+        `;
 
         actionsContainer.innerHTML = html;
     }
