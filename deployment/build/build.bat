@@ -5,8 +5,8 @@ REM This script builds a standalone executable using PyInstaller
 echo 🚀 Building EZ-Expense standalone executable...
 
 REM Check if we're in the right directory
-if not exist "..\main.py" (
-    echo ❌ Error: ..\main.py not found. Please run this script from the deployment folder.
+if not exist "..\..\main.py" (
+    echo ❌ Error: ..\..\main.py not found. Please run this script from the deployment\build folder.
     pause
     exit /b 1
 )
@@ -16,9 +16,9 @@ where uv >nul 2>nul
 if %errorlevel% equ 0 (
     echo ✅ Using uv for package management...
     set PYTHON_CMD=uv run
-    cd ..
+    cd ..\..
     uv sync --group build
-    cd deployment
+    cd deployment\build
 ) else (
     echo ⚠️  uv not found, using pip...
     set PYTHON_CMD=python
@@ -27,9 +27,9 @@ if %errorlevel% equ 0 (
 
 echo 📦 Installing Playwright browsers...
 if "%PYTHON_CMD%"=="uv run" (
-    cd ..
+    cd ..\..
     uv run playwright install chromium --with-deps
-    cd deployment
+    cd deployment\build
 ) else (
     python -m playwright install chromium --with-deps
 )
@@ -40,21 +40,21 @@ if exist "dist" rmdir /s /q dist
 
 echo 🔨 Building executable with PyInstaller...
 if "%PYTHON_CMD%"=="uv run" (
-    cd ..
+    cd ..\..
     uv run pyinstaller deployment\ez-expense.spec --clean --noconfirm
-    cd deployment
+    cd deployment\build
 ) else (
-    cd ..
+    cd ..\..
     python -m PyInstaller deployment\ez-expense.spec --clean --noconfirm
-    cd deployment
+    cd deployment\build
 )
 
 echo ✅ Build completed!
 echo.
-echo 📁 Output location: ..\dist\ez-expense.exe
+echo 📁 Output location: ..\..\dist\ez-expense.exe
 echo.
 echo 💡 To test the executable:
-echo    ..\dist\ez-expense.exe
+echo    ..\..\dist\ez-expense.exe
 echo.
 echo 🎉 Your EZ-Expense standalone executable is ready!
 echo 📝 Next steps:
