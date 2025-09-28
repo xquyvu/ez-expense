@@ -30,9 +30,9 @@ if [ ! -f ".env" ]; then
 fi
 
 # Check if executable exists
-if [ ! -f "../dist/ez-expense" ]; then
+if [ ! -f "./ez-expense" ]; then
     echo -e "${RED}❌ Executable not found!${NC}"
-    echo "Please run ./build/build.sh first to create the executable."
+    echo "Expected to find ez-expense executable in the same directory as this script."
     exit 1
 fi
 
@@ -44,4 +44,4 @@ echo "Press Ctrl+C to stop the application."
 echo ""
 
 # Run the executable
-../dist/ez-expense
+./ez-expense
