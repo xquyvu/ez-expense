@@ -3,6 +3,7 @@ Cross-platform GUI dialog utilities for EZ-Expense
 """
 
 import platform
+import shutil
 import subprocess
 import sys
 from typing import Optional
@@ -91,8 +92,6 @@ def _show_windows_dialog() -> Optional[bool]:
 def _show_linux_dialog() -> Optional[bool]:
     """Show Linux dialog using zenity, kdialog, or xmessage"""
     try:
-        import shutil
-
         message = (
             "EZ-Expense needs to restart your browser in debug mode.\n\n"
             "This will close any existing browser windows and restart the browser.\n\n"

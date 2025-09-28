@@ -523,14 +523,26 @@ async def move_receipt():
             updated_expense_data = to_expense_data.copy()
 
             # Fill in merchant if expense doesn't have one or it's empty
-            if invoice_details.get("Merchant") and not updated_expense_data.get("Merchant", "").strip():
+            if (
+                invoice_details.get("Merchant")
+                and not updated_expense_data.get("Merchant", "").strip()
+            ):
                 updated_expense_data["Merchant"] = invoice_details["Merchant"]
-                logger.info(f"Updated expense {to_expense_id} merchant to: {updated_expense_data['Merchant']}")
+                logger.info(
+                    f"Updated expense {to_expense_id} merchant to: {updated_expense_data['Merchant']}"
+                )
 
             # Fill in additional information if expense doesn't have one or it's empty
-            if invoice_details.get("Additional information") and not updated_expense_data.get("Additional information", "").strip():
-                updated_expense_data["Additional information"] = invoice_details["Additional information"]
-                logger.info(f"Updated expense {to_expense_id} additional information to: {updated_expense_data['Additional information']}")
+            if (
+                invoice_details.get("Additional information")
+                and not updated_expense_data.get("Additional information", "").strip()
+            ):
+                updated_expense_data["Additional information"] = invoice_details[
+                    "Additional information"
+                ]
+                logger.info(
+                    f"Updated expense {to_expense_id} additional information to: {updated_expense_data['Additional information']}"
+                )
 
         # Return success response with the updated receipt data
         response_data = {

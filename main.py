@@ -1,3 +1,4 @@
+import logging
 import os
 import signal
 import sys
@@ -66,7 +67,6 @@ env_loaded = load_env_file()
 print(f"🔧 Environment loaded: {env_loaded}")
 
 # Configure logging for better debugging
-import logging
 
 try:
     # Get absolute path for log file relative to .env location

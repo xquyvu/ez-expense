@@ -75,7 +75,7 @@ def test_response_format():
             try:
                 error_data = response.json()
                 print(f"Error details: {json.dumps(error_data, indent=2)}")
-            except:
+            except Exception:
                 print(f"Raw response: {response.text}")
 
     except Exception as e:

@@ -11,18 +11,24 @@ import logging
 import os
 import sys
 import tempfile
-from pathlib import Path
 
 from quart import Quart, g, jsonify, render_template
 from quart_cors import cors
 
-from config import ALLOWED_EXTENSIONS, FLASK_DEBUG, FRONTEND_PORT, MAX_CONTENT_LENGTH, SECRET_KEY, DEBUG_LOG_TARGET_FRONT_END
+from config import (
+    ALLOWED_EXTENSIONS,
+    DEBUG_LOG_TARGET_FRONT_END,
+    FLASK_DEBUG,
+    FRONTEND_PORT,
+    MAX_CONTENT_LENGTH,
+    SECRET_KEY,
+)
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import resource utils and load environment
-from resource_utils import load_env_file, get_resource_path
+from resource_utils import get_resource_path, load_env_file
 
 print("🔧 [Quart] Loading environment in front_end/app.py...")
 env_loaded = load_env_file()
@@ -36,7 +42,7 @@ try:
     frontend_log_path = get_resource_path(DEBUG_LOG_TARGET_FRONT_END.strip('"'))
 
     # Configure logging specifically for frontend modules
-    frontend_logger = logging.getLogger('front_end')
+    frontend_logger = logging.getLogger("front_end")
     frontend_logger.setLevel(logging.DEBUG if FLASK_DEBUG else logging.INFO)
 
     # Only add handlers if they haven't been added yet
@@ -78,7 +84,7 @@ def create_app():
 
         # Configuration
         app.config["SECRET_KEY"] = SECRET_KEY
-        print(f"🔧 [Quart] Secret key configured")
+        print("🔧 [Quart] Secret key configured")
 
         # Use system temporary directory for both temp operations and uploads
         app.config["TEMP_FOLDER"] = tempfile.gettempdir()
@@ -253,6 +259,7 @@ def create_app():
         print(f"❌ [Quart] Error creating application: {e}")
         logger.error(f"Error creating application: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 

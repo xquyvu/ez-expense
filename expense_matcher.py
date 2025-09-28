@@ -65,8 +65,13 @@ def match_receipts_with_expenses(
                     expense_line["Merchant"] = invoice_details["Merchant"]
 
                 additional_info_value = expense_line.get("Additional information") or ""
-                if invoice_details.get("Additional information") and not str(additional_info_value).strip():
-                    expense_line["Additional information"] = invoice_details["Additional information"]
+                if (
+                    invoice_details.get("Additional information")
+                    and not str(additional_info_value).strip()
+                ):
+                    expense_line["Additional information"] = invoice_details[
+                        "Additional information"
+                    ]
 
                 break
 

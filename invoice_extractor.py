@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import pdfplumber
-from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 from openai.types.chat import (
     ChatCompletionContentPartImageParam,
@@ -34,7 +33,10 @@ class InvoiceDetails(BaseModel):
     date: str = Field(alias="Date", description="Date in YYYY-MM-DD format")
     expense_category: ValidExpenseCategories = Field(alias="Expense category")
     merchant: str = Field(alias="Merchant", description="Merchant name")
-    expense_description: str = Field(alias="Additional information", description="What the receipt is for, in no more than a few words")
+    expense_description: str = Field(
+        alias="Additional information",
+        description="What the receipt is for, in no more than a few words",
+    )
     is_refund: bool = Field(alias="is_refund", description="Indicates if the invoice is a refund")
 
 

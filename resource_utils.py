@@ -1,9 +1,12 @@
 """
 Utilities for handling resources in both development and PyInstaller environments.
 """
-import os
+
+import logging
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 
 def get_resource_path(relative_path: str = "") -> Path:
@@ -19,19 +22,19 @@ def get_resource_path(relative_path: str = "") -> Path:
     Returns:
         Absolute path to the resource
     """
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         # Running in PyInstaller bundle
         # For .env and other user files, we want them relative to the executable, not the temp bundle
-        if hasattr(sys, 'executable') and sys.executable:
+        if hasattr(sys, "executable") and sys.executable:
             # Get directory containing the executable
             base_path = Path(sys.executable).parent
 
             # Special handling for macOS app bundles
             # If the executable is inside .app/Contents/MacOS/,
             # look for .env files in the parent directory of the .app bundle
-            if base_path.name == 'MacOS' and base_path.parent.name == 'Contents':
+            if base_path.name == "MacOS" and base_path.parent.name == "Contents":
                 app_bundle = base_path.parent.parent  # Go up to the .app directory
-                if app_bundle.suffix == '.app':
+                if app_bundle.suffix == ".app":
                     # Look in the directory containing the .app bundle
                     base_path = app_bundle.parent
         else:
@@ -40,8 +43,8 @@ def get_resource_path(relative_path: str = "") -> Path:
     else:
         # Running in development
         # Get the directory containing the main script
-        if hasattr(sys.modules['__main__'], '__file__'):
-            base_path = Path(sys.modules['__main__'].__file__).parent
+        if hasattr(sys.modules["__main__"], "__file__"):
+            base_path = Path(sys.modules["__main__"].__file__).parent
         else:
             base_path = Path.cwd()
 
@@ -58,9 +61,6 @@ def load_env_file() -> bool:
     Returns:
         True if .env file was loaded successfully, False otherwise
     """
-    from dotenv import load_dotenv
-    import logging
-
     logger = logging.getLogger(__name__)
 
     # Debug info
