@@ -166,8 +166,9 @@ async def get_expense_page_from_browser(browser):
     """
     # Find the expense management page
     context = browser.contexts[0] if browser.contexts else await browser.new_context()
-
     page = await context.new_page()
+    # Wait a moment for the page to be fully created
+    await page.wait_for_load_state("domcontentloaded")
     await page.goto(f"https://{EXPENSE_APP_URL}")
     return page
 
