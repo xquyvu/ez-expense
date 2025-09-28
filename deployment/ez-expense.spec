@@ -14,8 +14,6 @@ datas = [
     # Frontend files
     (str(project_root / "front_end" / "templates"), "front_end/templates"),
     (str(project_root / "front_end" / "static"), "front_end/static"),
-    # App launcher script
-    (str(deployment_root / "app-launcher.sh"), "."),
     # Configuration files if they exist
 ]
 

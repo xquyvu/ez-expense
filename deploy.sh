@@ -5,7 +5,7 @@
 case "$1" in
     "build")
         echo "🔨 Building EZ-Expense executable..."
-        cd deployment && ./build.sh
+        cd deployment/build && ./build.sh
         ;;
     "test")
         echo "🧪 Testing EZ-Expense executable..."
@@ -13,11 +13,11 @@ case "$1" in
         ;;
     "releases")
         echo "🚀 Building GitHub releases..."
-        cd deployment && ./build-releases.sh
+        cd deployment/build && ./build-releases.sh
         ;;
     "run")
         echo "🚀 Running EZ-Expense..."
-        cd deployment && ./run-ez-expense.sh
+        cd deployment && ./run/run-ez-expense.sh
         ;;
     *)
         echo "EZ-Expense Deployment Helper"

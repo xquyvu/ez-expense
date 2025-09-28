@@ -136,7 +136,6 @@ git tag v1.1.0    # New features
 
 - **macOS**: Users may see "App can't be opened" - they need to right-click → Open
 - **Windows**: May be flagged by Windows Defender - users need to allow it
-- **Code Signing**: Consider code signing certificates for professional distribution
 
 ### System Requirements
 

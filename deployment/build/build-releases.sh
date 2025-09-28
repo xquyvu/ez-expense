@@ -33,8 +33,8 @@ echo -e "${BLUE}📱 Detected platform: $PLATFORM${NC}"
 
 # Clean previous releases
 echo -e "${BLUE}🧹 Cleaning previous release artifacts...${NC}"
-rm -rf ../releases
-mkdir -p ../releases
+rm -rf ../../releases
+mkdir -p ../../releases
 
 # Build the executable first
 echo -e "${BLUE}🔨 Building executable...${NC}"
@@ -42,7 +42,7 @@ echo -e "${BLUE}🔨 Building executable...${NC}"
 
 # Create release package
 echo -e "${BLUE}📦 Creating $PLATFORM release package...${NC}"
-RELEASE_DIR="../releases/$PACKAGE_NAME"
+RELEASE_DIR="../../releases/$PACKAGE_NAME"
 mkdir -p "$RELEASE_DIR"
 
 ./package.sh \
@@ -54,7 +54,7 @@ mkdir -p "$RELEASE_DIR"
     --deployment-dir ".."
 # Create ZIP archive
 echo -e "${BLUE}📦 Creating release archive...${NC}"
-cd ../releases
+cd ../../releases
 
 # Check if zip command is available
 if ! command -v zip &> /dev/null; then
@@ -90,48 +90,9 @@ echo -e "${YELLOW}� Next steps for distribution:${NC}"
 echo "   1. Test the release package thoroughly"
 echo "   2. Upload to GitHub Releases"
 echo "   3. Update release notes with setup instructions"
-echo "   4. Consider code signing (for enhanced security)"
+echo "   4. Consider user documentation for security warnings"
 echo ""
 echo -e "${YELLOW}⚠️  Important reminders:${NC}"
 echo "   • Users must create their own .env file"
 echo "   • API keys should never be bundled in releases"
 echo "   • Test on target platform before distributing"
-
-# Create zips
-if [ "$HAS_MACOS_APP" = true ]; then
-    zip -r "ez-expense-macos.zip" "ez-expense-macos/"
-    echo -e "${GREEN}✅ Created: ez-expense-macos.zip${NC}"
-fi
-
-if [ "$HAS_WINDOWS_EXE" = true ]; then
-    zip -r "ez-expense-windows.zip" "ez-expense-windows/"
-    echo -e "${GREEN}✅ Created: ez-expense-windows.zip${NC}"
-fi
-
-# Show results
-echo ""
-echo -e "${GREEN}🎉 GitHub releases ready!${NC}"
-echo ""
-
-if [ -f "ez-expense-macos.zip" ] || [ -f "ez-expense-windows.zip" ]; then
-    echo -e "${BLUE}📁 Release files:${NC}"
-    ls -la *.zip 2>/dev/null || true
-    echo ""
-    echo -e "${BLUE}📊 File sizes:${NC}"
-    du -sh *.zip 2>/dev/null || true
-    echo ""
-    echo -e "${YELLOW}📋 Next steps:${NC}"
-    echo "1. Go to https://github.com/xquyvu/ez-expense/releases"
-    echo "2. Click 'Create a new release'"
-    echo "3. Upload the archive file(s):"
-    if [ -f "ez-expense-macos.zip" ]; then
-        echo "   • ez-expense-macos.zip"
-    fi
-    if [ -f "ez-expense-windows.zip" ]; then
-        echo "   • ez-expense-windows.zip"
-    fi
-    echo "4. Add release notes and publish"
-else
-    echo -e "${RED}❌ No release packages were created${NC}"
-    echo "Make sure you have built executables in ../dist/"
-fi

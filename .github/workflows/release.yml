@@ -28,8 +28,6 @@ jobs:
             package_name: ez-expense-linux
 
     runs-on: ${{ matrix.os }}
-    env:
-      HAS_SIGNING_SECRETS: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA != '' && secrets.SIGNING_CERTIFICATE_PASSWORD != '' && secrets.KEYCHAIN_PASSWORD != '' }}
 
     steps:
       - name: Checkout code
@@ -116,83 +114,6 @@ jobs:
             exit 1
           }
         shell: pwsh
-
-      # macOS Code Signing and Notarization
-      - name: Import signing certificate (macOS)
-        if: matrix.platform == 'macos' && env.HAS_SIGNING_SECRETS == 'true'
-        env:
-          SIGNING_CERTIFICATE_P12_DATA: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA }}
-          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          # Create certificate file from base64 encoded data
-          echo "$SIGNING_CERTIFICATE_P12_DATA" | base64 --decode > certificate.p12
-
-          # Create temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-
-          # Import certificate
-          security import certificate.p12 -k build.keychain -P "$SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-
-          # Set partition list
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-
-          # Clean up
-          rm certificate.p12
-
-      - name: Sign macOS app bundle
-        if: matrix.platform == 'macos' && env.HAS_SIGNING_SECRETS == 'true'
-        env:
-          APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
-        run: |
-          if [ -d "dist/EZ-Expense.app" ]; then
-            # Sign all executables and libraries in the app bundle
-            find "dist/EZ-Expense.app" -type f \( -name "*.dylib" -o -name "*.so" -o -perm +111 \) -exec codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime {} \;
-
-            # Sign the main executable
-            codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime "dist/EZ-Expense.app/Contents/MacOS/ez-expense"
-
-            # Sign the entire app bundle
-            codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp --options runtime "dist/EZ-Expense.app"
-
-            # Verify code signing
-            codesign --verify --verbose "dist/EZ-Expense.app"
-            echo "✅ App bundle signed successfully"
-          else
-            echo "ℹ️ No app bundle found to sign"
-          fi
-
-      - name: Notarize macOS app bundle
-        if: matrix.platform == 'macos' && env.HAS_SIGNING_SECRETS == 'true'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          if [ -d "dist/EZ-Expense.app" ]; then
-            # Create ZIP for notarization
-            cd dist
-            zip -r "EZ-Expense-notarize.zip" "EZ-Expense.app"
-
-            # Submit for notarization
-            xcrun notarytool submit "EZ-Expense-notarize.zip" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" \
-              --wait
-
-            # Staple notarization ticket
-            xcrun stapler staple "EZ-Expense.app"
-
-            # Clean up
-            rm "EZ-Expense-notarize.zip"
-            cd ..
-            echo "✅ App bundle notarized successfully"
-          else
-            echo "ℹ️ No app bundle found to notarize"
-          fi
 
       - name: Create release package
         working-directory: deployment/build
