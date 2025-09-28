@@ -9,8 +9,8 @@ from threading import Timer
 try:
     import playwright_manager
     from browser import BrowserProcess
-    from config import BROWSER_PORT, EXPENSE_APP_URL, FRONTEND_PORT, DEBUG_LOG_TARGET
-    from resource_utils import load_env_file, get_resource_path
+    from config import BROWSER_PORT, DEBUG_LOG_TARGET, EXPENSE_APP_URL, FRONTEND_PORT
+    from resource_utils import get_resource_path, load_env_file
 except ImportError as e:
     print(f"❌ Import error: {e}")
     sys.exit(1)
@@ -67,18 +67,15 @@ print(f"🔧 Environment loaded: {env_loaded}")
 
 # Configure logging for better debugging
 import logging
+
 try:
     # Get absolute path for log file relative to .env location
-    from pathlib import Path
     log_path = get_resource_path(DEBUG_LOG_TARGET.strip('"'))
 
     logging.basicConfig(
         level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_path),
-            logging.StreamHandler()
-        ]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
     )
     print(f"🔧 Logging configured to: {log_path}")
 except Exception as e:
@@ -86,8 +83,8 @@ except Exception as e:
     # Fallback to console only
     logging.basicConfig(
         level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler()]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler()],
     )
 
 print(f"🔧 Debug mode: {os.getenv('DEBUG', 'Not set')}")
@@ -132,6 +129,7 @@ def setup_browser_session():
         logger.error(f"Error in setup_browser_session: {e}")
         print(f"❌ Error in setup_browser_session: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 
@@ -155,6 +153,7 @@ async def connect_to_browser():
         logger.error(f"Failed to connect to browser: {e}")
         print(f"❌ Failed to connect to browser: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 
@@ -166,8 +165,9 @@ async def get_expense_page_from_browser(browser):
     """
     # Find the expense management page
     context = browser.contexts[0] if browser.contexts else await browser.new_context()
-
     page = await context.new_page()
+    # Wait a moment for the page to be fully created
+    await page.wait_for_load_state("domcontentloaded")
     await page.goto(f"https://{EXPENSE_APP_URL}")
     return page
 
@@ -192,10 +192,16 @@ async def start_quart_app():
             # Show notification that the app is ready
             try:
                 import subprocess
-                subprocess.run([
-                    "osascript", "-e",
-                    f'display notification "Web interface is now available at http://127.0.0.1:{FRONTEND_PORT}" with title "EZ-Expense Ready!" sound name "default"'
-                ], check=False, capture_output=True)
+
+                subprocess.run(
+                    [
+                        "osascript",
+                        "-e",
+                        f'display notification "Web interface is now available at http://127.0.0.1:{FRONTEND_PORT}" with title "EZ-Expense Ready!" sound name "default"',
+                    ],
+                    check=False,
+                    capture_output=True,
+                )
             except Exception:
                 pass  # Silently ignore notification failures
 
@@ -219,6 +225,7 @@ async def start_quart_app():
         logger.error(f"Failed to start Quart app: {e}")
         print(f"❌ Failed to start Quart app: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -268,6 +275,7 @@ async def run_expense_automation():
             logger.error(f"An error occurred during automation: {e}")
             print(f"❌ An error occurred: {e}")
             import traceback
+
             traceback.print_exc()
         finally:
             # Clear the page reference when exiting
@@ -280,6 +288,7 @@ async def run_expense_automation():
         logger.error(f"Critical error in run_expense_automation: {e}")
         print(f"❌ Critical error in run_expense_automation: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -292,10 +301,16 @@ if __name__ == "__main__":
     # Show a macOS notification that the app is starting
     try:
         import subprocess
-        subprocess.run([
-            "osascript", "-e",
-            'display notification "EZ-Expense is starting up..." with title "EZ-Expense" sound name "default"'
-        ], check=False, capture_output=True)
+
+        subprocess.run(
+            [
+                "osascript",
+                "-e",
+                'display notification "EZ-Expense is starting up..." with title "EZ-Expense" sound name "default"',
+            ],
+            check=False,
+            capture_output=True,
+        )
     except Exception:
         pass  # Silently ignore notification failures
 
@@ -308,6 +323,7 @@ if __name__ == "__main__":
 
     try:
         import asyncio
+
         print("🔧 Starting asyncio event loop...")
         logger.info("Starting asyncio event loop...")
         asyncio.run(run_expense_automation())
@@ -318,6 +334,7 @@ if __name__ == "__main__":
         logger.error(f"Unexpected error in main: {e}")
         print(f"❌ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         print("🔧 Cleanup phase...")

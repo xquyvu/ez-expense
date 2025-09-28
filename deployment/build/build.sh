@@ -15,8 +15,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Check if we're in the right directory
-if [ ! -f "../main.py" ]; then
-    echo -e "${RED}❌ Error: ../main.py not found. Please run this script from the deployment/ folder.${NC}"
+if [ ! -f "../../main.py" ]; then
+    echo -e "${RED}❌ Error: ../../main.py not found. Please run this script from the deployment/build/ folder.${NC}"
     exit 1
 fi
 
@@ -31,18 +31,18 @@ fi
 
 echo -e "${BLUE}📦 Installing/updating build dependencies...${NC}"
 if [ "$PYTHON_CMD" = "uv run" ]; then
-    cd ..
+    cd ../..
     uv sync --group build
-    cd deployment
+    cd deployment/build
 else
     pip install pyinstaller
 fi
 
 echo -e "${BLUE}🔧 Installing Playwright browsers (required for the app)...${NC}"
 if [ "$PYTHON_CMD" = "uv run" ]; then
-    cd ..
+    cd ../..
     uv run playwright install chromium --with-deps
-    cd deployment
+    cd deployment/build
 else
     playwright install chromium --with-deps
 fi
@@ -52,13 +52,13 @@ rm -rf build/ dist/ *.spec.backup
 
 echo -e "${BLUE}🔨 Building executable with PyInstaller...${NC}"
 if [ "$PYTHON_CMD" = "uv run" ]; then
-    cd ..
+    cd ../..
     uv run pyinstaller deployment/ez-expense.spec --clean --noconfirm
-    cd deployment
+    cd deployment/build
 else
-    cd ..
+    cd ../..
     pyinstaller deployment/ez-expense.spec --clean --noconfirm
-    cd deployment
+    cd deployment/build
 fi
 
 echo -e "${GREEN}✅ Build completed!${NC}"
@@ -66,7 +66,7 @@ echo -e "${GREEN}✅ Build completed!${NC}"
 echo -e "${BLUE}📋 Post-build setup...${NC}"
 # Copy .env.template to dist directory for user convenience
 if [ -f "../.env.template" ]; then
-    cp "../.env.template" "../dist/"
+    cp "../../.env.template" "../../../dist/"
     echo "   • Copied .env.template to dist/"
 else
     echo -e "${YELLOW}   ⚠️ .env.template not found in project root${NC}"
@@ -75,26 +75,26 @@ fi
 echo ""
 echo -e "${BLUE}📁 Output location:${NC}"
 if [ "$(uname)" == "Darwin" ]; then
-    echo "   • macOS App Bundle: ../dist/EZ-Expense.app"
-    echo "   • Executable: ../dist/ez-expense"
+    echo "   • macOS App Bundle: ../../dist/EZ-Expense.app"
+    echo "   • Executable: ../../dist/ez-expense"
     echo ""
     echo -e "${YELLOW}💡 To test the app bundle:${NC}"
-    echo "   open ../dist/EZ-Expense.app"
+    echo "   open ../../dist/EZ-Expense.app"
 else
-    echo "   • Executable: ../dist/ez-expense"
+    echo "   • Executable: ../../dist/ez-expense"
 fi
 
 echo ""
 echo -e "${YELLOW}💡 To test the executable:${NC}"
-echo "   ../dist/ez-expense"
+echo "   ../../dist/ez-expense"
 
 echo ""
 echo -e "${BLUE}📊 File sizes:${NC}"
 if command -v du &> /dev/null; then
     if [ "$(uname)" == "Darwin" ]; then
-        echo "   App Bundle: $(du -sh ../dist/EZ-Expense.app | cut -f1)"
+        echo "   App Bundle: $(du -sh ../../dist/EZ-Expense.app | cut -f1)"
     fi
-    echo "   Executable: $(du -sh ../dist/ez-expense | cut -f1)"
+    echo "   Executable: $(du -sh ../../dist/ez-expense | cut -f1)"
 fi
 
 echo ""
@@ -103,7 +103,7 @@ echo -e "${YELLOW}📝 Next steps:${NC}"
 echo "   1. Copy .env.template to .env in the dist/ folder"
 echo "   2. Edit the .env file with your API keys and configuration"
 echo "   3. Test the executable thoroughly"
-echo "   4. Consider code signing (for macOS/Windows)"
+echo "   4. Consider user documentation for security warnings"
 echo "   5. Distribute to your users"
 echo ""
 echo -e "${YELLOW}⚠️  Important:${NC} Users must create their own .env file with their API keys"

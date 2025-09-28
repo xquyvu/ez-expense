@@ -29,10 +29,9 @@ Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to u
 
 **IMPORTANT:** You will need to provide your OpenAI API key to the app. Follow the instructions in the User Guide to set it up.
 
-**For MacOS**
+### For MacOS
 
-This app is not code-signed (requires $99/year Apple Developer Account).
-macOS will show a security warning, but you can safely bypass it using the methods above.
+This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning, but you can safely bypass it by right-clicking the app and selecting "Open", or using:
 
 ```bash
 # After installing the app, replace this with the path to where you extracted the zip file

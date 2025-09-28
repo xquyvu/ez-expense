@@ -6,24 +6,23 @@ This script is the main executable for the .app bundle on macOS.
 It opens Terminal.app and runs the console version of ez-expense.
 """
 
-import os
-import sys
-import subprocess
 import logging
+import os
+import subprocess
+import sys
 from pathlib import Path
+
 
 def setup_logging():
     """Setup logging to help debug issues"""
     log_file = Path.home() / "ez-expense-launcher.log"
     logging.basicConfig(
         level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
     )
     return logging.getLogger(__name__)
+
 
 def show_error_dialog(message, title="EZ Expense Error"):
     """Show error dialog using AppleScript"""
@@ -32,9 +31,10 @@ def show_error_dialog(message, title="EZ Expense Error"):
     '''
     subprocess.run(["osascript", "-e", applescript])
 
+
 def get_console_executable_path():
     """Get path to the console executable that sits alongside the .app bundle"""
-    if hasattr(sys, '_MEIPASS'):
+    if hasattr(sys, "_MEIPASS"):
         # Running in PyInstaller bundle (.app)
         # The console executable should be in the same directory as the .app bundle
         app_bundle_parent = Path(sys.executable).parent.parent.parent.parent
@@ -49,6 +49,7 @@ def get_console_executable_path():
     else:
         # Running in development - look for the built executable
         return Path(__file__).parent / "dist" / "ez-expense"
+
 
 def main():
     """Main launcher function"""
@@ -71,15 +72,15 @@ def main():
         os.chmod(console_exe, 0o755)
 
         # Create AppleScript to open Terminal and run the app
-        applescript = f'''
+        applescript = f"""
         tell application "Terminal"
-            activate
             set newWindow to do script "cd '{console_exe.parent}' && ./{console_exe.name}"
+            activate
             set custom title of newWindow to "EZ Expense"
             set background color of newWindow to {{0, 0, 0}}
             set normal text color of newWindow to {{65535, 65535, 65535}}
         end tell
-        '''
+        """
 
         logger.info("Opening Terminal with ez-expense")
         result = subprocess.run(["osascript", "-e", applescript], capture_output=True, text=True)
@@ -98,6 +99,7 @@ def main():
         logger.error(error_msg)
         show_error_dialog(error_msg)
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
