@@ -58,16 +58,9 @@ jobs:
         run: |
           uv sync --group build
 
-      - name: Install Playwright browsers (non-Windows)
-        if: matrix.platform != 'windows'
+      - name: Install Playwright browsers
         run: |
           uv run playwright install chromium --with-deps
-
-      - name: Install Playwright browsers (Windows)
-        if: matrix.platform == 'windows'
-        run: |
-          uv run playwright install chromium --with-deps
-
       - name: Build executable (Unix)
         if: matrix.platform != 'windows'
         working-directory: deployment
@@ -201,83 +194,16 @@ jobs:
             echo "ℹ️ No app bundle found to notarize"
           fi
 
-      # DMG creation removed - no longer publishing DMG files
-      # - name: Create macOS DMG installer
-      #   if: matrix.platform == 'macos'
-      #   env:
-      #     APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
-      #   run: |
-      #     if [ -d "dist/EZ-Expense.app" ]; then
-      #       # Install create-dmg
-      #       brew install create-dmg
-      #
-      #       # Create DMG
-      #       create-dmg \
-      #         --volname "EZ-Expense" \
-      #         --window-pos 200 120 \
-      #         --window-size 600 300 \
-      #         --icon-size 100 \
-      #         --icon "EZ-Expense.app" 175 120 \
-      #         --hide-extension "EZ-Expense.app" \
-      #         --app-drop-link 425 120 \
-      #         "dist/EZ-Expense-macos.dmg" \
-      #         "dist/EZ-Expense.app"
-      #
-      #       # Sign the DMG if we have signing certificates
-      #       if [ ! -z "$APPLE_DEVELOPER_ID_APPLICATION" ]; then
-      #         codesign --sign "$APPLE_DEVELOPER_ID_APPLICATION" --timestamp "dist/EZ-Expense-macos.dmg"
-      #         echo "✅ DMG signed successfully"
-      #       else
-      #         echo "ℹ️ DMG created without signing"
-      #       fi
-      #     else
-      #       echo "ℹ️ No app bundle found, skipping DMG creation"
-      #     fi
-
       - name: Create release package
+        working-directory: deployment/build
         run: |
-          mkdir -p release-package
-
-          if [ "${{ matrix.platform }}" = "macos" ]; then
-            # Copy macOS app bundle if it exists
-            if [ -d "dist/EZ-Expense.app" ]; then
-              cp -r dist/EZ-Expense.app release-package/
-            fi
-            # Copy command-line executable
-            if [ -f "dist/${{ matrix.executable_name }}" ]; then
-              cp dist/${{ matrix.executable_name }} release-package/
-            fi
-            # Copy macOS-specific files
-            cp deployment/USER_GUIDE.md release-package/
-            if [ -f "deployment/run/run-ez-expense.sh" ]; then
-              cp deployment/run/run-ez-expense.sh release-package/
-              chmod +x release-package/run-ez-expense.sh
-            fi
-            # Copy README template
-            cp deployment/readme-templates/README.txt release-package/
-
-          elif [ "${{ matrix.platform }}" = "windows" ]; then
-            # Copy Windows executable
-            cp dist/${{ matrix.executable_name }} release-package/
-            cp deployment/USER_GUIDE.md release-package/
-            # Copy Windows launcher
-            cp deployment/run/run-ez-expense.bat release-package/
-            # Copy README template
-            cp deployment/readme-templates/README.txt release-package/
-
-          else
-            # Linux
-            cp dist/${{ matrix.executable_name }} release-package/
-            cp deployment/USER_GUIDE.md release-package/
-            chmod +x release-package/${{ matrix.executable_name }}
-            # Copy README template
-            cp deployment/readme-templates/README.txt release-package/
-          fi
-
-          # Copy environment template to all platforms
-          if [ -f ".env.template" ]; then
-            cp .env.template release-package/
-          fi
+          ./package.sh \
+            --platform "${{ matrix.platform }}" \
+            --executable-name "${{ matrix.executable_name }}" \
+            --package-name "${{ matrix.package_name }}" \
+            --output-dir "../../release-package" \
+            --dist-dir "../../dist" \
+            --deployment-dir ".."
         shell: bash
 
       - name: Create ZIP archive
@@ -300,16 +226,6 @@ jobs:
           path: |
             ${{ matrix.package_name }}.zip
           retention-days: 30
-
-    # DMG artifact upload removed - no longer publishing DMG files
-    # - name: Upload macOS DMG artifact
-    #   if: matrix.platform == 'macos'
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: EZ-Expense-macos-dmg
-    #     path: |
-    #       dist/EZ-Expense-macos.dmg
-    #     retention-days: 30
 
   release:
     needs: build

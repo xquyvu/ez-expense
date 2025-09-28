@@ -40,65 +40,18 @@ mkdir -p ../releases
 echo -e "${BLUE}🔨 Building executable...${NC}"
 ./build.sh
 
-# Create platform-specific release package
+# Create release package
 echo -e "${BLUE}📦 Creating $PLATFORM release package...${NC}"
 RELEASE_DIR="../releases/$PACKAGE_NAME"
 mkdir -p "$RELEASE_DIR"
 
-if [ "$PLATFORM" = "macos" ]; then
-    # Copy macOS app bundle if it exists
-    if [ -d "../dist/EZ-Expense.app" ]; then
-        cp -r ../dist/EZ-Expense.app "$RELEASE_DIR/"
-        echo -e "${GREEN}✅ Included macOS app bundle${NC}"
-    fi
-
-    # Always copy the command-line executable
-    if [ -f "../dist/$EXECUTABLE_NAME" ]; then
-        cp ../dist/$EXECUTABLE_NAME "$RELEASE_DIR/"
-        echo -e "${GREEN}✅ Included command-line executable${NC}"
-    fi
-
-    # Copy run script
-    if [ -f "../run/run-ez-expense.sh" ]; then
-        cp ../run/run-ez-expense.sh "$RELEASE_DIR/"
-        chmod +x "$RELEASE_DIR/run-ez-expense.sh"
-        echo -e "${GREEN}✅ Included run script${NC}"
-    fi
-else
-    # Copy executable for other platforms
-    if [ -f "../dist/$EXECUTABLE_NAME" ]; then
-        cp ../dist/$EXECUTABLE_NAME "$RELEASE_DIR/"
-        chmod +x "$RELEASE_DIR/$EXECUTABLE_NAME"
-        echo -e "${GREEN}✅ Included $PLATFORM executable${NC}"
-    else
-        echo -e "${RED}❌ Error: Expected executable ../dist/$EXECUTABLE_NAME not found${NC}"
-        exit 1
-    fi
-fi
-
-# Copy common files
-cp ../USER_GUIDE.md "$RELEASE_DIR/"
-echo -e "${GREEN}✅ Included user guide${NC}"
-
-# Copy .env.template if it exists
-if [ -f "../.env.template" ]; then
-    cp ../.env.template "$RELEASE_DIR/"
-    echo -e "${GREEN}✅ Included .env.template${NC}"
-else
-    echo -e "${YELLOW}⚠️ .env.template not found${NC}"
-fi
-
-# Copy README template
-echo -e "${BLUE}📝 Copying README template...${NC}"
-cp ../readme-templates/README.txt "$RELEASE_DIR/"
-
-# Create Windows launcher script if on Windows
-if [ "$PLATFORM" = "windows" ]; then
-    if [ -f "../run/run-ez-expense.bat" ]; then
-        cp ../run/run-ez-expense.bat "$RELEASE_DIR/"
-        echo -e "${GREEN}✅ Included Windows run script${NC}"
-    fi
-fi
+./package.sh \
+    --platform "$PLATFORM" \
+    --executable-name "$EXECUTABLE_NAME" \
+    --package-name "$PACKAGE_NAME" \
+    --output-dir "$RELEASE_DIR" \
+    --dist-dir "../../dist" \
+    --deployment-dir ".."
 # Create ZIP archive
 echo -e "${BLUE}📦 Creating release archive...${NC}"
 cd ../releases
@@ -143,12 +96,13 @@ echo -e "${YELLOW}⚠️  Important reminders:${NC}"
 echo "   • Users must create their own .env file"
 echo "   • API keys should never be bundled in releases"
 echo "   • Test on target platform before distributing"
+
+# Create zips
 if [ "$HAS_MACOS_APP" = true ]; then
     zip -r "ez-expense-macos.zip" "ez-expense-macos/"
     echo -e "${GREEN}✅ Created: ez-expense-macos.zip${NC}"
 fi
 
-# Create Windows archive if we have it
 if [ "$HAS_WINDOWS_EXE" = true ]; then
     zip -r "ez-expense-windows.zip" "ez-expense-windows/"
     echo -e "${GREEN}✅ Created: ez-expense-windows.zip${NC}"
