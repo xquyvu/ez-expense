@@ -5,7 +5,7 @@ import os
 import sys
 
 
-def load_env_file():
+def get_browser_from_env_file():
     """Load .env file and return browser setting"""
     env_path = os.path.join(os.getcwd(), ".env")
     browser = None
@@ -32,7 +32,7 @@ def setup_playwright_env():
         # We're running from PyInstaller bundle
 
         # Load browser preference from .env
-        browser = load_env_file()
+        browser = get_browser_from_env_file()
 
         if browser:
             print(f"🎭 PyInstaller detected - using {browser} browser from .env")
