@@ -164,7 +164,9 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
         # Fallback to direct pandas read (may fail in packaged apps but works in development)
         existing_expenses = pd.read_excel(download.url)
 
-    existing_expenses = postprocess_expense_data(existing_expenses)
+    if existing_expenses.shape[0]:
+        # Only process if it's not empty
+        existing_expenses = postprocess_expense_data(existing_expenses)
 
     if save_path:
         existing_expenses.to_csv(save_path, index=False)
@@ -200,7 +202,9 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
     await page.click('button[data-dyn-controlname="OK"]')
 
     # My Expense requires us to reload the page for some reason. This is the poor man's way to do it.
-    await page.click('button[name="CommandButtonNext"]')
+    # Only required if there is any existing expense
+    if existing_expenses.shape[0]:
+        await page.click('button[name="CommandButtonNext"]')
 
     # endregion
 
