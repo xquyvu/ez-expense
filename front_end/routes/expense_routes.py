@@ -64,12 +64,12 @@ async def import_expenses():
     try:
         logger.info(f"Import requested - Mocking expense import: {IMPORT_EXPENSE_MOCK}")
         if IMPORT_EXPENSE_MOCK:
-            logger.info("Using mock import due to DEBUG=True")
+            logger.info("Using mock import due to IMPORT_EXPENSE_MOCK=True")
             result = get_mock_expenses_internal()
             logger.info("Import completed successfully using mock source")
             return result
         else:
-            logger.info("Using real browser import due to DEBUG=False")
+            logger.info("Using real browser import due to IMPORT_EXPENSE_MOCK=False")
             result = await _import_real_data()
             logger.info("Import completed successfully using browser source")
             return result
@@ -83,7 +83,7 @@ async def import_expenses():
 def import_expenses_mock():
     """
     Explicit mock import endpoint for testing and development.
-    Always returns mock data regardless of DEBUG setting.
+    Always returns mock data regardless of IMPORT_EXPENSE_MOCK setting.
     """
     logger.info("Explicit mock import requested")
     return get_mock_expenses_internal()
