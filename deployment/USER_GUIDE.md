@@ -96,18 +96,18 @@ report, and submit it.
 
 #### App starts, but closes immediately, or run into porting issue
 
-You likely have something already running on port 5001 and / or 9222. Please free them up by:
+You likely have something already running on the port numbers set in the `.env` file (the defaults are 5001 and 9222). Please free them up by:
 
 - Windows:
 
 ```cmd
-for /f "tokens=5" %a in ('netstat -ano ^| findstr :5001') do taskkill /PID %a /F
+for /f "tokens=5" %a in ('netstat -ano ^| findstr ":5001 :9222"') do taskkill /PID %a /F
 ```
 
 - macOS/Linux:
 
 ```bash
-uv run -m lsof -ti:5001 | xargs kill -9
+uv run -m lsof -ti:5001,9222 | xargs kill -9
 ```
 
 #### API Errors
@@ -121,18 +121,11 @@ uv run -m lsof -ti:5001 | xargs kill -9
 
 If you encounter issues:
 
-1. Check the 2 log files (`ez-expense.log` and `ez-expense-fe.log`) in the same folder as the executable for error messages
+1. Check the 2 log files (`ez-expense.log` and `ez-expense-fe.log`) in the same folder
+   as the executable for error messages. Including these logs when asking for help will
+   speed up the troubleshooting process.
 2. Ensure your `.env` file is properly configured
 3. Try restarting the application
-4. Check that no other applications are using ports 5001 or 9222. If there is, close them and restart EZ-Expense
-
-### Updates
-
-To update EZ-Expense:
-
-1. Download the new version
-2. Replace the old executable with the new one
-3. Your data and settings will be preserved
 
 ---
 
