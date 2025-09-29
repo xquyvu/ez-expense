@@ -1,5 +1,6 @@
 import base64
 import io
+import logging
 import os
 from enum import Enum
 from pathlib import Path
@@ -17,6 +18,8 @@ from pydantic import BaseModel, Field
 
 from config import EXPENSE_CATEGORIES
 from resource_utils import load_env_file
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_env_file()
@@ -189,5 +192,5 @@ async def extract_invoice_details(file_path: Optional[str] = None) -> dict:
 
     except Exception as e:
         # Log error and return empty dictionary
-        print(f"Error extracting invoice details: {str(e)}")
+        logger.error(f"Error extracting invoice details: {str(e)}", exc_info=True)
         return {}
