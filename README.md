@@ -68,7 +68,6 @@ uv run python main.py
 
 ## TODO
 
-- When I add row, the previous details I filled in are lost
 - Use another name for .env.template, like openai_config.json
 - Test when there are no existing expenses
 - Instructions to set up Azure OpenAI, create subscription etc.
