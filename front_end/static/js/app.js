@@ -3192,6 +3192,9 @@ class EZExpenseApp {
             return;
         }
 
+        // Update expenses data from current table before adding new row
+        this.updateExpensesFromTable();
+
         // Get the structure from the first expense
         const newExpense = { id: Date.now() }; // Use timestamp as temporary ID
 
