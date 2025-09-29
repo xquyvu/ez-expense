@@ -4,6 +4,26 @@ EZ-Expense is a tool that helps you automatically match receipts to your expense
 
 ## How to Use
 
+### Step 0: Setup
+
+The app needs some configuration to work properly. You'll find a `.env.template` file in the same folder as the executable.
+
+**Setup Steps:**
+
+1. If you don't see the file. Make sure your file explorer is set to show hidden files.
+2. **Rename** `.env.template` to `.env`
+3. **Edit** the file with your settings, following the instructions in the file.
+
+**Additional instructions for MacOS:**
+
+This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning, but you can safely bypass it by right-clicking the app and selecting "Open", or using:
+
+```bash
+# After installing the app, replace this with the path to where you extracted the zip file
+/usr/bin/xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
+/usr/bin/xattr -cr <path_to_your_extracted_package>/ez-expense
+```
+
 ### Step 1: Import Your Expenses
 
 When you launch the app, it will open MyExpense page, and also a local web interface in your default browser.
@@ -65,29 +85,6 @@ MyExpense for you.
 
 You've made it! Now, go back to the MyExpense page, review the filled-in expense
 report, and submit it.
-
-### Step 0: Environment Configuration
-
-The app needs some configuration to work properly. You'll find a `.env.template` file in the same folder as the executable.
-
-**Setup Steps:**
-
-1. **Rename** `.env.template` to `.env`
-2. **Edit** the file with your settings:
-
-```bash
-# Choose your browser: chrome, edge
-BROWSER=edge
-
-# For extraction receipt details with AI (Optional)
-# These details can be found in our Azure OpenAI deployment
-AZURE_OPENAI_API_KEY=abcdefghi
-AZURE_OPENAI_ENDPOINT=https://jklmnopq.openai.azure.com/
-
-# These are reasonable defaults, but you can change them if needed
-AZURE_OPENAI_API_VERSION=2024-12-01-preview
-AZURE_OPENAI_DEPLOYMENT=gpt-4.1-mini
-```
 
 ### Troubleshooting
 
