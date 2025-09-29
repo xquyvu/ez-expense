@@ -750,6 +750,7 @@ async def fill_expense_report():
                 receipt_file_path = receipt["filePath"]
                 await page.click('a[name="EditReceipts"]')
                 await page.click('button[name="AddButton"]')
+                await page.wait_for_load_state("domcontentloaded")
 
                 # Upload receipt
                 async with page.expect_file_chooser() as file_chooser_info:
@@ -793,6 +794,7 @@ async def fill_expense_report():
                 receipt_file_path = receipt["filePath"]
                 await page.click('a[name="EditReceipts"]')
                 await page.click('button[name="AddButton"]')
+                await page.wait_for_load_state("domcontentloaded")
 
                 # Upload receipt
                 async with page.expect_file_chooser() as file_chooser_info:
