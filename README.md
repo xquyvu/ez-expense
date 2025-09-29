@@ -25,7 +25,7 @@ Just click the app, and it just works. No installation required, no coding invol
 3. Extract the ZIP file
 4. Fill in the content of the `.env.template` file, and rename it to `.env`
 
-Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to use the app.
+Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to use the app, and common issues.
 
 **IMPORTANT:** You will need to provide your OpenAI API key to the app. Follow the instructions in the User Guide to set it up.
 
@@ -35,8 +35,8 @@ This app is not code-signed (requires $99/year Apple Developer Account). macOS w
 
 ```bash
 # After installing the app, replace this with the path to where you extracted the zip file
-xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
-xattr -cr <path_to_your_extracted_package>/ez-expense
+/usr/bin/xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
+/usr/bin/xattr -cr <path_to_your_extracted_package>/ez-expense
 ```
 
 ## Demo
