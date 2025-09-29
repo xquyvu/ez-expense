@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from config import DEBUG
+from config import IMPORT_EXPENSE_MOCK
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -62,8 +62,8 @@ async def import_expenses():
     This is the main endpoint used by the frontend in production.
     """
     try:
-        logger.info(f"Import requested - DEBUG mode: {DEBUG}")
-        if DEBUG:
+        logger.info(f"Import requested - Mocking expense import: {IMPORT_EXPENSE_MOCK}")
+        if IMPORT_EXPENSE_MOCK:
             logger.info("Using mock import due to DEBUG=True")
             result = get_mock_expenses_internal()
             logger.info("Import completed successfully using mock source")
@@ -199,14 +199,6 @@ def get_mock_expenses():
     return get_mock_expenses_internal()
 
 
-@expense_bp.route("/debug-status", methods=["GET"])
-def get_debug_status():
-    """
-    Get the current DEBUG status from centralized configuration.
-    """
-    return jsonify({"debug": DEBUG})
-
-
 @expense_bp.route("/health", methods=["GET"])
 def health_check():
     """
@@ -227,13 +219,13 @@ def health_check():
             is_healthy = False
             issues.append("Import functions not available")
 
-        if not DEBUG and not browser_available:
+        if not IMPORT_EXPENSE_MOCK and not browser_available:
             is_healthy = False
             issues.append("Browser session not available (required for non-DEBUG mode)")
 
         health_status = {
             "status": "healthy" if is_healthy else "degraded",
-            "debug_mode": DEBUG,
+            "debug_mode": IMPORT_EXPENSE_MOCK,
             "browser_available": browser_available,
             "import_functions_available": import_functions_available,
             "timestamp": datetime.now().isoformat(),

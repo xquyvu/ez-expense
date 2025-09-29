@@ -10,17 +10,24 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 # Debug and development settings
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+IMPORT_EXPENSE_MOCK = os.getenv("IMPORT_EXPENSE_MOCK", "False").lower() == "true"
 FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 DEBUG_LOG_TARGET = os.getenv("DEBUG_LOG_TARGET", "ez-expense.log").strip('"')
 DEBUG_LOG_TARGET_FRONT_END = os.getenv("DEBUG_LOG_TARGET_FRONT_END", "ez-expense-fe.log").strip('"')
 
+# API Keys
+AZURE_OPENAI_API_KEY = os.environ["AZURE_OPENAI_API_KEY"]
+AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+AZURE_OPENAI_ENDPOINT = os.environ["AZURE_OPENAI_ENDPOINT"]
+INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.environ["AZURE_OPENAI_DEPLOYMENT"]
+
 # Port configurations
-BROWSER_PORT = int(os.getenv("PORT", 9222))
-FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", 5001))
+BROWSER = os.getenv("EZ_EXPENSE_BROWSER", "edge")
+BROWSER_PORT = int(os.getenv("EZ_EXPENSE_BROWSER_PORT", 9222))
+FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
 
 # Application URLs
 EXPENSE_APP_URL = "myexpense.operations.dynamics.com"

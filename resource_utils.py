@@ -73,7 +73,7 @@ def load_env_file() -> bool:
 
     # Try to load from the calculated path
     if env_path.exists():
-        result = load_dotenv(env_path)
+        result = load_dotenv(env_path, override=True)
         if result:
             print(f"✅ Loaded .env from: {env_path}")
             logger.info(f"Successfully loaded .env from: {env_path}")
@@ -85,7 +85,7 @@ def load_env_file() -> bool:
         # Fallback to default behavior (current directory)
         print(f"⚠️  .env not found at: {env_path}, trying current directory...")
         logger.warning(f".env not found at: {env_path}, trying current directory...")
-        result = load_dotenv()
+        result = load_dotenv(override=True)
         if result:
             print("✅ Loaded .env from current directory")
             logger.info("Loaded .env from current directory")

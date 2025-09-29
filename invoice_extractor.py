@@ -16,7 +16,13 @@ from openai.types.chat import (
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from config import EXPENSE_CATEGORIES
+from config import (
+    AZURE_OPENAI_API_KEY,
+    AZURE_OPENAI_API_VERSION,
+    AZURE_OPENAI_ENDPOINT,
+    EXPENSE_CATEGORIES,
+    INVOICE_DETAILS_EXTRACTOR_MODEL_NAME,
+)
 from resource_utils import load_env_file
 
 logger = logging.getLogger(__name__)
@@ -47,12 +53,10 @@ IMAGE_RESOLUTION = 300  # DPI for image extraction from PDF
 
 # Initialize Azure OpenAI client
 client = AsyncAzureOpenAI(
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    api_key=AZURE_OPENAI_API_KEY,
+    api_version=AZURE_OPENAI_API_VERSION,
+    azure_endpoint=AZURE_OPENAI_ENDPOINT,
 )
-
-model_name = os.environ["AZURE_OPENAI_DEPLOYMENT"]
 
 
 def pdf_to_images(pdf_path: str) -> List[Image.Image]:
@@ -171,7 +175,7 @@ async def extract_invoice_details(file_path: Optional[str] = None) -> dict:
 
         # Call Azure OpenAI with structured output
         completion = await client.beta.chat.completions.parse(
-            model=model_name,
+            model=INVOICE_DETAILS_EXTRACTOR_MODEL_NAME,
             messages=messages,
             response_format=InvoiceDetails,
             temperature=0.1,  # Lower temperature for more consistent extraction

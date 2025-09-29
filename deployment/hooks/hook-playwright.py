@@ -15,7 +15,7 @@ def load_env_file():
             with open(env_path, "r") as f:
                 for line in f:
                     line = line.strip()
-                    if line.startswith("BROWSER="):
+                    if line.startswith("EZ_EXPENSE_BROWSER="):
                         browser = line.split("=", 1)[1].strip()
                         break
         except Exception as e:

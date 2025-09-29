@@ -8,7 +8,7 @@ import urllib3
 from playwright.async_api import Page
 
 import playwright_manager
-from config import DEBUG
+from config import IMPORT_EXPENSE_MOCK
 from resource_utils import load_env_file
 
 # Disable urllib3 SSL warnings when using verify=False
@@ -219,7 +219,7 @@ async def import_expense_wrapper(
     In DEBUG mode, it uses the mock function.
     In non-DEBUG mode, it uses the real implementation with the Expense page.
     """
-    if DEBUG:
+    if IMPORT_EXPENSE_MOCK:
         return import_expense_mock(page)
 
     # Use the provided page or get from the shared playwright manager

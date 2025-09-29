@@ -10,7 +10,14 @@ from threading import Timer
 try:
     import playwright_manager
     from browser import BrowserProcess
-    from config import BROWSER_PORT, DEBUG_LOG_TARGET, EXPENSE_APP_URL, FRONTEND_PORT
+    from config import (
+        BROWSER,
+        BROWSER_PORT,
+        DEBUG_LOG_TARGET,
+        EXPENSE_APP_URL,
+        FRONTEND_PORT,
+        IMPORT_EXPENSE_MOCK,
+    )
     from resource_utils import get_resource_path, load_env_file
 except ImportError as e:
     print(f"❌ Import error: {e}")
@@ -87,8 +94,8 @@ except Exception as e:
         handlers=[logging.StreamHandler()],
     )
 
-print(f"🔧 Debug mode: {os.getenv('DEBUG', 'Not set')}")
-print(f"🔧 Browser: {os.getenv('BROWSER', 'Not set')}")
+print(f"🔧 Import Expense Mock: {IMPORT_EXPENSE_MOCK}")
+print(f"🔧 Browser: {BROWSER}")
 
 # Register signal handlers for graceful shutdown
 signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
@@ -104,7 +111,7 @@ def setup_browser_session():
     logger.info("Setting up browser session")
 
     try:
-        browser_name = os.getenv("BROWSER", "edge")
+        browser_name = BROWSER
         print(f"🔧 Using browser: {browser_name}")
         logger.info(f"Using browser: {browser_name}")
 
