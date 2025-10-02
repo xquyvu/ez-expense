@@ -85,6 +85,7 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
     # Navigate to the column selection dialog - wait for it to appear
     await page.wait_for_selector("div.dialog-popup-content", timeout=10000)
     dialog_content = await page.query_selector("div.dialog-popup-content")
+    #  endregion
 
     # region: Show expense description / biz purpose
     expense_desc_rows = await dialog_content.query_selector_all(
