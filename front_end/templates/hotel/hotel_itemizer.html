@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Itemizer - EZ Expense</title>
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/hotel/hotel-itemizer.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Hotel Expense Itemizer</h1>
+            <p class="subtitle">AI-powered hotel invoice processing and itemization</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Step 1: Invoice Upload -->
+            <section class="step-section" id="upload-section">
+                <h2 class="step-title">
+                    <span class="step-number">1</span>
+                    Upload Hotel Invoice
+                </h2>
+                
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-content">
+                        <div class="upload-icon">📄</div>
+                        <h3>Drop your hotel invoice here</h3>
+                        <p>Or click to select a PDF file</p>
+                        <input type="file" id="invoice-file" accept=".pdf" class="file-input">
+                        <button class="btn btn-primary" id="upload-btn">Select PDF File</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="original-amount">Original Expense Amount:</label>
+                    <input type="number" id="original-amount" class="form-control" 
+                           placeholder="100.00" step="0.01" min="0" required>
+                </div>
+                
+                <button class="btn btn-primary" id="extract-btn" disabled>
+                    Extract Invoice Details
+                </button>
+            </section>
+
+            <!-- Step 2: Category Validation -->
+            <section class="step-section" id="validation-section" style="display: none;">
+                <h2 class="step-title">
+                    <span class="step-number">2</span>
+                    Validate Categories
+                </h2>
+                
+                <div class="invoice-summary" id="invoice-summary">
+                    <!-- Invoice details will be populated here -->
+                </div>
+                
+                <div class="line-items-table">
+                    <h3>Line Items & Categories</h3>
+                    <table class="table" id="line-items-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Service Date</th>
+                                <th>Suggested Category</th>
+                                <th>Your Category</th>
+                                <th>Daily/One-time</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Line items will be populated here -->
+                        </tbody>
+                    </table>
+                    
+                    <div class="add-item-section">
+                        <h4>Add New Line Item</h4>
+                        <div class="add-item-form">
+                            <div class="form-row">
+                                <input type="text" id="new-description" placeholder="Description" class="form-control">
+                                <input type="number" id="new-amount" placeholder="Amount" step="0.01" class="form-control">
+                                <input type="date" id="new-date" class="form-control">
+                                <select id="new-category" class="form-control">
+                                    <option value="">Select Category</option>
+                                    <!-- Categories will be populated -->
+                                </select>
+                                <button type="button" class="btn btn-secondary" id="add-item-btn">
+                                    <i class="fas fa-plus"></i> Add Item
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="validation-summary">
+                    <div class="totals-display">
+                        <div class="total-item">
+                            <span class="label">Original Total:</span>
+                            <span class="amount" id="original-total">$0.00</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="label">Categorized Total:</span>
+                            <span class="amount" id="categorized-total">$0.00</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="label">Ignored Total:</span>
+                            <span class="amount" id="ignored-total">$0.00</span>
+                        </div>
+                        <div class="total-item validation-status" id="validation-status">
+                            <span class="label">Status:</span>
+                            <span class="status">Pending</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" id="validate-btn" disabled>
+                    Validate & Consolidate
+                </button>
+            </section>
+
+            <!-- Step 3: Consolidation Preview -->
+            <section class="step-section" id="consolidation-section" style="display: none;">
+                <h2 class="step-title">
+                    <span class="step-number">3</span>
+                    Consolidation Preview
+                </h2>
+                
+                <div class="consolidation-preview">
+                    <h3>Consolidated Categories</h3>
+                    <table class="table" id="consolidated-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Total Amount</th>
+                                <th>Daily Rate</th>
+                                <th>Quantity (Days)</th>
+                                <th>Source Items</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Consolidated categories will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="ms-expense-preview">
+                    <h3>MS Expense Itemization Preview</h3>
+                    <div class="itemization-form">
+                        <div class="form-row">
+                            <div class="col">
+                                <label>Total: <span id="ms-total">100.00</span></label>
+                            </div>
+                            <div class="col">
+                                <label>Itemised: <span id="ms-itemised">0.00</span></label>
+                            </div>
+                            <div class="col">
+                                <label>Remaining: <span id="ms-remaining">100.00</span></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-success" id="itemize-btn">
+                    Create MS Expense Itemization
+                </button>
+            </section>
+
+            <!-- Step 4: Results -->
+            <section class="step-section" id="results-section" style="display: none;">
+                <h2 class="step-title">
+                    <span class="step-number">4</span>
+                    Itemization Complete
+                </h2>
+                
+                <div class="results-summary" id="results-summary">
+                    <!-- Results will be populated here -->
+                </div>
+                
+                <button class="btn btn-secondary" id="restart-btn">
+                    Process Another Invoice
+                </button>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay" style="display: none;">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p class="loading-text">Processing invoice...</p>
+            </div>
+        </div>
+
+        <!-- Error Messages -->
+        <div class="error-container" id="error-container" style="display: none;">
+            <div class="error-message">
+                <h3>Error</h3>
+                <p id="error-text"></p>
+                <button class="btn btn-secondary" id="dismiss-error">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/hotel/hotel-itemizer.js') }}"></script>
+</body>
+</html>

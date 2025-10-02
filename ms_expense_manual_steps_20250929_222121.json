@@ -1,0 +1,26 @@
+[
+  {
+    "step": 1,
+    "action": "Opened Expense management",
+    "description": "My list of expense reports",
+    "element_info": ""
+  },
+  {
+    "step": 2,
+    "action": "Clicked on the expense report (the top one)",
+    "description": "The list of expenses within that expense report.",
+    "element_info": "I can but this just brings up functionality within the dynamics application."
+  },
+  {
+    "step": 3,
+    "action": "Clicked on the Hotel expense. It opened the side bar. Clicked on the side bar, and selected Actions and then Itemize.",
+    "description": "The Itemize expense view. This shows the subcategory, start date, daily rate and quantity.",
+    "element_info": "nope"
+  },
+  {
+    "step": 4,
+    "action": "Click on new to add a new itemization. Pick the category, the start date, the daily rate and the quantity.",
+    "description": "A new expense that has been itemized.",
+    "element_info": "nope"
+  }
+]

@@ -49,6 +49,49 @@ body {
     opacity: 0.9;
 }
 
+/* Navigation Bar Styles */
+.nav-bar {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+    overflow-x: auto;
+}
+
+.nav-content {
+    display: flex;
+    padding: 0;
+    min-width: fit-content;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    text-decoration: none;
+    color: #666;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.nav-link:hover {
+    background-color: #f8f9fa;
+    color: #333;
+}
+
+.nav-link.active {
+    color: #667eea;
+    border-bottom-color: #667eea;
+    background-color: rgba(102, 126, 234, 0.05);
+}
+
+.nav-link i {
+    font-size: 1rem;
+}
+
 /* Section Styles */
 .section {
     background: white;

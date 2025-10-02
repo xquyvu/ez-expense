@@ -143,6 +143,11 @@ def create_app():
             """Render the main application page."""
             return await render_template("index.html")
 
+        @app.route("/hotel-itemizer")
+        async def hotel_itemizer():
+            """Render the hotel itemizer page."""
+            return await render_template("hotel/hotel_itemizer.html")
+
         @app.route("/health")
         def health_check():
             """Health check endpoint."""
@@ -205,6 +210,16 @@ def create_app():
         except ImportError as e:
             logger.warning(f"Could not import receipt routes: {e}")
             print(f"⚠️ [Quart] Could not import receipt routes: {e}")
+
+        try:
+            from front_end.routes.hotel.hotel_routes import hotel_bp
+
+            app.register_blueprint(hotel_bp, url_prefix="/api/hotel")
+            logger.info("Hotel routes registered successfully")
+            print("🔧 [Quart] Hotel routes registered")
+        except ImportError as e:
+            logger.warning(f"Could not import hotel routes: {e}")
+            print(f"⚠️ [Quart] Could not import hotel routes: {e}")
 
         # Add global error handlers for better exception visibility
         @app.errorhandler(500)
