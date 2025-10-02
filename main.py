@@ -243,6 +243,7 @@ async def run_expense_automation():
 
     print("🚀 Starting EZ-Expense application...")
     logger.info("Starting EZ-Expense application")
+    print(f"🔧 Using ports - Browser: {BROWSER_PORT}, Frontend: {FRONTEND_PORT}")
 
     try:
         # Setup browser session

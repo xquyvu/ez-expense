@@ -9,6 +9,8 @@ import os
 
 from dotenv import load_dotenv
 
+from utils import find_available_port
+
 # Load environment variables
 load_dotenv(override=True)
 
@@ -26,8 +28,24 @@ INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
 
 # Port configurations
 BROWSER = os.getenv("EZ_EXPENSE_BROWSER", "edge")
-BROWSER_PORT = int(os.getenv("EZ_EXPENSE_BROWSER_PORT", 9222))
-FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
+
+# Get preferred ports from environment
+_PREFERRED_BROWSER_PORT = int(os.getenv("EZ_EXPENSE_BROWSER_PORT", 9222))
+_PREFERRED_FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
+
+# Assign actual ports (will use preferred if available, or find alternatives)
+BROWSER_PORT = find_available_port(_PREFERRED_BROWSER_PORT)
+FRONTEND_PORT = find_available_port(_PREFERRED_FRONTEND_PORT)
+
+# Log port assignments if they changed
+if BROWSER_PORT != _PREFERRED_BROWSER_PORT:
+    print(
+        f"⚠️  Browser port {_PREFERRED_BROWSER_PORT} was occupied, using port {BROWSER_PORT} instead"
+    )
+if FRONTEND_PORT != _PREFERRED_FRONTEND_PORT:
+    print(
+        f"⚠️  Frontend port {_PREFERRED_FRONTEND_PORT} was occupied, using port {FRONTEND_PORT} instead"
+    )
 
 # Application URLs
 EXPENSE_APP_URL = "myexpense.operations.dynamics.com"
