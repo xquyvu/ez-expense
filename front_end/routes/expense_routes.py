@@ -826,3 +826,85 @@ async def fill_expense_report():
         return jsonify(
             {"success": False, "error": "Failed to fill expense report", "message": str(e)}
         ), 500
+
+
+@expense_bp.route("/itemize", methods=["POST"])
+async def itemize_expenses():
+    """
+    Itemize expenses with the provided expense data.
+
+    Accepts JSON data containing:
+    - expenses: List of expense records
+    - timestamp: Timestamp of when the request was made
+
+    Returns:
+    - JSON response indicating success or failure
+    """
+    try:
+        logger.info("Starting itemize expenses process")
+
+        # Get the JSON data from the request
+        data = await request.get_json()
+        if not data:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No data provided",
+                    "message": "Request body must contain JSON data",
+                }
+            ), 400
+
+        # Extract expense data
+        expenses = data.get("expenses", [])
+        if not expenses:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No expenses provided",
+                    "message": "The expenses list is empty",
+                }
+            ), 400
+
+        logger.info(f"Processing {len(expenses)} expenses for itemization")
+
+        # Import the itemization functions
+        try:
+            from itemization import click_itemize_button, itemize_hotel_invoice
+        except ImportError as e:
+            logger.error(f"Could not import itemization functions: {e}")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Import error",
+                    "message": "Could not import itemization functions",
+                }
+            ), 500
+
+        # Import playwright and browser manager
+        page = get_expense_page()
+
+        # Convert expenses to DataFrame for itemization functions
+        import pandas as pd
+
+        expenses_df = pd.DataFrame(expenses)
+
+        # Call the itemization functions
+        logger.info("Calling click_itemize_button function")
+        await click_itemize_button(page)
+
+        logger.info("Calling itemize_hotel_invoice function")
+        await itemize_hotel_invoice(page, expenses_df)
+
+        logger.info("Itemize expenses completed successfully")
+        return jsonify(
+            {
+                "success": True,
+                "message": "Expenses itemized successfully",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error itemizing expenses: {e}")
+        return jsonify(
+            {"success": False, "error": "Failed to itemize expenses", "message": str(e)}
+        ), 500

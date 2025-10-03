@@ -887,6 +887,46 @@ class EZExpenseApp {
             this.fillExpenseReport();
         });
 
+        // Itemize expenses button
+        const itemizeButton = document.getElementById('itemize-expenses-btn');
+        if (itemizeButton) {
+            // Use capture phase to ensure our handler runs before the global click handler
+            itemizeButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation(); // Prevent event from bubbling up to global handlers
+                console.log('Itemize button clicked');
+                try {
+                    this.itemizeExpenses();
+                } catch (error) {
+                    console.error('Error in itemizeExpenses:', error);
+                    this.showToast('An error occurred while itemizing expenses', 'error');
+                }
+            }, true); // Use capture phase
+            console.log('Itemize button event listener attached');
+        } else {
+            console.error('Itemize button not found');
+            // Try again after DOM is fully loaded
+            setTimeout(() => {
+                const retryButton = document.getElementById('itemize-expenses-btn');
+                if (retryButton) {
+                    retryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Itemize button clicked (retry)');
+                        try {
+                            this.itemizeExpenses();
+                        } catch (error) {
+                            console.error('Error in itemizeExpenses (retry):', error);
+                            this.showToast('An error occurred while itemizing expenses', 'error');
+                        }
+                    }, true);
+                    console.log('Itemize button event listener attached (retry)');
+                } else {
+                    console.error('Itemize button still not found after retry');
+                }
+            }, 500);
+        }
+
         // Receipts import events
         this.initBulkReceiptsImport();
 
@@ -1603,6 +1643,75 @@ class EZExpenseApp {
             this.hideLoading();
             console.error('Error filling expense report:', error);
             this.showToast(`Error filling expense report: ${error.message}`, 'error');
+        }
+    }
+
+    /**
+     * Itemize expenses by sending current expense data to the backend
+     */
+    async itemizeExpenses() {
+        console.log('Itemizing expenses...');
+        console.log('Current expenses:', this.expenses);
+
+        if (!this.expenses || this.expenses.length === 0) {
+            this.showToast('No expense data to itemize. Please import expenses first.', 'warning');
+            console.log('No expenses available for itemization');
+            return;
+        }
+
+        try {
+            // Show loading state
+            this.showLoading('Itemizing expenses...');
+
+            // Update expenses from table to get latest data
+            this.updateExpensesFromTable();
+
+            // Prepare expense data with receipts attached to each expense line
+            const expensesWithReceipts = this.expenses.map(expense => {
+                // Get receipts for this expense
+                const expenseReceipts = this.receipts.get(expense.id) || [];
+
+                // Create a copy of the expense and add the receipts
+                return {
+                    ...expense,
+                    Receipts: expenseReceipts
+                };
+            });
+
+            // Prepare the expense data to send
+            const expenseData = {
+                expenses: expensesWithReceipts,
+                timestamp: new Date().toISOString()
+            };
+
+            // Send data to the itemize route
+            const response = await fetch('/api/expenses/itemize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(expenseData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            this.hideLoading();
+
+            if (result.success) {
+                this.showToast('Expenses itemized successfully!', 'success');
+                console.log('Itemize expenses result:', result);
+            } else {
+                this.showToast(`Failed to itemize expenses: ${result.message || 'Unknown error'}`, 'error');
+            }
+
+        } catch (error) {
+            this.hideLoading();
+            console.error('Error itemizing expenses:', error);
+            this.showToast(`Error itemizing expenses: ${error.message}`, 'error');
         }
     }
 
