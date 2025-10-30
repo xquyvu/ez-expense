@@ -7,6 +7,8 @@ import os
 import sys
 from datetime import datetime
 
+from playwright.async_api import Page
+from playwright.async_api import TimeoutError as playwright_TimeoutError
 from quart import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
@@ -705,7 +707,7 @@ async def fill_expense_report():
         existing_expenses_to_update = [expense for expense in expenses if expense.get("Created ID")]
         new_expenses_to_create = [expense for expense in expenses if not expense.get("Created ID")]
 
-        page = get_expense_page()
+        page: Page = get_expense_page()
         expense_lines = await page.get_by_role(
             "textbox", name="Created ID", include_hidden=True
         ).all()
@@ -745,9 +747,19 @@ async def fill_expense_report():
                 await page.wait_for_load_state("domcontentloaded")
 
                 # Upload receipt
-                async with page.expect_file_chooser() as file_chooser_info:
-                    await page.wait_for_selector('button[name="UploadControlBrowseButton"]')
-                    await page.click('button[name="UploadControlBrowseButton"]')
+
+                # If the "Browse" button is hung, retry.
+                for _ in range(5):
+                    try:
+                        async with page.expect_file_chooser(timeout=500) as file_chooser_info:
+                            upload_button = await page.wait_for_selector(
+                                'button[name="UploadControlBrowseButton"]'
+                            )
+                            await upload_button.click()
+                        break
+                    except playwright_TimeoutError:
+                        logger.info("File chooser did not appear, retrying...")
+                        await page.wait_for_timeout(1000)
 
                 file_chooser = await file_chooser_info.value
                 await file_chooser.set_files(receipt_file_path)
