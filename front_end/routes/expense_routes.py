@@ -7,6 +7,8 @@ import os
 import sys
 from datetime import datetime
 
+from playwright.async_api import Page
+from playwright.async_api import TimeoutError as playwright_TimeoutError
 from quart import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
@@ -705,7 +707,7 @@ async def fill_expense_report():
         existing_expenses_to_update = [expense for expense in expenses if expense.get("Created ID")]
         new_expenses_to_create = [expense for expense in expenses if not expense.get("Created ID")]
 
-        page = get_expense_page()
+        page: Page = get_expense_page()
         expense_lines = await page.get_by_role(
             "textbox", name="Created ID", include_hidden=True
         ).all()
@@ -745,9 +747,19 @@ async def fill_expense_report():
                 await page.wait_for_load_state("domcontentloaded")
 
                 # Upload receipt
-                async with page.expect_file_chooser() as file_chooser_info:
-                    await page.wait_for_selector('button[name="UploadControlBrowseButton"]')
-                    await page.click('button[name="UploadControlBrowseButton"]')
+
+                # If the "Browse" button is hung, retry.
+                for _ in range(5):
+                    try:
+                        async with page.expect_file_chooser(timeout=500) as file_chooser_info:
+                            upload_button = await page.wait_for_selector(
+                                'button[name="UploadControlBrowseButton"]'
+                            )
+                            await upload_button.click()
+                        break
+                    except playwright_TimeoutError:
+                        logger.info("File chooser did not appear, retrying...")
+                        await page.wait_for_timeout(1000)
 
                 file_chooser = await file_chooser_info.value
                 await file_chooser.set_files(receipt_file_path)
@@ -825,4 +837,86 @@ async def fill_expense_report():
         logger.error(f"Error filling expense report: {e}")
         return jsonify(
             {"success": False, "error": "Failed to fill expense report", "message": str(e)}
+        ), 500
+
+
+@expense_bp.route("/itemize", methods=["POST"])
+async def itemize_expenses():
+    """
+    Itemize expenses with the provided expense data.
+
+    Accepts JSON data containing:
+    - expenses: List of expense records
+    - timestamp: Timestamp of when the request was made
+
+    Returns:
+    - JSON response indicating success or failure
+    """
+    try:
+        logger.info("Starting itemize expenses process")
+
+        # Get the JSON data from the request
+        data = await request.get_json()
+        if not data:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No data provided",
+                    "message": "Request body must contain JSON data",
+                }
+            ), 400
+
+        # Extract expense data
+        expenses = data.get("expenses", [])
+        if not expenses:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No expenses provided",
+                    "message": "The expenses list is empty",
+                }
+            ), 400
+
+        logger.info(f"Processing {len(expenses)} expenses for itemization")
+
+        # Import the itemization functions
+        try:
+            from itemization import click_itemize_button, itemize_hotel_invoice
+        except ImportError as e:
+            logger.error(f"Could not import itemization functions: {e}")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Import error",
+                    "message": "Could not import itemization functions",
+                }
+            ), 500
+
+        # Import playwright and browser manager
+        page = get_expense_page()
+
+        # Convert expenses to DataFrame for itemization functions
+        import pandas as pd
+
+        expenses_df = pd.DataFrame(expenses)
+
+        # Call the itemization functions
+        logger.info("Calling click_itemize_button function")
+        await click_itemize_button(page)
+
+        logger.info("Calling itemize_hotel_invoice function")
+        await itemize_hotel_invoice(page, expenses_df)
+
+        logger.info("Itemize expenses completed successfully")
+        return jsonify(
+            {
+                "success": True,
+                "message": "Expenses itemized successfully",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error itemizing expenses: {e}")
+        return jsonify(
+            {"success": False, "error": "Failed to itemize expenses", "message": str(e)}
         ), 500
