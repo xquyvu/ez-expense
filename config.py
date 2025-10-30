@@ -53,7 +53,7 @@ FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 
 # Flask configuration
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
-MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB max file size
 ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif"}
 
 EXPENSE_CATEGORIES = [
