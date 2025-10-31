@@ -146,15 +146,6 @@ class WindowsHandler(PlatformHandler):
                 text=True,
             )
 
-            # Also close WebView2 processes for Edge
-            if "msedge" in process_name.lower():
-                webview_cmd = "taskkill /IM msedgewebview2.exe /T 2>$null"
-                subprocess.run(
-                    ["powershell", "-c", webview_cmd],
-                    capture_output=True,
-                    text=True,
-                )
-
             time.sleep(2)  # Give time for graceful shutdown
 
             # Verify processes are actually gone
@@ -173,15 +164,6 @@ class WindowsHandler(PlatformHandler):
                 text=True,
             )
 
-            # Also force close WebView2 processes for Edge
-            if "msedge" in process_name.lower():
-                webview_cmd = "taskkill /F /IM msedgewebview2.exe 2>$null"
-                subprocess.run(
-                    ["powershell", "-c", webview_cmd],
-                    capture_output=True,
-                    text=True,
-                )
-
             # Give processes time to terminate
             time.sleep(1)
 
@@ -192,20 +174,12 @@ class WindowsHandler(PlatformHandler):
                 )
                 # Try direct taskkill as fallback
                 subprocess.run(["taskkill", "/F", "/IM", process_name], capture_output=True)
-                if "msedge" in process_name.lower():
-                    subprocess.run(
-                        ["taskkill", "/F", "/IM", "msedgewebview2.exe"], capture_output=True
-                    )
 
         except Exception as e:
             logger.warning(f"Failed to force close browser: {e}")
             # Final fallback to direct taskkill
             try:
                 subprocess.run(["taskkill", "/F", "/IM", process_name], capture_output=True)
-                if "msedge" in process_name.lower():
-                    subprocess.run(
-                        ["taskkill", "/F", "/IM", "msedgewebview2.exe"], capture_output=True
-                    )
             except Exception:
                 pass
 
