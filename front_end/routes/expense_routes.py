@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from config import IMPORT_EXPENSE_MOCK
+from config import DATE_FORMAT, IMPORT_EXPENSE_MOCK
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -780,10 +780,24 @@ async def fill_expense_report():
             await page.fill('input[name="AmountInput"]', expense["Amount"])
             await page.fill('input[name="CurrencyInput"]', expense["Currency"])
             await page.fill('input[name="MerchantInputNoLookup"]', expense["Merchant"])
-            await page.fill(
-                'input[name="DateInput"]',
-                datetime.strptime(expense["Date"], "%Y-%m-%d").strftime("%-m/%-d/%Y"),
-            )
+            
+            try:
+                date_obj = datetime.strptime(expense["Date"], "%Y-%m-%d")
+                formatted_date = (
+                    DATE_FORMAT
+                    .replace("DD", str(date_obj.day))
+                    .replace("MM", str(date_obj.month))
+                    .replace("YYYY", str(date_obj.year))
+                )
+                await page.fill('input[name="DateInput"]', formatted_date)
+            except Exception as e:
+                error_msg = (
+                    f"Failed to fill date field for expense date '{expense['Date']}'. "
+                    f"Error: {e}. Current DATE_FORMAT: {DATE_FORMAT}. "
+                    f"Please verify your DATE_FORMAT setting in the .env file matches your system's expected format."
+                )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
 
             # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
             text_box = await page.query_selector('textarea[name="NotesInput"]')

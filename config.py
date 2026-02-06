@@ -26,6 +26,9 @@ AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-pre
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
 
+# Date format configuration
+DATE_FORMAT = os.getenv("DATE_FORMAT", "MM/DD/YYYY").upper()
+
 # Port configurations
 BROWSER = os.getenv("EZ_EXPENSE_BROWSER", "edge")
 

@@ -24,6 +24,8 @@ Just click the app, and it just works. No installation required, no coding invol
 2. Download the latest ZIP corresponding to your platform. This contains the executable file and all necessary dependencies.
 3. Extract the ZIP file
 4. Fill in the content of the `.env.template` file, and rename it to `.env`
+   - Set your Azure OpenAI configuration (endpoint, API key, model name)
+   - Configure `DATE_FORMAT` for your region (DD/MM/YYYY or MM/DD/YYYY)
 
 Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to use the app, and common issues.
 

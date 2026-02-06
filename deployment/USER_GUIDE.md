@@ -13,6 +13,8 @@ The app needs some configuration to work properly. You'll find a `.env.template`
 1. If you don't see the file. Make sure your file explorer is set to show hidden files.
 2. **Rename** `.env.template` to `.env`
 3. **Edit** the file with your settings, following the instructions in the file.
+   - Set your Azure OpenAI configuration (endpoint, API key, model name)
+   - Configure `DATE_FORMAT` to match your region (e.g., `DD/MM/YYYY` for UK, `MM/DD/YYYY` for US)
 
 **Additional instructions for MacOS:**
 
