@@ -74,7 +74,6 @@ uv run python main.py
 ## TODO
 
 - Use another name for .env.template, like openai_config.json
-- Test when there are no existing expenses
 - Instructions to set up Azure OpenAI, create subscription etc.
 - Improve UX for people without AzureOpenAI / subscription etc.
 - Find other ports if the current ones are not available
