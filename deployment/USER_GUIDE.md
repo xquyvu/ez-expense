@@ -18,10 +18,13 @@ The app needs some configuration to work properly. You'll find a `.env.template`
 
 **Additional instructions for MacOS:**
 
-This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning, but you can safely bypass it by right-clicking the app and selecting "Open", or using:
+This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning when you first try to open it.
+
+To bypass this, **right-click** `EZ-Expense.app` **→ Open → Open**. macOS will remember your choice and the app will open normally from then on.
+
+If that doesn't work, run this in Terminal:
 
 ```bash
-# After installing the app, replace this with the path to where you extracted the zip file
 /usr/bin/xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
 /usr/bin/xattr -cr <path_to_your_extracted_package>/ez-expense
 ```
