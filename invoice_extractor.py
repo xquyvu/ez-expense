@@ -123,6 +123,9 @@ async def extract_invoice_details(file_path: Optional[str] = None) -> dict:
         Dictionary containing extracted invoice details
     """
     try:
+        if file_path is None:
+            raise FileNotFoundError("No file path provided")
+
         # Check if file exists
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -183,6 +186,9 @@ async def extract_invoice_details(file_path: Optional[str] = None) -> dict:
 
         # Extract the parsed response
         invoice_details = completion.choices[0].message.parsed
+
+        if invoice_details is None:
+            raise Exception("Failed to parse invoice details from AI response")
 
         # Convert to dictionary format expected by the API
         return {
