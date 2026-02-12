@@ -15,9 +15,10 @@ Two optimized packages for end users:
 ```text
 ez-expense-macos/
 ├── EZ-Expense.app            # Native macOS app bundle
+├── ez-expense                # Command-line executable
+├── run-ez-expense.sh         # Terminal launcher script
 ├── USER_GUIDE.md             # Complete user guide
-├── .env.template             # Configuration template
-└── README.txt                # Quick start instructions
+└── .env.template             # Configuration template
 ```
 
 ### Windows Package (`ez-expense-windows.zip`)
@@ -27,8 +28,7 @@ ez-expense-windows/
 ├── ez-expense.exe            # Windows executable
 ├── run-ez-expense.bat        # Simple launcher
 ├── USER_GUIDE.md             # Complete user guide
-├── .env.template             # Configuration template
-└── README.txt                # Quick start instructions
+└── .env.template             # Configuration template
 ```
 
 ## 🚀 How to Release
@@ -134,8 +134,8 @@ git tag v1.1.0    # New features
 
 ### Security Considerations
 
-- **macOS**: Users may see "App can't be opened" - they need to right-click → Open
-- **Windows**: May be flagged by Windows Defender - users need to allow it
+- **macOS**: Users may see "App can't be opened" — they should right-click `EZ-Expense.app` → Open → Open. If that doesn't work, run `/usr/bin/xattr -cr` on the app and executable (see USER_GUIDE.md)
+- **Windows**: May be flagged by Windows Defender - users need to click "More info" → "Run anyway"
 
 ### System Requirements
 

@@ -112,7 +112,7 @@ for /f "tokens=5" %a in ('netstat -ano ^| findstr ":5001 :9222"') do taskkill /P
 - macOS/Linux:
 
 ```bash
-uv run -m lsof -ti:5001,9222 | xargs kill -9
+lsof -ti:5001,9222 | xargs kill -9
 ```
 
 #### API Errors
