@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import pdfplumber
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AsyncAzureOpenAI
 from openai.types.chat import (
     ChatCompletionContentPartImageParam,
@@ -17,7 +18,6 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from config import (
-    AZURE_OPENAI_API_KEY,
     AZURE_OPENAI_API_VERSION,
     AZURE_OPENAI_ENDPOINT,
     EXPENSE_CATEGORIES,
@@ -51,11 +51,14 @@ class InvoiceDetails(BaseModel):
 
 IMAGE_RESOLUTION = 300  # DPI for image extraction from PDF
 
-# Initialize Azure OpenAI client
+# Initialize Azure OpenAI client with DefaultAzureCredential
+token_provider = get_bearer_token_provider(
+    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+)
 client = AsyncAzureOpenAI(
-    api_key=AZURE_OPENAI_API_KEY,
     api_version=AZURE_OPENAI_API_VERSION,
     azure_endpoint=AZURE_OPENAI_ENDPOINT,
+    azure_ad_token_provider=token_provider,
 )
 
 

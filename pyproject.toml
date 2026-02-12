@@ -20,6 +20,7 @@ dependencies = [
     "quart-cors>=0.8.0",
     "hypercorn>=0.17.3",
     "pytest-asyncio>=1.2.0",
+    "azure-identity>=1.25.2",
 ]
 
 [dependency-groups]
