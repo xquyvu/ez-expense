@@ -78,4 +78,3 @@ uv run python main.py
 - Make names consistent (HVE, EZ-Expense, Hyper Velocity Expense)
 - Add one-shot mode
 - Tidy up the repo
-- Test on Linux
