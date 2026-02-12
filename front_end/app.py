@@ -117,7 +117,7 @@ def create_app():
                 logger.warning(f"Failed to cleanup old uploads: {e}")
 
         # Store cleanup function for potential use
-        app.cleanup_old_uploads = cleanup_old_uploads
+        app.cleanup_old_uploads = cleanup_old_uploads  # type: ignore[attr-defined]
 
         # Allowed file extensions
         app.config["ALLOWED_EXTENSIONS"] = ALLOWED_EXTENSIONS

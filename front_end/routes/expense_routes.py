@@ -7,7 +7,6 @@ import os
 import sys
 from datetime import datetime
 
-from playwright.async_api import Page
 from playwright.async_api import TimeoutError as playwright_TimeoutError
 from quart import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
@@ -20,21 +19,8 @@ from config import DATE_FORMAT, IMPORT_EXPENSE_MOCK
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-try:
-    from expense_importer import (
-        get_expense_page,
-        import_expense_wrapper,
-    )
-except ImportError as e:
-    logging.error(f"Could not import expense_importer: {e}")
-    get_expense_page = None
-    import_expense_wrapper = None
-
-try:
-    from expense_matcher import receipt_match_score
-except ImportError as e:
-    logging.error(f"Could not import expense_matcher: {e}")
-    receipt_match_score = None
+from expense_importer import get_expense_page, import_expense_wrapper
+from expense_matcher import receipt_match_score
 
 # Create blueprint
 expense_bp = Blueprint("expenses", __name__)
@@ -103,14 +89,6 @@ async def import_expenses_real():
 
 async def _import_real_data():
     """Import real expense data from browser"""
-    if not import_expense_wrapper:
-        return jsonify(
-            {
-                "error": "Import functionality not available",
-                "message": "Expense importer module could not be loaded.",
-            }
-        ), 500
-
     try:
         # Use the import_expense_wrapper function to get real browser data
         expense_df = await import_expense_wrapper()
@@ -389,18 +367,11 @@ async def match_receipt():
         receipt_data = data.get("receipt_data")
 
         # Calculate confidence score using existing receipt_matcher
-        if receipt_match_score is None:
-            # Fallback to mock score if function not available
+        try:
+            confidence_score = receipt_match_score(receipt_data, expense_data)
+        except Exception as e:
+            logger.warning(f"Error calling receipt_match_score: {e}")
             confidence_score = None
-            logger.warning(
-                "Using None as confidence score as receipt_match_score function is not available"
-            )
-        else:
-            try:
-                confidence_score = receipt_match_score(receipt_data, expense_data)
-            except Exception as e:
-                logger.warning(f"Error calling receipt_match_score: {e}")
-                confidence_score = None
 
         logger.info(
             f"Calculated match confidence: {confidence_score} for expense {expense_data.get('id', 'unknown')}"
@@ -633,10 +604,6 @@ async def bring_page_to_front():
         logger.info("Attempting to bring My Expense page to front")
 
         # Get the current expense page
-        if not get_expense_page:
-            logger.error("Expense page getter not available")
-            return jsonify({"success": False, "error": "Browser control not available"}), 503
-
         page = get_expense_page()
         if page is None:
             logger.error("No active browser page found")
@@ -715,7 +682,11 @@ async def fill_expense_report():
         existing_expenses_to_update = [expense for expense in expenses if expense.get("Created ID")]
         new_expenses_to_create = [expense for expense in expenses if not expense.get("Created ID")]
 
-        page: Page = get_expense_page()
+        page = get_expense_page()
+        if page is None:
+            raise RuntimeError(
+                "Expense page not available. Make sure the browser session is initialized."
+            )
         expense_lines = await page.get_by_role(
             "textbox", name="Created ID", include_hidden=True
         ).all()
@@ -743,6 +714,8 @@ async def fill_expense_report():
             text_box = await page.query_selector(
                 'textarea[name="TrvExpTrans_AdditionalInformation"]'
             )
+            if text_box is None:
+                raise RuntimeError("Additional information text box not found on the page.")
             await text_box.click()
             await text_box.wait_for_element_state("editable")
             await text_box.fill(expense["Additional information"])
@@ -763,7 +736,7 @@ async def fill_expense_report():
                             upload_button = await page.wait_for_selector(
                                 'button[name="UploadControlBrowseButton"]'
                             )
-                            await upload_button.click()
+                            await upload_button.click()  # type: ignore[reportOptionalMemberAccess]
                         break
                     except playwright_TimeoutError:
                         logger.info("File chooser did not appear, retrying...")
@@ -808,6 +781,8 @@ async def fill_expense_report():
 
             # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
             text_box = await page.query_selector('textarea[name="NotesInput"]')
+            if text_box is None:
+                raise RuntimeError("Notes input text box not found on the page.")
             await text_box.click()
             await text_box.wait_for_element_state("editable")
             await text_box.fill(expense["Additional information"])
