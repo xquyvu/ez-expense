@@ -527,7 +527,8 @@ async def create_expenses_from_receipts():
         logger.info(f"Creating expenses from {len(receipts_with_invoice_details)} receipts")
 
         # Find the highest existing expense ID to generate new sequential IDs
-        max_id = max(expense["id"] for expense in current_expense_data if "id" in expense)
+        existing_ids = [expense["id"] for expense in current_expense_data if "id" in expense]
+        max_id = max(existing_ids) if existing_ids else 0
 
         # Start new IDs from the next number
         next_id = max_id + 1
