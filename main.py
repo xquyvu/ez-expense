@@ -94,6 +94,9 @@ except Exception as e:
         handlers=[logging.StreamHandler()],
     )
 
+# Silence verbose OpenAI base client debug logs (dumps full request payloads including base64 images)
+logging.getLogger("openai._base_client").setLevel(logging.INFO)
+
 print(f"🔧 Import Expense Mock: {IMPORT_EXPENSE_MOCK}")
 print(f"🔧 Browser: {BROWSER}")
 
