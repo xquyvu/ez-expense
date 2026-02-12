@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import List, Optional
 
 import pdfplumber
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import (
+    ChainedTokenCredential,
+    DefaultAzureCredential,
+    InteractiveBrowserCredential,
+    get_bearer_token_provider,
+)
 from openai import AsyncAzureOpenAI
 from openai.types.chat import (
     ChatCompletionContentPartImageParam,
@@ -20,6 +25,7 @@ from pydantic import BaseModel, Field
 from config import (
     AZURE_OPENAI_API_VERSION,
     AZURE_OPENAI_ENDPOINT,
+    AZURE_TENANT_ID,
     EXPENSE_CATEGORIES,
     INVOICE_DETAILS_EXTRACTOR_MODEL_NAME,
 )
@@ -51,9 +57,20 @@ class InvoiceDetails(BaseModel):
 
 IMAGE_RESOLUTION = 300  # DPI for image extraction from PDF
 
-# Initialize Azure OpenAI client with DefaultAzureCredential
+# Initialize Azure OpenAI client with credential targeting the correct tenant.
+# AZURE_TENANT_ID must be the Tenant ID (Directory ID), not the Subscription ID.
+# Uses a chain: AzureCliCredential first (for devs), then InteractiveBrowserCredential
+# as a fallback (opens a browser login window for non-technical users).
+if AZURE_TENANT_ID:
+    credential = ChainedTokenCredential(
+        # AzureCliCredential(tenant_id=AZURE_TENANT_ID),
+        InteractiveBrowserCredential(tenant_id=AZURE_TENANT_ID),
+    )
+else:
+    credential = DefaultAzureCredential()
+
 token_provider = get_bearer_token_provider(
-    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+    credential, "https://cognitiveservices.azure.com/.default"
 )
 client = AsyncAzureOpenAI(
     api_version=AZURE_OPENAI_API_VERSION,
