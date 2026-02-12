@@ -41,7 +41,7 @@ async def start_playwright() -> Playwright:
     return _playwright_instance
 
 
-def connect_to_browser() -> Browser:
+async def connect_to_browser() -> Browser:
     """
     Connect to a browser running in debug mode.
 
@@ -63,7 +63,7 @@ def connect_to_browser() -> Browser:
 
     try:
         logger.info(f"Connecting to browser on port {BROWSER_PORT}...")
-        _browser_connection = _playwright_instance.chromium.connect_over_cdp(
+        _browser_connection = await _playwright_instance.chromium.connect_over_cdp(
             f"http://localhost:{BROWSER_PORT}"
         )
         logger.info("Successfully connected to browser")
