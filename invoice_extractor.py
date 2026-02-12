@@ -8,6 +8,7 @@ from typing import List, Optional
 
 import pdfplumber
 from azure.identity import (
+    AzureCliCredential,
     ChainedTokenCredential,
     DefaultAzureCredential,
     InteractiveBrowserCredential,
@@ -57,13 +58,9 @@ class InvoiceDetails(BaseModel):
 
 IMAGE_RESOLUTION = 300  # DPI for image extraction from PDF
 
-# Initialize Azure OpenAI client with credential targeting the correct tenant.
-# AZURE_TENANT_ID must be the Tenant ID (Directory ID), not the Subscription ID.
-# Uses a chain: AzureCliCredential first (for devs), then InteractiveBrowserCredential
-# as a fallback (opens a browser login window for non-technical users).
 if AZURE_TENANT_ID:
     credential = ChainedTokenCredential(
-        # AzureCliCredential(tenant_id=AZURE_TENANT_ID),
+        AzureCliCredential(tenant_id=AZURE_TENANT_ID),
         InteractiveBrowserCredential(tenant_id=AZURE_TENANT_ID),
     )
 else:
