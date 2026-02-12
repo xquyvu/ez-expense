@@ -122,6 +122,9 @@ def create_app():
         # Allowed file extensions
         app.config["ALLOWED_EXTENSIONS"] = ALLOWED_EXTENSIONS
 
+        # Disable static file caching during development
+        app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
         print("🔧 [Quart] Enabling CORS...")
         # Enable CORS for all routes
         app = cors(app)
@@ -141,7 +144,9 @@ def create_app():
         @app.route("/")
         async def index():
             """Render the main application page."""
-            return await render_template("index.html")
+            import time
+
+            return await render_template("index.html", cache_bust=int(time.time()))
 
         @app.route("/health")
         def health_check():

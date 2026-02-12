@@ -116,6 +116,9 @@ async def _import_real_data():
         expense_df = await import_expense_wrapper()
         expense_df["id"] = range(1, len(expense_df) + 1)
 
+        # Preserve column names for the frontend (even if DataFrame is empty)
+        columns = [col for col in expense_df.columns if col != "id"]
+
         # Convert DataFrame to list of dictionaries for JSON response
         expenses = expense_df.to_dict("records")
 
@@ -126,6 +129,7 @@ async def _import_real_data():
                 "success": True,
                 "message": f"Successfully imported {len(expenses)} expenses from My Expense",
                 "data": expenses,
+                "columns": columns,
                 "count": len(expenses),
                 "source": "browser",
             }
@@ -168,6 +172,9 @@ def get_mock_expenses_internal():
         mock_expenses_df = import_expense_mock()
         mock_expenses_df["id"] = range(1, len(mock_expenses_df) + 1)
 
+        # Preserve column names for the frontend (even if DataFrame is empty)
+        columns = [col for col in mock_expenses_df.columns if col != "id"]
+
         # Convert DataFrame to list of dictionaries for JSON response
         expenses = mock_expenses_df.to_dict("records")
 
@@ -178,6 +185,7 @@ def get_mock_expenses_internal():
                 "success": True,
                 "message": f"Mock data loaded with {len(expenses)} expenses",
                 "data": expenses,
+                "columns": columns,
                 "count": len(expenses),
                 "source": "mock",
             }
@@ -780,12 +788,11 @@ async def fill_expense_report():
             await page.fill('input[name="AmountInput"]', expense["Amount"])
             await page.fill('input[name="CurrencyInput"]', expense["Currency"])
             await page.fill('input[name="MerchantInputNoLookup"]', expense["Merchant"])
-            
+
             try:
                 date_obj = datetime.strptime(expense["Date"], "%Y-%m-%d")
                 formatted_date = (
-                    DATE_FORMAT
-                    .replace("DD", str(date_obj.day))
+                    DATE_FORMAT.replace("DD", str(date_obj.day))
                     .replace("MM", str(date_obj.month))
                     .replace("YYYY", str(date_obj.year))
                 )

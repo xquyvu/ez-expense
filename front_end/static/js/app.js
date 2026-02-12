@@ -6,6 +6,7 @@
 class EZExpenseApp {
     constructor() {
         this.expenses = [];
+        this.importedColumns = []; // Column names from last import (used for empty table headers)
         this.receipts = new Map(); // Map of expense ID to array of receipt data
         this.selectedExpenses = new Set(); // Track selected expense IDs
         this.deleteConfirmationState = false; // Track if delete button is in confirmation mode
@@ -1902,6 +1903,14 @@ class EZExpenseApp {
 
             if (data.success) {
                 console.log(`Successfully imported ${data.count} expenses from ${data.source} source`);
+                console.log('Columns from backend:', data.columns);
+
+                // Store column names from the backend (useful when data is empty)
+                if (data.columns && data.columns.length > 0) {
+                    this.importedColumns = data.columns;
+                    console.log('Stored importedColumns:', this.importedColumns);
+                }
+
                 // Map all expense data, preserving all columns from the imported data
                 this.expenses = data.data.map((expense, index) => {
                     // Start with all the original data
@@ -2050,6 +2059,59 @@ class EZExpenseApp {
         tableBody.innerHTML = '';
 
         if (this.expenses.length === 0) {
+            // If we have imported columns, show an empty table with headers
+            if (this.importedColumns && this.importedColumns.length > 0) {
+                console.log('No expenses but columns available, showing empty table with headers');
+                if (noExpensesMessage) noExpensesMessage.style.display = 'none';
+                if (bulkReceiptsSection) {
+                    bulkReceiptsSection.style.display = 'block';
+                    this.updateBulkReceiptActions();
+                }
+
+                // Show the table container
+                const tableContainer = document.querySelector('.table-container');
+                if (tableContainer) tableContainer.style.display = 'block';
+
+                // Sort columns according to priority order
+                const sortedKeys = this.sortColumnsByPriority(this.importedColumns);
+                const receiptDetection = this.detectReceiptColumns(sortedKeys);
+                const regularKeys = sortedKeys.filter(key =>
+                    !receiptDetection.receiptColumns.includes(key)
+                );
+
+                // Create header row
+                const headerRow = document.createElement('tr');
+
+                // Add checkbox column header
+                const checkboxTh = document.createElement('th');
+                checkboxTh.className = 'checkbox-column';
+                checkboxTh.innerHTML = `
+                    <input type="checkbox" id="select-all-checkbox" class="select-all-checkbox" title="Select All">
+                `;
+                headerRow.appendChild(checkboxTh);
+
+                // Add regular columns
+                regularKeys.forEach(key => {
+                    const th = document.createElement('th');
+                    const displayName = window.COLUMN_CONFIG?.getDisplayName ?
+                        window.COLUMN_CONFIG.getDisplayName(key) : key;
+                    th.textContent = displayName;
+                    th.title = displayName;
+                    headerRow.appendChild(th);
+                });
+
+                // Add receipts column
+                const receiptTh = document.createElement('th');
+                receiptTh.textContent = 'Receipts';
+                receiptTh.title = 'Upload receipts';
+                receiptTh.className = 'receipts-column';
+                headerRow.appendChild(receiptTh);
+
+                tableHeader.appendChild(headerRow);
+                this.updateStatistics();
+                return;
+            }
+
             console.log('No expenses to display, showing empty state');
             // Show no expenses message and hide bulk receipts section
             if (noExpensesMessage) noExpensesMessage.style.display = 'block';
@@ -3187,7 +3249,7 @@ class EZExpenseApp {
      * Add new empty row to the table
      */
     addNewRow() {
-        if (this.expenses.length === 0) {
+        if (this.expenses.length === 0 && (!this.importedColumns || this.importedColumns.length === 0)) {
             this.showToast('Please import expenses first', 'error');
             return;
         }
@@ -3195,15 +3257,22 @@ class EZExpenseApp {
         // Update expenses data from current table before adding new row
         this.updateExpensesFromTable();
 
-        // Get the structure from the first expense
+        // Get the structure from the first expense or from importedColumns
         const newExpense = { id: Date.now() }; // Use timestamp as temporary ID
 
-        // Copy the structure from the first expense
-        Object.keys(this.expenses[0]).forEach(key => {
-            if (key !== 'id') {
+        if (this.expenses.length > 0) {
+            // Copy the structure from the first expense
+            Object.keys(this.expenses[0]).forEach(key => {
+                if (key !== 'id') {
+                    newExpense[key] = '';
+                }
+            });
+        } else {
+            // Use importedColumns for structure when no expenses exist
+            this.importedColumns.forEach(key => {
                 newExpense[key] = '';
-            }
-        });
+            });
+        }
 
         this.expenses.push(newExpense);
         this.displayExpensesTable();
