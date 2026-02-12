@@ -79,4 +79,3 @@ uv run python main.py
 - Add one-shot mode
 - Tidy up the repo
 - Test on Linux
-- Check if the tests are still valid

@@ -4,9 +4,9 @@ Simple test script to verify the fill-expense-report endpoint works correctly.
 """
 
 import json
-import sys
 from datetime import datetime
 
+import pytest
 import requests
 
 from config import FRONTEND_PORT
@@ -55,28 +55,22 @@ def test_fill_expense_report_endpoint():
         print(f"Response status: {response.status_code}")
         print(f"Response headers: {dict(response.headers)}")
 
-        if response.status_code == 200:
-            result = response.json()
-            print("✅ SUCCESS!")
-            print(f"Response: {json.dumps(result, indent=2)}")
-            return True
-        else:
-            print("❌ FAILED!")
-            print(f"Error response: {response.text}")
-            return False
+        assert response.status_code == 200, (
+            f"Request failed with status {response.status_code}: {response.text}"
+        )
+        result = response.json()
+        print("✅ SUCCESS!")
+        print(f"Response: {json.dumps(result, indent=2)}")
 
     except requests.exceptions.ConnectionError:
-        print("❌ CONNECTION ERROR!")
-        print(
-            f"Could not connect to the Flask app. Make sure it's running on localhost:{FRONTEND_PORT}"
+        pytest.skip(
+            f"Could not connect to the Flask app on localhost:{FRONTEND_PORT}. Run: uv run -m front_end.app"
         )
-        print("Run: uv run -m front_end.app")
-        return False
+    except AssertionError:
+        raise
     except Exception as e:
-        print(f"❌ ERROR: {e}")
-        return False
+        pytest.fail(f"Test failed with error: {e}")
 
 
 if __name__ == "__main__":
-    success = test_fill_expense_report_endpoint()
-    sys.exit(0 if success else 1)
+    print("Run with: uv run -m pytest tests/test_fill_expense_report.py -v")

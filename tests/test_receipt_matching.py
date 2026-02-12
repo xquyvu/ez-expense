@@ -5,11 +5,8 @@ Tests the new 'Match receipts with expenses' button feature.
 """
 
 import os
-import sys
 
-# Add the project root to Python path
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+import pytest
 
 
 def test_match_functionality():
@@ -75,8 +72,7 @@ def test_match_functionality():
 
         print("✓ Successfully imported receipt_match_score function")
     except ImportError as e:
-        print(f"✗ Failed to import receipt_match_score: {e}")
-        return False
+        pytest.fail(f"✗ Failed to import receipt_match_score: {e}")
 
     # Test the matching function
     try:
@@ -95,8 +91,7 @@ def test_match_functionality():
             print(f"⚠ Expected numeric result, got {type(result)}")
 
     except Exception as e:
-        print(f"✗ Error calling receipt_match_score: {e}")
-        return False
+        pytest.fail(f"✗ Error calling receipt_match_score: {e}")
 
     print()
     print("=== Frontend Integration Test ===")
@@ -169,9 +164,6 @@ def test_match_functionality():
     print("4. Click the 'Match receipts with expenses' button")
     print("5. Review the matching results and apply them")
 
-    return True
-
 
 if __name__ == "__main__":
-    success = test_match_functionality()
-    sys.exit(0 if success else 1)
+    print("Run with: uv run -m pytest tests/test_receipt_matching.py -v")
