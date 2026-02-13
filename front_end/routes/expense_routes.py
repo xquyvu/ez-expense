@@ -835,3 +835,43 @@ async def fill_expense_report():
         return jsonify(
             {"success": False, "error": "Failed to fill expense report", "message": str(e)}
         ), 500
+
+
+@expense_bp.route("/screenshot", methods=["GET"])
+async def take_screenshot():
+    """
+    Capture a screenshot of the current MyExpense page.
+
+    Saves the image to ``test_screenshots/`` and returns it as a PNG response.
+    Useful for automated test verification.
+    """
+    try:
+        page = get_expense_page()
+        if page is None:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No active browser page",
+                    "message": "Browser session is not available.",
+                }
+            ), 503
+
+        # Ensure output directory exists
+        screenshot_dir = os.path.join(os.getcwd(), "test_screenshots")
+        os.makedirs(screenshot_dir, exist_ok=True)
+
+        filename = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        filepath = os.path.join(screenshot_dir, filename)
+
+        await page.screenshot(path=filepath, full_page=True)
+        logger.info(f"Screenshot saved to {filepath}")
+
+        from quart import send_file as quart_send_file
+
+        return await quart_send_file(filepath, mimetype="image/png")
+
+    except Exception as e:
+        logger.error(f"Error taking screenshot: {e}")
+        return jsonify(
+            {"success": False, "error": "Screenshot failed", "message": str(e)}
+        ), 500
