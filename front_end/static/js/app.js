@@ -4459,11 +4459,11 @@ class EZExpenseApp {
                         <div style="font-size: 0.8rem; font-weight: 600; color: #555; margin-bottom: 0.4rem;">🤖 AI Extraction Options</div>
                         <div style="display: flex; flex-direction: column; gap: 0.3rem;">
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${azureAvailable ? '#333' : '#999'}; margin: 0; cursor: ${azureAvailable ? 'pointer' : 'not-allowed'};">
-                                <input type="radio" name="ai-provider" id="azure-ai-checkbox" ${azureChecked ? 'checked' : ''} ${azureAvailable ? '' : 'disabled'} onchange="app.onAICheckboxChange('azure')" style="cursor: ${azureAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
+                                <input type="radio" name="ai-provider" id="azure-ai-checkbox" ${azureChecked ? 'checked' : ''} ${azureAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('azure', this)" style="cursor: ${azureAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
                                 Azure AI Extraction ${azureStatusHtml}
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${localReady ? '#333' : '#999'}; margin: 0; cursor: ${localReady ? 'pointer' : 'not-allowed'};">
-                                <input type="radio" name="ai-provider" id="local-ai-checkbox" ${localChecked ? 'checked' : ''} ${localReady ? '' : 'disabled'} onchange="app.onAICheckboxChange('local')" style="cursor: ${localReady ? 'pointer' : 'not-allowed'}; margin: 0;">
+                                <input type="radio" name="ai-provider" id="local-ai-checkbox" ${localChecked ? 'checked' : ''} ${localReady ? '' : 'disabled'} onclick="app.onAIRadioClick('local', this)" style="cursor: ${localReady ? 'pointer' : 'not-allowed'}; margin: 0;">
                                 Local AI Extraction ${localStatusHtml}
                             </label>
                         </div>
@@ -4490,10 +4490,16 @@ class EZExpenseApp {
     }
 
     /**
-     * Handle AI checkbox change — only allow one to be checked at a time
+     * Handle AI radio click — click again to deselect
      */
-    onAICheckboxChange(source) {
-        this.aiSelectedProvider = source;
+    onAIRadioClick(source, el) {
+        if (this.aiSelectedProvider === source) {
+            // Clicking the already-selected option — deselect it
+            el.checked = false;
+            this.aiSelectedProvider = null;
+        } else {
+            this.aiSelectedProvider = source;
+        }
     }
 
     /**

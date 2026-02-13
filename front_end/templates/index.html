@@ -103,6 +103,9 @@
                             <div>
                                 <h3>📦 Bulk Receipt Upload Area</h3>
                                 <ol style="margin-left: 0; padding-left: 1.2rem;">
+                                    <li>🤖 Choose an AI extraction option. Azure AI is significantly faster
+                                        (parallel processing) and more accurate, but requires setup. Local AI
+                                        requires no setup — just download the model on first use.</li>
                                     <li>📤 Upload receipts that you want to match with existing expenses, or
                                         create new expense entries from
                                     </li>
@@ -212,9 +215,12 @@
                 <p id="loading-text">Processing...</p>
                 <div id="loading-progress-container" style="display: none; width: 300px; margin-top: 0.75rem;">
                     <div style="background: #e9ecef; border-radius: 4px; overflow: hidden; height: 8px;">
-                        <div id="loading-progress-bar" style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        <div id="loading-progress-bar"
+                            style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s;">
+                        </div>
                     </div>
-                    <button id="cancel-extraction-btn" onclick="app.cancelExtraction()" style="margin-top: 0.75rem; padding: 0.3rem 1rem; background: transparent; border: 1px solid #999; border-radius: 4px; color: #666; cursor: pointer; font-size: 0.85rem;">Cancel</button>
+                    <button id="cancel-extraction-btn" onclick="app.cancelExtraction()"
+                        style="margin-top: 0.75rem; padding: 0.3rem 1rem; background: transparent; border: 1px solid #999; border-radius: 4px; color: #666; cursor: pointer; font-size: 0.85rem;">Cancel</button>
                 </div>
             </div>
         </div>
@@ -245,7 +251,9 @@
             <div class="modal-body" style="padding: 1.5rem;">
                 <p style="color: #666; margin-bottom: 1rem;">Downloading local AI model (~400 MB)...</p>
                 <div style="background: #e9ecef; border-radius: 4px; overflow: hidden; height: 8px;">
-                    <div id="model-progress-bar" style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    <div id="model-progress-bar"
+                        style="background: linear-gradient(90deg, #667eea, #764ba2); height: 100%; width: 0%; transition: width 0.3s;">
+                    </div>
                 </div>
                 <div id="model-progress-text" style="color: #888; font-size: 0.85rem; margin-top: 0.25rem;">Starting download...</div>
             </div>

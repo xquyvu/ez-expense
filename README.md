@@ -24,12 +24,22 @@ Just click the app, and it just works. No installation required, no coding invol
 2. Download the latest ZIP corresponding to your platform. This contains the executable file and all necessary dependencies.
 3. Extract the ZIP file
 4. Fill in the content of the `.env.template` file, and rename it to `.env`
-   - Set your Azure OpenAI configuration (endpoint, API key, model name)
    - Configure `DATE_FORMAT` for your region (DD/MM/YYYY or MM/DD/YYYY)
+   - (Optional) Set your Azure OpenAI configuration for faster, more accurate extraction
 
 Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to use the app, and common issues.
 
-**IMPORTANT:** You will need to provide your OpenAI API key to the app. Follow the instructions in the User Guide to set it up.
+### AI Extraction Options
+
+The app supports two AI providers for extracting invoice details from receipts:
+
+| Provider     | Speed               | Accuracy | Setup                                  |
+| ------------ | ------------------- | -------- | -------------------------------------- |
+| **Azure AI** | Fast (parallel)     | Higher   | Requires Azure OpenAI config in `.env` |
+| **Local AI** | Slower (sequential) | Good     | No setup — download model on first use |
+
+- **Azure AI** is recommended if you have access to Azure OpenAI. Set `AZURE_OPENAI_ENDPOINT` and `INVOICE_DETAILS_EXTRACTOR_MODEL_NAME` in your `.env` file.
+- **Local AI** works offline with no API keys. Just click "Download" in the app to get the model (~400 MB).
 
 ### For MacOS
 

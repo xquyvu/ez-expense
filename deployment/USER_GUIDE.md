@@ -41,6 +41,29 @@ When you launch the app, it will open MyExpense page, and also a local web inter
 
 ### Step 2: Upload and match receipts
 
+#### Choose an AI extraction option
+
+Before uploading receipts, select an AI extraction provider in the **AI Extraction
+Options** panel:
+
+| Provider     | Speed                      | Accuracy | Setup                                                       |
+| ------------ | -------------------------- | -------- | ----------------------------------------------------------- |
+| **Azure AI** | Fast (parallel processing) | Higher   | Requires Azure OpenAI configuration in `.env`               |
+| **Local AI** | Slower (sequential)        | Good     | No setup — just click "Download" to get the model (~400 MB) |
+
+- **Azure AI** sends receipts to Azure OpenAI for extraction. All receipts are processed
+  in parallel, making it significantly faster for bulk uploads. Requires
+  `AZURE_OPENAI_ENDPOINT` and `INVOICE_DETAILS_EXTRACTOR_MODEL_NAME` to be set in your
+  `.env` file.
+- **Local AI** runs entirely on your machine using a small language model. Receipts are
+  processed one at a time. No internet connection or API keys required — just download
+  the model on first use.
+
+You can also disable AI extraction entirely by leaving both options unselected. In that
+case, receipts will be uploaded without automatic detail extraction.
+
+#### Upload receipts
+
 There are multiple ways to upload receipts:
 
 #### Using the bulk upload area (recommended)
