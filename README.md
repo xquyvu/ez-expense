@@ -60,7 +60,7 @@ See the tool in action by clicking on the image below:
 
 👇👇👇👇👇🎥🎥🎥🎥🎥🎥👇👇👇👇👇
 
-<a href="https://microsofteur-my.sharepoint.com/:v:/g/personal/vuquy_microsoft_com/EfkkIOuyr6xJi215xCZbS50BkEFFnWr2-sugqljIYg7-Ow?e=G6FzfQ">
+<a href="https://microsoft-my.sharepoint-df.com/:v:/p/vuquy/cQr5JCDrsq-sSYttecQmW0udEgUC0Lf9VrdlyBKq5jld8RURVg?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0=&">
   <img src="assets/video_thumbnail.png" alt="Product Demo Video" width="400">
 </a>
 
