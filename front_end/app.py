@@ -211,6 +211,16 @@ def create_app():
             logger.warning(f"Could not import receipt routes: {e}")
             print(f"⚠️ [Quart] Could not import receipt routes: {e}")
 
+        try:
+            from front_end.routes.model_routes import model_bp
+
+            app.register_blueprint(model_bp, url_prefix="/api/model")
+            logger.info("Model routes registered successfully")
+            print("🔧 [Quart] Model routes registered")
+        except ImportError as e:
+            logger.warning(f"Could not import model routes: {e}")
+            print(f"⚠️ [Quart] Could not import model routes: {e}")
+
         # Add global error handlers for better exception visibility
         @app.errorhandler(500)
         def handle_internal_error(e):

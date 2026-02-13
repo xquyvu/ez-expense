@@ -26,6 +26,9 @@ AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-pre
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
 
+# Local model settings
+LOCAL_MODEL_DIR = os.getenv("EZ_EXPENSE_MODEL_DIR", os.path.expanduser("~/.ez-expense/models"))
+
 # Date format configuration
 DATE_FORMAT = os.getenv("DATE_FORMAT", "MM/DD/YYYY").upper()
 
@@ -112,6 +115,22 @@ EXPENSE_CATEGORIES = [
     "Volunteer Event Items - Non US",
     "Volunteer Event Items - US",
 ]
+
+# Map of common currency symbols to their ISO codes (used by local LLM postprocessing)
+CURRENCY_SYMBOL_MAP = {
+    "$": "USD",
+    "£": "GBP",
+    "€": "EUR",
+    "¥": "JPY",
+    "₹": "INR",
+    "₩": "KRW",
+    "₽": "RUB",
+    "₺": "TRY",
+    "R$": "BRL",
+    "CHF": "CHF",
+    "kr": "SEK",
+    "zł": "PLN",
+}
 
 CURRENCY_CODES = [
     "AFN",

@@ -21,11 +21,30 @@ dependencies = [
     "hypercorn>=0.17.3",
     "pytest-asyncio>=1.2.0",
     "azure-identity>=1.25.2",
+    "rapidocr-onnxruntime>=1.4.0",
+    "llama-cpp-python>=0.3.0",
+    "huggingface-hub>=0.25.0",
 ]
 
 [dependency-groups]
 dev = ["pyright>=1.1.405", "pytest>=8.4.2", "ruff>=0.12.12"]
 build = ["pyinstaller>=6.0.0"]
+
+[[tool.uv.index]]
+name = "llama-cpp-python-metal"
+url = "https://abetlen.github.io/llama-cpp-python/whl/metal"
+explicit = true
+
+[[tool.uv.index]]
+name = "llama-cpp-python-cpu"
+url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+llama-cpp-python = [
+    { index = "llama-cpp-python-metal", marker = "sys_platform == 'darwin'" },
+    { index = "llama-cpp-python-cpu", marker = "sys_platform != 'darwin'" },
+]
 
 [tool.ruff]
 line-length = 100
