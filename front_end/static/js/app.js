@@ -3907,70 +3907,98 @@ class EZExpenseApp {
                 this.showLoading(`Processing ${filesToProcess.length} new receipts...`);
             }
 
-            // Process files sequentially so the progress bar updates meaningfully
+            const useParallel = aiExtractionEnabled && this.aiSelectedProvider === 'azure';
             const receipts = [];
             let completedCount = 0;
             let cancelled = false;
 
-            for (const file of filesToProcess) {
-                // Check cancellation — stop extraction but keep what we have so far
-                if (this.extractionCancelled) {
-                    cancelled = true;
-                    // Add remaining files without extraction
-                    const remaining = filesToProcess.slice(filesToProcess.indexOf(file));
-                    for (const remFile of remaining) {
-                        let preview = '';
-                        let type = 'pdf';
-                        if (remFile.type.startsWith('image/')) {
-                            preview = await this.createImagePreview(remFile);
-                            type = 'image';
-                        } else if (remFile.type === 'application/pdf') {
-                            preview = await this.createPDFPreview(remFile);
-                            type = 'pdf';
+            if (useParallel) {
+                // Azure: fire all extractions in parallel, update progress as each completes
+                const receiptSlots = filesToProcess.map(file => ({
+                    name: file.name, filePath: null, preview: '', type: 'pdf',
+                    confidence: null, file: file, invoiceDetails: null, needsUpload: true
+                }));
+
+                const promises = filesToProcess.map(async (file, i) => {
+                    // Generate preview
+                    if (file.type.startsWith('image/')) {
+                        receiptSlots[i].preview = await this.createImagePreview(file);
+                        receiptSlots[i].type = 'image';
+                    } else if (file.type === 'application/pdf') {
+                        receiptSlots[i].preview = await this.createPDFPreview(file);
+                        receiptSlots[i].type = 'pdf';
+                    }
+
+                    // Extract (skip if cancelled)
+                    if (!this.extractionCancelled) {
+                        try {
+                            receiptSlots[i].invoiceDetails = await this.extractInvoiceDetails(file);
+                        } catch (error) {
+                            console.warn(`Failed to extract invoice details for ${file.name}:`, error);
                         }
-                        receipts.push({
-                            name: remFile.name, filePath: null, preview, type,
-                            confidence: null, file: remFile, invoiceDetails: null, needsUpload: true
-                        });
                     }
-                    break;
-                }
 
-                let preview = '';
-                let type = 'pdf';
-
-                if (file.type.startsWith('image/')) {
-                    preview = await this.createImagePreview(file);
-                    type = 'image';
-                } else if (file.type === 'application/pdf') {
-                    preview = await this.createPDFPreview(file);
-                    type = 'pdf';
-                }
-
-                let invoiceDetails = null;
-
-                if (aiExtractionEnabled) {
-                    try {
-                        invoiceDetails = await this.extractInvoiceDetails(file);
-                    } catch (error) {
-                        console.warn(`Failed to extract invoice details for ${file.name}:`, error);
-                    }
                     completedCount++;
                     this.updateExtractionProgress(completedCount, filesToProcess.length);
-                } else {
-                    console.log(`Skipping AI extraction for ${file.name} - AI extraction disabled`);
-                }
-
-                receipts.push({
-                    name: file.name,
-                    filePath: null,
-                    preview: preview,
-                    type: type,
-                    confidence: null,
-                    file: file,
-                    invoiceDetails: invoiceDetails,
-                    needsUpload: true
                 });
+
+                await Promise.all(promises);
+                receipts.push(...receiptSlots);
+                cancelled = this.extractionCancelled;
+            } else {
+                // Local or no AI: process sequentially
+                for (const file of filesToProcess) {
+                    if (this.extractionCancelled) {
+                        cancelled = true;
+                        const remaining = filesToProcess.slice(filesToProcess.indexOf(file));
+                        for (const remFile of remaining) {
+                            let preview = '';
+                            let type = 'pdf';
+                            if (remFile.type.startsWith('image/')) {
+                                preview = await this.createImagePreview(remFile);
+                                type = 'image';
+                            } else if (remFile.type === 'application/pdf') {
+                                preview = await this.createPDFPreview(remFile);
+                                type = 'pdf';
+                            }
+                            receipts.push({
+                                name: remFile.name, filePath: null, preview, type,
+                                confidence: null, file: remFile, invoiceDetails: null, needsUpload: true
+                            });
+                        }
+                        break;
+                    }
+
+                    let preview = '';
+                    let type = 'pdf';
+
+                    if (file.type.startsWith('image/')) {
+                        preview = await this.createImagePreview(file);
+                        type = 'image';
+                    } else if (file.type === 'application/pdf') {
+                        preview = await this.createPDFPreview(file);
+                        type = 'pdf';
+                    }
+
+                    let invoiceDetails = null;
+
+                    if (aiExtractionEnabled) {
+                        try {
+                            invoiceDetails = await this.extractInvoiceDetails(file);
+                        } catch (error) {
+                            console.warn(`Failed to extract invoice details for ${file.name}:`, error);
+                        }
+                        completedCount++;
+                        this.updateExtractionProgress(completedCount, filesToProcess.length);
+                    } else {
+                        console.log(`Skipping AI extraction for ${file.name} - AI extraction disabled`);
+                    }
+
+                    receipts.push({
+                        name: file.name, filePath: null, preview, type,
+                        confidence: null, file: file, invoiceDetails, needsUpload: true
+                    });
+                }
             }
 
             if (aiExtractionEnabled) {
