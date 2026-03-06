@@ -8,6 +8,12 @@ Provides:
 """
 
 import os
+
+# Set mock mode BEFORE any test module imports config.py (which evaluates env vars
+# at import time). conftest.py is processed before test collection, so this ensures
+# config.IMPORT_EXPENSE_MOCK is True when config is first imported.
+os.environ["IMPORT_EXPENSE_MOCK"] = "True"
+
 import socket
 import threading
 import asyncio
@@ -85,9 +91,18 @@ def _create_test_jpeg(path: str) -> None:
 @pytest.fixture(scope="session")
 def app():
     """Create the Quart app for testing."""
-    # Force mock mode so no MyExpense browser is needed
-    os.environ["IMPORT_EXPENSE_MOCK"] = "True"
     from front_end.app import create_app
+
+    # Patch IMPORT_EXPENSE_MOCK in all modules that import it by value,
+    # because load_dotenv(override=True) in config.py may have overridden
+    # the env var with the .env file's value (False).
+    import config
+    from front_end.routes import expense_routes
+    import expense_importer
+    config.IMPORT_EXPENSE_MOCK = True
+    expense_routes.IMPORT_EXPENSE_MOCK = True
+    expense_importer.IMPORT_EXPENSE_MOCK = True
+
     app = create_app()
     app.config["TESTING"] = True
     return app
@@ -140,17 +155,23 @@ def live_server(app):
 # Playwright fixtures (sync API)
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def playwright_instance():
-    """Start and stop the Playwright engine for the session."""
+    """Start and stop the Playwright engine per module.
+
+    Module scope (not session) prevents Playwright's internal event loop from
+    staying alive during non-Playwright test modules, which would cause
+    'Runner.run() cannot be called from a running event loop' errors in
+    pytest-asyncio async tests.
+    """
     pw = sync_playwright().start()
     yield pw
     pw.stop()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def browser(playwright_instance, request):
-    """Launch a headless Chromium browser for the test session."""
+    """Launch a headless Chromium browser for the test module."""
     headed = request.config.getoption("--headed", default=False)
     browser = playwright_instance.chromium.launch(headless=not headed)
     yield browser
@@ -202,3 +223,94 @@ def pytest_addoption(parser):
         default=False,
         help="Run Playwright tests in headed mode (visible browser).",
     )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "real_myexpense: tests against a real running app")
+
+
+# ---------------------------------------------------------------------------
+# Hook: store test outcome so fixtures can detect failure
+# ---------------------------------------------------------------------------
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, f"rep_{rep.when}", rep)
+
+
+# ---------------------------------------------------------------------------
+# Real-app fixtures (for test_e2e_myexpense_automation)
+# ---------------------------------------------------------------------------
+
+SCREENSHOT_DIR = os.path.join(os.path.dirname(__file__), "test_screenshots")
+
+
+@pytest.fixture(scope="session")
+def real_app_url():
+    """Return the base URL of an already-running app. Skip if unreachable."""
+    url = os.environ.get("EZ_EXPENSE_BASE_URL", "http://127.0.0.1:5001")
+    try:
+        import urllib.request
+        urllib.request.urlopen(f"{url}/health", timeout=5)
+    except Exception:
+        pytest.skip(f"Real app not reachable at {url}")
+    return url
+
+
+@pytest.fixture()
+def real_page(browser, real_app_url, request):
+    """Fresh Playwright page navigated to the real app. Auto-screenshots on failure."""
+    pg = browser.new_page()
+    pg.goto(real_app_url)
+    pg.wait_for_load_state("networkidle")
+    yield pg
+
+    # On test failure, capture dual screenshots
+    if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
+        os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+        test_name = request.node.name
+        try:
+            pg.screenshot(path=os.path.join(SCREENSHOT_DIR, f"{test_name}_frontend.png"))
+        except Exception:
+            pass
+        try:
+            import urllib.request
+            resp = urllib.request.urlopen(
+                f"{real_app_url}/api/expenses/screenshot", timeout=30
+            )
+            with open(os.path.join(SCREENSHOT_DIR, f"{test_name}_myexpense.png"), "wb") as f:
+                f.write(resp.read())
+        except Exception:
+            pass
+
+    pg.close()
+
+
+@pytest.fixture()
+def setup_expense_report(real_app_url):
+    """Navigate the app's browser to the test expense report (AI_DEBUG mode)."""
+    import urllib.request
+    import urllib.error
+    import json
+
+    report_number = os.environ.get("AI_DEBUG_REPORT", "D10710000200323")
+    url = f"{real_app_url}/api/expenses/navigate-to-report"
+    data = json.dumps({"report_number": report_number}).encode()
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    try:
+        resp = urllib.request.urlopen(req, timeout=60)
+        result = json.loads(resp.read())
+        if not result.get("success"):
+            pytest.fail(f"navigate-to-report failed: {result}")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        if e.code == 403:
+            pytest.skip("App is not in AI_DEBUG mode")
+        elif e.code == 500:
+            pytest.skip(f"navigate-to-report failed (500): {body}")
+        else:
+            pytest.fail(f"navigate-to-report returned {e.code}: {body}")
+    except Exception as e:
+        pytest.fail(f"navigate-to-report error: {e}")

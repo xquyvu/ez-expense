@@ -121,17 +121,23 @@ def setup_browser_session():
         _browser_process = BrowserProcess(browser_name=browser_name, port=BROWSER_PORT)
         print("🔧 BrowserProcess created")
 
-        # Try to close existing browser gracefully
-        print("🔧 Closing existing browser instances...")
-        if not _browser_process.close_browser_if_running():
-            logger.error("Browser setup cancelled by user")
-            print("❌ Browser setup cancelled by user")
-            return None
+        # If the debug port is already active, skip closing/restarting
+        if _browser_process.is_debug_port_active():
+            print(f"✅ Browser already running in debug mode on port {BROWSER_PORT}, reusing.")
+            logger.info(f"Browser already running in debug mode on port {BROWSER_PORT}")
+        else:
+            # Try to close existing browser gracefully
+            print("🔧 Closing existing browser instances...")
+            if not _browser_process.close_browser_if_running():
+                logger.error("Browser setup cancelled by user")
+                print("❌ Browser setup cancelled by user")
+                return None
 
-        print("🔧 Starting browser in debug mode...")
-        _browser_process.start_browser_debug_mode()
-        print("🔧 Browser started, waiting 2 seconds...")
-        time.sleep(2)  # Give Browser time to start
+            print("🔧 Starting browser in debug mode...")
+            _browser_process.start_browser_debug_mode()
+            print("🔧 Browser started, waiting 2 seconds...")
+            time.sleep(2)  # Give Browser time to start
+
         print("🔧 Browser setup complete")
 
         return _browser_process

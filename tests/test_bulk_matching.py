@@ -3,10 +3,14 @@
 Test script for the new bulk receipt matching endpoint.
 """
 
+import os
+
 import pytest
 import requests
 
-from config import FRONTEND_PORT
+# Use the preferred port directly (not config.FRONTEND_PORT which calls
+# find_available_port and picks a DIFFERENT port when the server is running).
+FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
 
 
 def test_bulk_receipt_matching():
@@ -33,17 +37,21 @@ def test_bulk_receipt_matching():
         "expense_data": [
             {
                 "id": "exp1",
-                "Amount": "25.50 USD",  # Changed to uppercase and proper format
-                "Date": "2025-09-20",  # Changed to uppercase
-                "Description": "Office supplies",  # Changed to uppercase
-                "Category": "Business",  # Changed to uppercase
+                "Amount": "25.50",
+                "Date": "2025-09-20",
+                "Currency": "USD",
+                "Description": "Office supplies",
+                "Category": "Business",
+                "receipts": [],
             },
             {
                 "id": "exp2",
-                "Amount": "42.00 USD",  # Changed to uppercase and proper format
-                "Date": "2025-09-21",  # Changed to uppercase
-                "Description": "Lunch meeting",  # Changed to uppercase
-                "Category": "Meals",  # Changed to uppercase
+                "Amount": "42.00",
+                "Date": "2025-09-21",
+                "Currency": "USD",
+                "Description": "Lunch meeting",
+                "Category": "Meals",
+                "receipts": [],
             },
         ],
     }

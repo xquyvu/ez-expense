@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from config import DATE_FORMAT, IMPORT_EXPENSE_MOCK
+from config import AI_DEBUG, DATE_FORMAT, IMPORT_EXPENSE_MOCK
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -625,6 +625,101 @@ async def bring_page_to_front():
         logger.error(f"Error bringing page to front: {e}")
         return jsonify(
             {"success": False, "error": "Failed to bring page to front", "message": str(e)}
+        ), 500
+
+
+@expense_bp.route("/navigate-to-report", methods=["POST"])
+async def navigate_to_report():
+    """
+    Navigate the app's browser page to a specific expense report.
+    Only available when AI_DEBUG=True.
+
+    Request body: { "report_number": "D10710000200323" }
+    """
+    if not AI_DEBUG:
+        return jsonify({"success": False, "error": "Only available in AI_DEBUG mode"}), 403
+
+    try:
+        data = await request.get_json()
+        report_number = data.get("report_number")
+        if not report_number:
+            return jsonify({"success": False, "error": "report_number is required"}), 400
+
+        page = get_expense_page()
+        if page is None:
+            return jsonify({"success": False, "error": "No active browser session"}), 503
+
+        logger.info(f"Navigating to expense report: {report_number}")
+
+        # If on the dashboard, click Expense management first
+        expense_mgmt_btn = page.get_by_role("button", name="Expense management")
+        if await expense_mgmt_btn.is_visible():
+            await expense_mgmt_btn.click()
+            await page.wait_for_load_state("networkidle")
+
+        # If on an expense report detail page, go back to the list first
+        save_close_btn = page.get_by_role("button", name="Save and close")
+        if await save_close_btn.is_visible():
+            await save_close_btn.click()
+            await page.wait_for_load_state("domcontentloaded")
+            await page.wait_for_load_state("networkidle")
+
+        # Click the target expense report to open the detail page.
+        report_link = page.get_by_title(report_number, exact=False)
+        await report_link.wait_for(timeout=15000)
+        await report_link.click()
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_load_state("networkidle")
+
+        # If still on the list (single click just selected the row), retry
+        new_expense_btn = page.locator('*[data-dyn-controlname="NewExpenseButton"]')
+        try:
+            await new_expense_btn.wait_for(timeout=5000)
+        except Exception:
+            # Second click
+            logger.info("First click selected the row, clicking again to open")
+            await report_link.click()
+            await page.wait_for_load_state("domcontentloaded")
+            await page.wait_for_load_state("networkidle")
+
+            try:
+                await new_expense_btn.wait_for(timeout=5000)
+            except Exception:
+                # Grid is stale after repeated exports — refresh and retry
+                logger.info("Grid is stale, refreshing page and retrying")
+                await page.reload()
+                await page.wait_for_load_state("domcontentloaded")
+                await page.wait_for_load_state("networkidle")
+                report_link = page.get_by_title(report_number, exact=False)
+                await report_link.wait_for(timeout=15000)
+                await report_link.click()
+                await page.wait_for_load_state("domcontentloaded")
+                await page.wait_for_load_state("networkidle")
+
+                # After reload, first click may still just select the row
+                try:
+                    await new_expense_btn.wait_for(timeout=5000)
+                except Exception:
+                    logger.info("Clicking again after reload")
+                    await report_link.click()
+                    await page.wait_for_load_state("domcontentloaded")
+                    await page.wait_for_load_state("networkidle")
+
+        # Verify we're on the expense report detail page
+        await page.wait_for_selector(
+            '*[data-dyn-controlname="NewExpenseButton"]', timeout=15000
+        )
+
+        logger.info(f"Successfully navigated to expense report {report_number}")
+        return jsonify({
+            "success": True,
+            "message": f"Navigated to expense report {report_number}",
+        })
+
+    except Exception as e:
+        logger.error(f"Error navigating to report: {e}")
+        return jsonify(
+            {"success": False, "error": "Navigation failed", "message": str(e)}
         ), 500
 
 
