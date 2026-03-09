@@ -6,6 +6,7 @@
 class EZExpenseApp {
     constructor() {
         this.expenses = [];
+        this.importedColumns = []; // Column names from last import (used for empty table headers)
         this.receipts = new Map(); // Map of expense ID to array of receipt data
         this.selectedExpenses = new Set(); // Track selected expense IDs
         this.deleteConfirmationState = false; // Track if delete button is in confirmation mode
@@ -14,6 +15,9 @@ class EZExpenseApp {
         this.validCategories = new Set(); // Valid expense categories
         this.validCurrencies = new Set(); // Valid currency codes
         this.validationEnabled = true; // Enable/disable validation
+        this.aiStatus = { azure_configured: false, downloaded: false, model_name: '', size_mb: 0 };
+        this.aiSelectedProvider = null; // 'azure' | 'local' | null — tracks user's checkbox choice
+        this.extractionCancelled = false;
 
         this.init();
     }
@@ -28,6 +32,7 @@ class EZExpenseApp {
         this.loadValidCategories(); // Load valid expense categories
         this.loadValidCurrencies(); // Load valid currency codes
         this.initModalEventListeners(); // Initialize modal event listeners
+        this.checkModelStatus(); // Check local AI model status
 
         // Debug: Check if column config is loaded
         if (window.COLUMN_CONFIG) {
@@ -2011,6 +2016,14 @@ class EZExpenseApp {
 
             if (data.success) {
                 console.log(`Successfully imported ${data.count} expenses from ${data.source} source`);
+                console.log('Columns from backend:', data.columns);
+
+                // Store column names from the backend (useful when data is empty)
+                if (data.columns && data.columns.length > 0) {
+                    this.importedColumns = data.columns;
+                    console.log('Stored importedColumns:', this.importedColumns);
+                }
+
                 // Map all expense data, preserving all columns from the imported data
                 this.expenses = data.data.map((expense, index) => {
                     // Start with all the original data
@@ -2159,6 +2172,59 @@ class EZExpenseApp {
         tableBody.innerHTML = '';
 
         if (this.expenses.length === 0) {
+            // If we have imported columns, show an empty table with headers
+            if (this.importedColumns && this.importedColumns.length > 0) {
+                console.log('No expenses but columns available, showing empty table with headers');
+                if (noExpensesMessage) noExpensesMessage.style.display = 'none';
+                if (bulkReceiptsSection) {
+                    bulkReceiptsSection.style.display = 'block';
+                    this.updateBulkReceiptActions();
+                }
+
+                // Show the table container
+                const tableContainer = document.querySelector('.table-container');
+                if (tableContainer) tableContainer.style.display = 'block';
+
+                // Sort columns according to priority order
+                const sortedKeys = this.sortColumnsByPriority(this.importedColumns);
+                const receiptDetection = this.detectReceiptColumns(sortedKeys);
+                const regularKeys = sortedKeys.filter(key =>
+                    !receiptDetection.receiptColumns.includes(key)
+                );
+
+                // Create header row
+                const headerRow = document.createElement('tr');
+
+                // Add checkbox column header
+                const checkboxTh = document.createElement('th');
+                checkboxTh.className = 'checkbox-column';
+                checkboxTh.innerHTML = `
+                    <input type="checkbox" id="select-all-checkbox" class="select-all-checkbox" title="Select All">
+                `;
+                headerRow.appendChild(checkboxTh);
+
+                // Add regular columns
+                regularKeys.forEach(key => {
+                    const th = document.createElement('th');
+                    const displayName = window.COLUMN_CONFIG?.getDisplayName ?
+                        window.COLUMN_CONFIG.getDisplayName(key) : key;
+                    th.textContent = displayName;
+                    th.title = displayName;
+                    headerRow.appendChild(th);
+                });
+
+                // Add receipts column
+                const receiptTh = document.createElement('th');
+                receiptTh.textContent = 'Receipts';
+                receiptTh.title = 'Upload receipts';
+                receiptTh.className = 'receipts-column';
+                headerRow.appendChild(receiptTh);
+
+                tableHeader.appendChild(headerRow);
+                this.updateStatistics();
+                return;
+            }
+
             console.log('No expenses to display, showing empty state');
             // Show no expenses message and hide bulk receipts section
             if (noExpensesMessage) noExpensesMessage.style.display = 'block';
@@ -3296,7 +3362,7 @@ class EZExpenseApp {
      * Add new empty row to the table
      */
     addNewRow() {
-        if (this.expenses.length === 0) {
+        if (this.expenses.length === 0 && (!this.importedColumns || this.importedColumns.length === 0)) {
             this.showToast('Please import expenses first', 'error');
             return;
         }
@@ -3304,15 +3370,22 @@ class EZExpenseApp {
         // Update expenses data from current table before adding new row
         this.updateExpensesFromTable();
 
-        // Get the structure from the first expense
+        // Get the structure from the first expense or from importedColumns
         const newExpense = { id: Date.now() }; // Use timestamp as temporary ID
 
-        // Copy the structure from the first expense
-        Object.keys(this.expenses[0]).forEach(key => {
-            if (key !== 'id') {
+        if (this.expenses.length > 0) {
+            // Copy the structure from the first expense
+            Object.keys(this.expenses[0]).forEach(key => {
+                if (key !== 'id') {
+                    newExpense[key] = '';
+                }
+            });
+        } else {
+            // Use importedColumns for structure when no expenses exist
+            this.importedColumns.forEach(key => {
                 newExpense[key] = '';
-            }
-        });
+            });
+        }
 
         this.expenses.push(newExpense);
         this.displayExpensesTable();
@@ -3931,55 +4004,120 @@ class EZExpenseApp {
             }
 
             const aiExtractionEnabled = this.isAIExtractionEnabled();
-            const loadingMessage = aiExtractionEnabled
-                ? `Processing ${filesToProcess.length} new receipts with AI extraction...`
-                : `Processing ${filesToProcess.length} new receipts...`;
 
-            this.showLoading(loadingMessage);
+            // Hide the duplicate-check loading before starting processing
+            this.hideLoading();
 
-            // Process each non-duplicate file and add to bulk receipts in parallel
-            const receiptPromises = filesToProcess.map(async (file) => {
-                // Create receipt object using same structure as receipts column
-                let preview = '';
-                let type = 'pdf';
+            this.extractionCancelled = false;
 
-                if (file.type.startsWith('image/')) {
-                    preview = await this.createImagePreview(file);
-                    type = 'image';
-                } else if (file.type === 'application/pdf') {
-                    preview = await this.createPDFPreview(file);
-                    type = 'pdf';
-                }
+            if (aiExtractionEnabled) {
+                this.showExtractionProgress(0, filesToProcess.length);
+            } else {
+                this.showLoading(`Processing ${filesToProcess.length} new receipts...`);
+            }
 
-                // Extract invoice details for this receipt (only if AI extraction is enabled)
-                let invoiceDetails = null;
-                const aiExtractionEnabled = this.isAIExtractionEnabled();
+            const useParallel = aiExtractionEnabled && this.aiSelectedProvider === 'azure';
+            const receipts = [];
+            let completedCount = 0;
+            let cancelled = false;
 
-                if (aiExtractionEnabled) {
-                    try {
-                        invoiceDetails = await this.extractInvoiceDetails(file);
-                    } catch (error) {
-                        console.warn(`Failed to extract invoice details for ${file.name}:`, error);
-                        // Continue processing even if extraction fails
+            if (useParallel) {
+                // Azure: fire all extractions in parallel, update progress as each completes
+                const receiptSlots = filesToProcess.map(file => ({
+                    name: file.name, filePath: null, preview: '', type: 'pdf',
+                    confidence: null, file: file, invoiceDetails: null, needsUpload: true
+                }));
+
+                const promises = filesToProcess.map(async (file, i) => {
+                    // Generate preview
+                    if (file.type.startsWith('image/')) {
+                        receiptSlots[i].preview = await this.createImagePreview(file);
+                        receiptSlots[i].type = 'image';
+                    } else if (file.type === 'application/pdf') {
+                        receiptSlots[i].preview = await this.createPDFPreview(file);
+                        receiptSlots[i].type = 'pdf';
                     }
-                } else {
-                    console.log(`Skipping AI extraction for ${file.name} - AI extraction disabled`);
+
+                    // Extract (skip if cancelled)
+                    if (!this.extractionCancelled) {
+                        try {
+                            receiptSlots[i].invoiceDetails = await this.extractInvoiceDetails(file);
+                        } catch (error) {
+                            console.warn(`Failed to extract invoice details for ${file.name}:`, error);
+                        }
+                    }
+
+                    completedCount++;
+                    this.updateExtractionProgress(completedCount, filesToProcess.length);
+                });
+
+                await Promise.all(promises);
+                receipts.push(...receiptSlots);
+                cancelled = this.extractionCancelled;
+            } else {
+                // Local or no AI: process sequentially
+                for (const file of filesToProcess) {
+                    if (this.extractionCancelled) {
+                        cancelled = true;
+                        const remaining = filesToProcess.slice(filesToProcess.indexOf(file));
+                        for (const remFile of remaining) {
+                            let preview = '';
+                            let type = 'pdf';
+                            if (remFile.type.startsWith('image/')) {
+                                preview = await this.createImagePreview(remFile);
+                                type = 'image';
+                            } else if (remFile.type === 'application/pdf') {
+                                preview = await this.createPDFPreview(remFile);
+                                type = 'pdf';
+                            }
+                            receipts.push({
+                                name: remFile.name, filePath: null, preview, type,
+                                confidence: null, file: remFile, invoiceDetails: null, needsUpload: true
+                            });
+                        }
+                        break;
+                    }
+
+                    let preview = '';
+                    let type = 'pdf';
+
+                    if (file.type.startsWith('image/')) {
+                        preview = await this.createImagePreview(file);
+                        type = 'image';
+                    } else if (file.type === 'application/pdf') {
+                        preview = await this.createPDFPreview(file);
+                        type = 'pdf';
+                    }
+
+                    let invoiceDetails = null;
+
+                    if (aiExtractionEnabled) {
+                        try {
+                            invoiceDetails = await this.extractInvoiceDetails(file);
+                        } catch (error) {
+                            console.warn(`Failed to extract invoice details for ${file.name}:`, error);
+                        }
+                        completedCount++;
+                        this.updateExtractionProgress(completedCount, filesToProcess.length);
+                    } else {
+                        console.log(`Skipping AI extraction for ${file.name} - AI extraction disabled`);
+                    }
+
+                    receipts.push({
+                        name: file.name, filePath: null, preview, type,
+                        confidence: null, file: file, invoiceDetails, needsUpload: true
+                    });
                 }
+            }
 
-                return {
-                    name: file.name,
-                    filePath: null, // Will be set to absolute path when uploaded to server
-                    preview: preview,
-                    type: type,
-                    confidence: null, // No confidence for bulk imports
-                    file: file, // Keep the file object for upload when needed
-                    invoiceDetails: invoiceDetails, // Add extracted invoice details
-                    needsUpload: true // Flag to indicate this receipt needs to be uploaded
-                };
-            });
+            if (aiExtractionEnabled) {
+                this.hideExtractionProgress();
+            }
 
-            // Wait for all receipts to be processed in parallel
-            const receipts = await Promise.all(receiptPromises);
+            if (cancelled) {
+                const extracted = receipts.filter(r => r.invoiceDetails).length;
+                this.showToast(`Extraction cancelled. ${extracted} of ${filesToProcess.length} receipts were extracted.`, 'info');
+            }
 
             // Upload all the new receipts to get their file paths BEFORE adding them to bulkReceipts
             await this.uploadBulkReceiptsToServer(receipts);
@@ -4390,35 +4528,109 @@ class EZExpenseApp {
         const receipts = this.bulkReceipts;
         const hasReceipts = receipts.length > 0;
 
-        // Always show match and create buttons, but disable them when there are no receipts
         const disabledAttr = !hasReceipts ? 'disabled' : '';
         const disabledClass = !hasReceipts ? 'btn-disabled' : '';
         const altText = !hasReceipts ? 'title="Requires receipts in the Bulk Receipt Upload Area"' : '';
 
-        let html = `
-            <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 0.5rem; width: 100%;">
-                <!-- Top row -->
-                <button onclick="app.selectBulkReceipts()" class="btn btn-primary btn-sm">
-                    <i class="fas fa-paperclip"></i> ${hasReceipts ? 'Upload Receipts' : 'Upload Receipts'}
-                </button>
-                <button onclick="app.matchReceiptsWithExpenses()" class="btn btn-success btn-sm ${disabledClass}" ${disabledAttr} ${altText}>
-                    <i class="fas fa-link"></i> Match receipts with expenses
-                </button>
+        // Azure AI status
+        const azureAvailable = this.aiStatus.azure_configured;
+        const azureStatusHtml = azureAvailable
+            ? '<span style="color: #28a745; font-size: 0.8rem; margin-left: 0.25rem;">Available</span>'
+            : '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not available</span> <span onclick="app.toggleAzureWhyPopover(event)" style="color: #e67e22; font-size: 0.8rem; margin-left: 0.25rem; cursor: pointer; position: relative;"><i class="fas fa-exclamation-circle"></i> Why?<div id="azure-why-popover" style="display:none; position:absolute; left:0; top:1.4rem; z-index:1000; background:#fff; border:1px solid #ddd; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.15); padding:0.6rem 0.75rem; width:280px; font-size:0.78rem; color:#444; line-height:1.5; white-space:normal; cursor:default;" onclick="event.stopPropagation()">Azure OpenAI is not configured.<br><br>Please check your <b>.env</b> file and fill in the required variables.<br><br>See <b>README.md</b> or <b>USER_GUIDE.md</b> for more information.</div></span>';
 
-                <!-- Bottom row -->
-                <div class="ai-extraction-control" style="display: flex; align-items: center; justify-content: flex-end; padding: 0.5rem; background-color: transparent; border: none; box-shadow: none;">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #666; margin: 0; cursor: pointer;">
-                        <input type="checkbox" id="ai-extraction-checkbox" checked style="cursor: pointer;">
-                        🤖 Extract invoice details with AI
-                    </label>
+        // Local AI status
+        const localReady = this.aiStatus.downloaded;
+        let localStatusHtml;
+        if (localReady) {
+            localStatusHtml = `<span style="color: #28a745; font-size: 0.8rem; margin-left: 0.25rem;">Ready (${this.aiStatus.size_mb} MB)</span> <a href="#" onclick="app.deleteModel(); return false;" style="color: #dc3545; font-size: 0.75rem; margin-left: 0.5rem;">Delete</a>`;
+        } else {
+            localStatusHtml = '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not downloaded</span> <a href="#" onclick="app.downloadModel(); return false;" style="color: #667eea; font-size: 0.8rem; margin-left: 0.5rem; font-weight: 600; text-decoration: none;"><i class="fas fa-download"></i> Download</a>';
+        }
+
+        // Determine which checkbox should be checked — preserve user's selection if still valid
+        let azureChecked = false;
+        let localChecked = false;
+        if (this.aiSelectedProvider === 'azure' && azureAvailable) {
+            azureChecked = true;
+        } else if (this.aiSelectedProvider === 'local' && localReady) {
+            localChecked = true;
+        } else if (this.aiSelectedProvider === null) {
+            // No user selection yet — default: prefer Azure if available, else local
+            if (azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
+            else if (localReady) { localChecked = true; this.aiSelectedProvider = 'local'; }
+        }
+
+        let html = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%;">
+                <!-- Left column: AI options + Upload -->
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+                        <div style="font-size: 0.8rem; font-weight: 600; color: #555; margin-bottom: 0.4rem;">🤖 AI Extraction Options</div>
+                        <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${azureAvailable ? '#333' : '#999'}; margin: 0; cursor: ${azureAvailable ? 'pointer' : 'not-allowed'};">
+                                <input type="radio" name="ai-provider" id="azure-ai-checkbox" ${azureChecked ? 'checked' : ''} ${azureAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('azure', this)" style="cursor: ${azureAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
+                                Azure AI Extraction ${azureStatusHtml}
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${localReady ? '#333' : '#999'}; margin: 0; cursor: ${localReady ? 'pointer' : 'not-allowed'};">
+                                <input type="radio" name="ai-provider" id="local-ai-checkbox" ${localChecked ? 'checked' : ''} ${localReady ? '' : 'disabled'} onclick="app.onAIRadioClick('local', this)" style="cursor: ${localReady ? 'pointer' : 'not-allowed'}; margin: 0;">
+                                Local AI Extraction ${localStatusHtml}
+                            </label>
+                        </div>
+                    </div>
+                    <button onclick="app.selectBulkReceipts()" class="btn btn-primary btn-sm">
+                        <i class="fas fa-paperclip"></i> Upload Receipts
+                    </button>
                 </div>
-                <button onclick="app.createExpensesFromReceipts()" class="btn btn-primary btn-sm ${disabledClass}" style="background-color: #6f42c1; border-color: #6f42c1;" ${disabledAttr} ${altText}>
-                    <i class="fas fa-plus"></i> Create expenses from receipts
-                </button>
+
+                <!-- Right column: Match + Create buttons -->
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <button onclick="app.matchReceiptsWithExpenses()" class="btn btn-success btn-sm ${disabledClass}" ${disabledAttr} ${altText}>
+                        <i class="fas fa-link"></i> Match receipts with expenses
+                    </button>
+                    <button onclick="app.createExpensesFromReceipts()" class="btn btn-primary btn-sm ${disabledClass}" style="background-color: #6f42c1; border-color: #6f42c1;" ${disabledAttr} ${altText}>
+                        <i class="fas fa-plus"></i> Create expenses from receipts
+                    </button>
+                </div>
             </div>
+
         `;
 
         actionsContainer.innerHTML = html;
+    }
+
+    /**
+     * Handle AI radio click — click again to deselect
+     */
+    onAIRadioClick(source, el) {
+        if (this.aiSelectedProvider === source) {
+            // Clicking the already-selected option — deselect it
+            el.checked = false;
+            this.aiSelectedProvider = null;
+        } else {
+            this.aiSelectedProvider = source;
+        }
+    }
+
+    /**
+     * Toggle the Azure "Why?" popover on click
+     */
+    toggleAzureWhyPopover(event) {
+        event.stopPropagation();
+        const popover = document.getElementById('azure-why-popover');
+        if (!popover) return;
+        const isVisible = popover.style.display !== 'none';
+        popover.style.display = isVisible ? 'none' : 'block';
+
+        if (!isVisible) {
+            // Close on next outside click
+            const closeHandler = (e) => {
+                if (!popover.contains(e.target)) {
+                    popover.style.display = 'none';
+                    document.removeEventListener('click', closeHandler, true);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler, true), 0);
+        }
     }
 
     /**
@@ -4592,8 +4804,11 @@ class EZExpenseApp {
      * Check if AI extraction is enabled based on checkbox state
      */
     isAIExtractionEnabled() {
-        const checkbox = document.getElementById('ai-extraction-checkbox');
-        return checkbox ? checkbox.checked : true; // Default to true if checkbox not found
+        const azureCheckbox = document.getElementById('azure-ai-checkbox');
+        const localCheckbox = document.getElementById('local-ai-checkbox');
+        const azureChecked = azureCheckbox ? azureCheckbox.checked : false;
+        const localChecked = localCheckbox ? localCheckbox.checked : false;
+        return azureChecked || localChecked;
     }
 
     // ===== END AI EXTRACTION CONTROL =====
@@ -4707,6 +4922,148 @@ class EZExpenseApp {
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
+
+    // ===== LOCAL AI MODEL MANAGEMENT =====
+
+    async checkModelStatus() {
+        try {
+            const response = await fetch('/api/model/status');
+            const data = await response.json();
+            if (data.success) {
+                this.aiStatus = {
+                    azure_configured: data.azure_configured || false,
+                    downloaded: data.downloaded || false,
+                    model_name: data.model_name || '',
+                    size_mb: data.size_mb || 0
+                };
+            }
+            this.updateBulkReceiptActions();
+        } catch (error) {
+            console.warn('Failed to check model status:', error);
+        }
+    }
+
+    openDownloadModal() {
+        const modal = document.getElementById('model-download-modal');
+        if (modal) {
+            const progressBar = document.getElementById('model-progress-bar');
+            const progressText = document.getElementById('model-progress-text');
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressText) progressText.textContent = 'Starting download...';
+            modal.style.display = 'flex';
+        }
+    }
+
+    closeDownloadModal() {
+        const modal = document.getElementById('model-download-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    async downloadModel() {
+        this.openDownloadModal();
+        const progressBar = document.getElementById('model-progress-bar');
+        const progressText = document.getElementById('model-progress-text');
+
+        try {
+            const response = await fetch('/api/model/download', { method: 'POST' });
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            // Animate indeterminate progress
+            let animProgress = 0;
+            const animInterval = setInterval(() => {
+                animProgress = Math.min(animProgress + 2, 90);
+                if (progressBar) progressBar.style.width = animProgress + '%';
+            }, 500);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const text = decoder.decode(value, { stream: true });
+                const lines = text.split('\n').filter(l => l.startsWith('data: '));
+
+                for (const line of lines) {
+                    try {
+                        const eventData = JSON.parse(line.substring(6));
+                        if (eventData.status === 'complete') {
+                            clearInterval(animInterval);
+                            if (progressBar) progressBar.style.width = '100%';
+                            if (progressText) progressText.textContent = 'Download complete!';
+                            this.showToast('AI model downloaded successfully', 'success');
+                            setTimeout(() => {
+                                this.closeDownloadModal();
+                                this.checkModelStatus();
+                            }, 1500);
+                        } else if (eventData.status === 'error') {
+                            clearInterval(animInterval);
+                            if (progressText) progressText.textContent = `Error: ${eventData.message}`;
+                            this.showToast('Model download failed: ' + eventData.message, 'error');
+                        }
+                    } catch (e) { /* skip unparseable lines */ }
+                }
+            }
+        } catch (error) {
+            this.showToast('Model download failed: ' + error.message, 'error');
+            this.closeDownloadModal();
+        }
+    }
+
+    async deleteModel() {
+        if (!confirm('Delete the local AI model? You can re-download it later.')) return;
+
+        try {
+            const response = await fetch('/api/model/delete', { method: 'DELETE' });
+            const data = await response.json();
+            if (data.success) {
+                this.showToast('AI model deleted', 'info');
+                this.aiStatus.downloaded = false;
+                this.aiStatus.size_mb = 0;
+                this.updateBulkReceiptActions();
+            } else {
+                this.showToast('Failed to delete model: ' + data.message, 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to delete model: ' + error.message, 'error');
+        }
+    }
+
+    // ===== EXTRACTION PROGRESS =====
+
+    showExtractionProgress(current, total) {
+        const overlay = document.getElementById('loading-overlay');
+        const progressContainer = document.getElementById('loading-progress-container');
+        const spinnerIcon = document.getElementById('loading-spinner-icon');
+        if (overlay) overlay.style.display = 'flex';
+        if (progressContainer) progressContainer.style.display = 'block';
+        this.updateExtractionProgress(current, total);
+    }
+
+    updateExtractionProgress(current, total) {
+        const bar = document.getElementById('loading-progress-bar');
+        const text = document.getElementById('loading-text');
+        if (bar) bar.style.width = total > 0 ? `${(current / total) * 100}%` : '0%';
+        if (text) text.textContent = `Extracting ${current}/${total}...`;
+    }
+
+    hideExtractionProgress() {
+        const overlay = document.getElementById('loading-overlay');
+        const progressContainer = document.getElementById('loading-progress-container');
+        if (overlay) overlay.style.display = 'none';
+        if (progressContainer) progressContainer.style.display = 'none';
+    }
+
+    cancelExtraction() {
+        this.extractionCancelled = true;
+        const text = document.getElementById('loading-text');
+        if (text) text.textContent = 'Cancelling... gathering processed receipts';
+        const btn = document.getElementById('cancel-extraction-btn');
+        if (btn) btn.disabled = true;
+    }
+
+    // ===== END EXTRACTION PROGRESS =====
+
+    // ===== END LOCAL AI MODEL MANAGEMENT =====
 }
 
 // Global functions for HTML onclick handlers

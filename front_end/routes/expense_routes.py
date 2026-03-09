@@ -7,7 +7,6 @@ import os
 import sys
 from datetime import datetime
 
-from playwright.async_api import Page
 from playwright.async_api import TimeoutError as playwright_TimeoutError
 from quart import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
@@ -15,26 +14,13 @@ from werkzeug.utils import secure_filename
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from config import IMPORT_EXPENSE_MOCK
+from config import AI_DEBUG, DATE_FORMAT, IMPORT_EXPENSE_MOCK
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-try:
-    from expense_importer import (
-        get_expense_page,
-        import_expense_wrapper,
-    )
-except ImportError as e:
-    logging.error(f"Could not import expense_importer: {e}")
-    get_expense_page = None
-    import_expense_wrapper = None
-
-try:
-    from expense_matcher import receipt_match_score
-except ImportError as e:
-    logging.error(f"Could not import expense_matcher: {e}")
-    receipt_match_score = None
+from expense_importer import get_expense_page, import_expense_wrapper
+from expense_matcher import receipt_match_score
 
 # Create blueprint
 expense_bp = Blueprint("expenses", __name__)
@@ -103,18 +89,13 @@ async def import_expenses_real():
 
 async def _import_real_data():
     """Import real expense data from browser"""
-    if not import_expense_wrapper:
-        return jsonify(
-            {
-                "error": "Import functionality not available",
-                "message": "Expense importer module could not be loaded.",
-            }
-        ), 500
-
     try:
         # Use the import_expense_wrapper function to get real browser data
         expense_df = await import_expense_wrapper()
         expense_df["id"] = range(1, len(expense_df) + 1)
+
+        # Preserve column names for the frontend (even if DataFrame is empty)
+        columns = [col for col in expense_df.columns if col != "id"]
 
         # Convert DataFrame to list of dictionaries for JSON response
         expenses = expense_df.to_dict("records")
@@ -126,6 +107,7 @@ async def _import_real_data():
                 "success": True,
                 "message": f"Successfully imported {len(expenses)} expenses from My Expense",
                 "data": expenses,
+                "columns": columns,
                 "count": len(expenses),
                 "source": "browser",
             }
@@ -168,6 +150,9 @@ def get_mock_expenses_internal():
         mock_expenses_df = import_expense_mock()
         mock_expenses_df["id"] = range(1, len(mock_expenses_df) + 1)
 
+        # Preserve column names for the frontend (even if DataFrame is empty)
+        columns = [col for col in mock_expenses_df.columns if col != "id"]
+
         # Convert DataFrame to list of dictionaries for JSON response
         expenses = mock_expenses_df.to_dict("records")
 
@@ -178,6 +163,7 @@ def get_mock_expenses_internal():
                 "success": True,
                 "message": f"Mock data loaded with {len(expenses)} expenses",
                 "data": expenses,
+                "columns": columns,
                 "count": len(expenses),
                 "source": "mock",
             }
@@ -381,18 +367,11 @@ async def match_receipt():
         receipt_data = data.get("receipt_data")
 
         # Calculate confidence score using existing receipt_matcher
-        if receipt_match_score is None:
-            # Fallback to mock score if function not available
+        try:
+            confidence_score = receipt_match_score(receipt_data, expense_data)
+        except Exception as e:
+            logger.warning(f"Error calling receipt_match_score: {e}")
             confidence_score = None
-            logger.warning(
-                "Using None as confidence score as receipt_match_score function is not available"
-            )
-        else:
-            try:
-                confidence_score = receipt_match_score(receipt_data, expense_data)
-            except Exception as e:
-                logger.warning(f"Error calling receipt_match_score: {e}")
-                confidence_score = None
 
         logger.info(
             f"Calculated match confidence: {confidence_score} for expense {expense_data.get('id', 'unknown')}"
@@ -548,7 +527,8 @@ async def create_expenses_from_receipts():
         logger.info(f"Creating expenses from {len(receipts_with_invoice_details)} receipts")
 
         # Find the highest existing expense ID to generate new sequential IDs
-        max_id = max(expense["id"] for expense in current_expense_data if "id" in expense)
+        existing_ids = [expense["id"] for expense in current_expense_data if "id" in expense]
+        max_id = max(existing_ids) if existing_ids else 0
 
         # Start new IDs from the next number
         next_id = max_id + 1
@@ -625,10 +605,6 @@ async def bring_page_to_front():
         logger.info("Attempting to bring My Expense page to front")
 
         # Get the current expense page
-        if not get_expense_page:
-            logger.error("Expense page getter not available")
-            return jsonify({"success": False, "error": "Browser control not available"}), 503
-
         page = get_expense_page()
         if page is None:
             logger.error("No active browser page found")
@@ -650,6 +626,99 @@ async def bring_page_to_front():
         return jsonify(
             {"success": False, "error": "Failed to bring page to front", "message": str(e)}
         ), 500
+
+
+@expense_bp.route("/navigate-to-report", methods=["POST"])
+async def navigate_to_report():
+    """
+    Navigate the app's browser page to a specific expense report.
+    Only available when AI_DEBUG=True.
+
+    Request body: { "report_number": "D10710000200323" }
+    """
+    if not AI_DEBUG:
+        return jsonify({"success": False, "error": "Only available in AI_DEBUG mode"}), 403
+
+    try:
+        data = await request.get_json()
+        report_number = data.get("report_number")
+        if not report_number:
+            return jsonify({"success": False, "error": "report_number is required"}), 400
+
+        page = get_expense_page()
+        if page is None:
+            return jsonify({"success": False, "error": "No active browser session"}), 503
+
+        logger.info(f"Navigating to expense report: {report_number}")
+
+        # If on the dashboard, click Expense management first
+        expense_mgmt_btn = page.get_by_role("button", name="Expense management")
+        if await expense_mgmt_btn.is_visible():
+            await expense_mgmt_btn.click()
+            await page.wait_for_load_state("networkidle")
+
+        # If on an expense report detail page, go back to the list first
+        save_close_btn = page.get_by_role("button", name="Save and close")
+        if await save_close_btn.is_visible():
+            await save_close_btn.click()
+            await page.wait_for_load_state("domcontentloaded")
+            await page.wait_for_load_state("networkidle")
+
+        # Click the target expense report to open the detail page.
+        report_link = page.get_by_title(report_number, exact=False)
+        await report_link.wait_for(timeout=15000)
+        await report_link.click()
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_load_state("networkidle")
+
+        # If still on the list (single click just selected the row), retry
+        new_expense_btn = page.locator('*[data-dyn-controlname="NewExpenseButton"]')
+        try:
+            await new_expense_btn.wait_for(timeout=5000)
+        except Exception:
+            # Second click
+            logger.info("First click selected the row, clicking again to open")
+            await report_link.click()
+            await page.wait_for_load_state("domcontentloaded")
+            await page.wait_for_load_state("networkidle")
+
+            try:
+                await new_expense_btn.wait_for(timeout=5000)
+            except Exception:
+                # Grid is stale after repeated exports — refresh and retry
+                logger.info("Grid is stale, refreshing page and retrying")
+                await page.reload()
+                await page.wait_for_load_state("domcontentloaded")
+                await page.wait_for_load_state("networkidle")
+                report_link = page.get_by_title(report_number, exact=False)
+                await report_link.wait_for(timeout=15000)
+                await report_link.click()
+                await page.wait_for_load_state("domcontentloaded")
+                await page.wait_for_load_state("networkidle")
+
+                # After reload, first click may still just select the row
+                try:
+                    await new_expense_btn.wait_for(timeout=5000)
+                except Exception:
+                    logger.info("Clicking again after reload")
+                    await report_link.click()
+                    await page.wait_for_load_state("domcontentloaded")
+                    await page.wait_for_load_state("networkidle")
+
+        # Verify we're on the expense report detail page
+        await page.wait_for_selector('*[data-dyn-controlname="NewExpenseButton"]', timeout=15000)
+
+        logger.info(f"Successfully navigated to expense report {report_number}")
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Navigated to expense report {report_number}",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error navigating to report: {e}")
+        return jsonify({"success": False, "error": "Navigation failed", "message": str(e)}), 500
 
 
 @expense_bp.route("/fill-expense-report", methods=["POST"])
@@ -707,7 +776,11 @@ async def fill_expense_report():
         existing_expenses_to_update = [expense for expense in expenses if expense.get("Created ID")]
         new_expenses_to_create = [expense for expense in expenses if not expense.get("Created ID")]
 
-        page: Page = get_expense_page()
+        page = get_expense_page()
+        if page is None:
+            raise RuntimeError(
+                "Expense page not available. Make sure the browser session is initialized."
+            )
         expense_lines = await page.get_by_role(
             "textbox", name="Created ID", include_hidden=True
         ).all()
@@ -735,6 +808,8 @@ async def fill_expense_report():
             text_box = await page.query_selector(
                 'textarea[name="TrvExpTrans_AdditionalInformation"]'
             )
+            if text_box is None:
+                raise RuntimeError("Additional information text box not found on the page.")
             await text_box.click()
             await text_box.wait_for_element_state("editable")
             await text_box.fill(expense["Additional information"])
@@ -755,7 +830,7 @@ async def fill_expense_report():
                             upload_button = await page.wait_for_selector(
                                 'button[name="UploadControlBrowseButton"]'
                             )
-                            await upload_button.click()
+                            await upload_button.click()  # type: ignore[reportOptionalMemberAccess]
                         break
                     except playwright_TimeoutError:
                         logger.info("File chooser did not appear, retrying...")
@@ -780,13 +855,28 @@ async def fill_expense_report():
             await page.fill('input[name="AmountInput"]', expense["Amount"])
             await page.fill('input[name="CurrencyInput"]', expense["Currency"])
             await page.fill('input[name="MerchantInputNoLookup"]', expense["Merchant"])
-            await page.fill(
-                'input[name="DateInput"]',
-                datetime.strptime(expense["Date"], "%Y-%m-%d").strftime("%-m/%-d/%Y"),
-            )
+
+            try:
+                date_obj = datetime.strptime(expense["Date"], "%Y-%m-%d")
+                formatted_date = (
+                    DATE_FORMAT.replace("DD", str(date_obj.day))
+                    .replace("MM", str(date_obj.month))
+                    .replace("YYYY", str(date_obj.year))
+                )
+                await page.fill('input[name="DateInput"]', formatted_date)
+            except Exception as e:
+                error_msg = (
+                    f"Failed to fill date field for expense date '{expense['Date']}'. "
+                    f"Error: {e}. Current DATE_FORMAT: {DATE_FORMAT}. "
+                    f"Please verify your DATE_FORMAT setting in the .env file matches your system's expected format."
+                )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
 
             # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
             text_box = await page.query_selector('textarea[name="NotesInput"]')
+            if text_box is None:
+                raise RuntimeError("Notes input text box not found on the page.")
             await text_box.click()
             await text_box.wait_for_element_state("editable")
             await text_box.fill(expense["Additional information"])
@@ -838,6 +928,44 @@ async def fill_expense_report():
         return jsonify(
             {"success": False, "error": "Failed to fill expense report", "message": str(e)}
         ), 500
+
+
+@expense_bp.route("/screenshot", methods=["GET"])
+async def take_screenshot():
+    """
+    Capture a screenshot of the current MyExpense page.
+
+    Saves the image to ``test_screenshots/`` and returns it as a PNG response.
+    Useful for automated test verification.
+    """
+    try:
+        page = get_expense_page()
+        if page is None:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "No active browser page",
+                    "message": "Browser session is not available.",
+                }
+            ), 503
+
+        # Ensure output directory exists
+        screenshot_dir = os.path.join(os.getcwd(), "test_screenshots")
+        os.makedirs(screenshot_dir, exist_ok=True)
+
+        filename = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        filepath = os.path.join(screenshot_dir, filename)
+
+        await page.screenshot(path=filepath, full_page=True)
+        logger.info(f"Screenshot saved to {filepath}")
+
+        from quart import send_file as quart_send_file
+
+        return await quart_send_file(filepath, mimetype="image/png")
+
+    except Exception as e:
+        logger.error(f"Error taking screenshot: {e}")
+        return jsonify({"success": False, "error": "Screenshot failed", "message": str(e)}), 500
 
 
 @expense_bp.route("/itemize", methods=["POST"])

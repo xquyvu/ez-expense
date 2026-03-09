@@ -117,10 +117,13 @@ def create_app():
                 logger.warning(f"Failed to cleanup old uploads: {e}")
 
         # Store cleanup function for potential use
-        app.cleanup_old_uploads = cleanup_old_uploads
+        app.cleanup_old_uploads = cleanup_old_uploads  # type: ignore[attr-defined]
 
         # Allowed file extensions
         app.config["ALLOWED_EXTENSIONS"] = ALLOWED_EXTENSIONS
+
+        # Disable static file caching during development
+        app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
         print("🔧 [Quart] Enabling CORS...")
         # Enable CORS for all routes
@@ -141,7 +144,9 @@ def create_app():
         @app.route("/")
         async def index():
             """Render the main application page."""
-            return await render_template("index.html")
+            import time
+
+            return await render_template("index.html", cache_bust=int(time.time()))
 
         @app.route("/health")
         def health_check():
@@ -205,6 +210,16 @@ def create_app():
         except ImportError as e:
             logger.warning(f"Could not import receipt routes: {e}")
             print(f"⚠️ [Quart] Could not import receipt routes: {e}")
+
+        try:
+            from front_end.routes.model_routes import model_bp
+
+            app.register_blueprint(model_bp, url_prefix="/api/model")
+            logger.info("Model routes registered successfully")
+            print("🔧 [Quart] Model routes registered")
+        except ImportError as e:
+            logger.warning(f"Could not import model routes: {e}")
+            print(f"⚠️ [Quart] Could not import model routes: {e}")
 
         # Add global error handlers for better exception visibility
         @app.errorhandler(500)

@@ -4,12 +4,15 @@ Simple test script to verify the fill-expense-report endpoint works correctly.
 """
 
 import json
-import sys
+import os
 from datetime import datetime
 
+import pytest
 import requests
 
-from config import FRONTEND_PORT
+# Use the preferred port directly (not config.FRONTEND_PORT which calls
+# find_available_port and picks a DIFFERENT port when the server is running).
+FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
 
 
 def test_fill_expense_report_endpoint():
@@ -21,22 +24,26 @@ def test_fill_expense_report_endpoint():
     test_data = {
         "expenses": [
             {
-                "id": "exp_001",
-                "description": "Business lunch",
-                "amount": 45.67,
-                "date": "2025-09-20",
-                "category": "Meals",
-                "attachedReceipts": [
-                    {"name": "lunch_receipt.jpg", "size": 1024, "type": "image/jpeg"}
+                "Date": "2025-09-20",
+                "Amount": "45.67",
+                "Currency": "USD",
+                "Merchant": "Test Restaurant",
+                "Expense category": "Meals | Employee Travel",
+                "Additional information": "Business lunch",
+                "Payment method": "Cash",
+                "Receipts": [
+                    {"name": "lunch_receipt.jpg", "filename": "lunch_receipt.jpg", "filePath": "/tmp/lunch_receipt.jpg"}
                 ],
             },
             {
-                "id": "exp_002",
-                "description": "Taxi fare",
-                "amount": 23.45,
-                "date": "2025-09-20",
-                "category": "Transportation",
-                "attachedReceipts": [],
+                "Date": "2025-09-20",
+                "Amount": "23.45",
+                "Currency": "USD",
+                "Merchant": "Test Taxi",
+                "Expense category": "Ground Transportation",
+                "Additional information": "Taxi fare",
+                "Payment method": "Cash",
+                "Receipts": [],
             },
         ],
         "timestamp": datetime.now().isoformat(),
@@ -55,28 +62,32 @@ def test_fill_expense_report_endpoint():
         print(f"Response status: {response.status_code}")
         print(f"Response headers: {dict(response.headers)}")
 
-        if response.status_code == 200:
-            result = response.json()
-            print("✅ SUCCESS!")
-            print(f"Response: {json.dumps(result, indent=2)}")
-            return True
-        else:
-            print("❌ FAILED!")
-            print(f"Error response: {response.text}")
-            return False
+        # Skip if the browser session is not available (expected in test environments)
+        if response.status_code == 500:
+            body = response.json()
+            if "browser session" in body.get("message", "").lower() or "page not available" in body.get("message", "").lower():
+                pytest.skip("Fill endpoint requires a real browser session to MyExpense")
+
+        assert response.status_code == 200, (
+            f"Request failed with status {response.status_code}: {response.text}"
+        )
+        result = response.json()
+        print("✅ SUCCESS!")
+        print(f"Response: {json.dumps(result, indent=2)}")
 
     except requests.exceptions.ConnectionError:
-        print("❌ CONNECTION ERROR!")
-        print(
-            f"Could not connect to the Flask app. Make sure it's running on localhost:{FRONTEND_PORT}"
+        pytest.skip(
+            f"Could not connect to the Flask app on localhost:{FRONTEND_PORT}. Run: uv run -m front_end.app"
         )
-        print("Run: uv run -m front_end.app")
-        return False
+    except requests.exceptions.ReadTimeout:
+        pytest.skip(
+            "Fill endpoint timed out — likely waiting for a browser session to MyExpense"
+        )
+    except AssertionError:
+        raise
     except Exception as e:
-        print(f"❌ ERROR: {e}")
-        return False
+        pytest.fail(f"Test failed with error: {e}")
 
 
 if __name__ == "__main__":
-    success = test_fill_expense_report_endpoint()
-    sys.exit(0 if success else 1)
+    print("Run with: uv run -m pytest tests/test_fill_expense_report.py -v")

@@ -3,9 +3,14 @@
 Test script for the new bulk receipt matching endpoint.
 """
 
+import os
+
+import pytest
 import requests
 
-from config import FRONTEND_PORT
+# Use the preferred port directly (not config.FRONTEND_PORT which calls
+# find_available_port and picks a DIFFERENT port when the server is running).
+FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
 
 
 def test_bulk_receipt_matching():
@@ -32,17 +37,21 @@ def test_bulk_receipt_matching():
         "expense_data": [
             {
                 "id": "exp1",
-                "Amount": "25.50 USD",  # Changed to uppercase and proper format
-                "Date": "2025-09-20",  # Changed to uppercase
-                "Description": "Office supplies",  # Changed to uppercase
-                "Category": "Business",  # Changed to uppercase
+                "Amount": "25.50",
+                "Date": "2025-09-20",
+                "Currency": "USD",
+                "Description": "Office supplies",
+                "Category": "Business",
+                "receipts": [],
             },
             {
                 "id": "exp2",
-                "Amount": "42.00 USD",  # Changed to uppercase and proper format
-                "Date": "2025-09-21",  # Changed to uppercase
-                "Description": "Lunch meeting",  # Changed to uppercase
-                "Category": "Meals",  # Changed to uppercase
+                "Amount": "42.00",
+                "Date": "2025-09-21",
+                "Currency": "USD",
+                "Description": "Lunch meeting",
+                "Category": "Meals",
+                "receipts": [],
             },
         ],
     }
@@ -55,34 +64,24 @@ def test_bulk_receipt_matching():
             headers={"Content-Type": "application/json"},
         )
 
-        if response.status_code == 200:
-            result = response.json()
-            print("✅ Bulk receipt matching endpoint test successful!")
-            print(f"   Match score: {result.get('match_score')}")
-            print(
-                f"   Bulk receipts processed: {result.get('summary', {}).get('bulk_receipts_processed')}"
-            )
-            print(f"   Expenses analyzed: {result.get('summary', {}).get('expenses_analyzed')}")
-            print(
-                f"   Receipts with AI extraction: {result.get('summary', {}).get('receipts_with_ai_extraction')}"
-            )
-            return True
-        else:
-            print(f"❌ Endpoint test failed: {response.status_code}")
-            try:
-                error_data = response.json()
-                print(f"   Error: {error_data}")
-            except Exception:
-                print(f"   Response: {response.text}")
-            return False
+        assert response.status_code == 200, f"Endpoint test failed: {response.status_code}"
+        result = response.json()
+        print("✅ Bulk receipt matching endpoint test successful!")
+        print(f"   Match score: {result.get('match_score')}")
+        print(
+            f"   Bulk receipts processed: {result.get('summary', {}).get('bulk_receipts_processed')}"
+        )
+        print(f"   Expenses analyzed: {result.get('summary', {}).get('expenses_analyzed')}")
+        print(
+            f"   Receipts with AI extraction: {result.get('summary', {}).get('receipts_with_ai_extraction')}"
+        )
 
     except requests.exceptions.ConnectionError:
-        print("❌ Cannot connect to the application")
-        print(f"   Please make sure the Flask app is running on http://127.0.0.1:{FRONTEND_PORT}")
-        return False
+        pytest.skip(f"Cannot connect to the application on http://127.0.0.1:{FRONTEND_PORT}")
+    except AssertionError:
+        raise
     except Exception as e:
-        print(f"❌ Test failed with exception: {e}")
-        return False
+        pytest.fail(f"Test failed with exception: {e}")
 
 
 def test_endpoint_validation():
@@ -100,38 +99,18 @@ def test_endpoint_validation():
             headers={"Content-Type": "application/json"},
         )
 
-        if response.status_code == 400:
-            print("✅ Validation test passed - correctly rejected missing fields")
-        else:
-            print(f"❌ Validation test failed - expected 400, got {response.status_code}")
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}"
+        print("✅ Validation test passed - correctly rejected missing fields")
 
+    except requests.exceptions.ConnectionError:
+        pytest.skip(f"Cannot connect to application on http://127.0.0.1:{FRONTEND_PORT}")
+    except AssertionError:
+        raise
     except Exception as e:
-        print(f"❌ Validation test failed: {e}")
-
-
-def main():
-    """Run all tests."""
-    print("Testing Bulk Receipt Matching Endpoint")
-    print("=" * 45)
-
-    # Test the main functionality
-    success = test_bulk_receipt_matching()
-
-    if success:
-        # Test validation
-        test_endpoint_validation()
-
-        print("\n" + "=" * 45)
-        print("✅ All tests completed!")
-        print("\nThe new endpoint is ready to:")
-        print("1. Accept bulk receipt data and expense data")
-        print("2. Extract invoice details from receipts (when AI is enabled)")
-        print("3. Pass the data to receipt_match_score function")
-        print("4. Return matching results and scores")
-    else:
-        print("\n❌ Basic functionality test failed")
-        print("Please check if the Flask application is running and try again")
+        pytest.fail(f"Validation test failed: {e}")
 
 
 if __name__ == "__main__":
-    main()
+    print("Testing Bulk Receipt Matching Endpoint")
+    print("=" * 45)
+    print("\nRun with: uv run -m pytest tests/test_bulk_matching.py -v")

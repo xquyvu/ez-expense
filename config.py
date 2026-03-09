@@ -16,15 +16,22 @@ load_dotenv(override=True)
 
 # Debug and development settings
 IMPORT_EXPENSE_MOCK = os.getenv("IMPORT_EXPENSE_MOCK", "False").lower() == "true"
+AI_DEBUG = os.getenv("AI_DEBUG", "False").lower() == "true"
 FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 DEBUG_LOG_TARGET = os.getenv("DEBUG_LOG_TARGET", "ez-expense.log").strip('"')
 DEBUG_LOG_TARGET_FRONT_END = os.getenv("DEBUG_LOG_TARGET_FRONT_END", "ez-expense-fe.log").strip('"')
 
-# API Keys
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
+# Azure OpenAI
+AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID", None)
 AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
+
+# Local model settings
+LOCAL_MODEL_DIR = os.getenv("EZ_EXPENSE_MODEL_DIR", os.path.expanduser("~/.ez-expense/models"))
+
+# Date format configuration
+DATE_FORMAT = os.getenv("DATE_FORMAT", "MM/DD/YYYY").upper()
 
 # Port configurations
 BROWSER = os.getenv("EZ_EXPENSE_BROWSER", "edge")
@@ -33,12 +40,16 @@ BROWSER = os.getenv("EZ_EXPENSE_BROWSER", "edge")
 _PREFERRED_BROWSER_PORT = int(os.getenv("EZ_EXPENSE_BROWSER_PORT", 9222))
 _PREFERRED_FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
 
-# Assign actual ports (will use preferred if available, or find alternatives)
-BROWSER_PORT = find_available_port(_PREFERRED_BROWSER_PORT)
+# In AI_DEBUG mode, browser port is fixed (browser is already running, managed externally).
+# In normal mode, find an available port (original behavior).
+if AI_DEBUG:
+    BROWSER_PORT = _PREFERRED_BROWSER_PORT
+else:
+    BROWSER_PORT = find_available_port(_PREFERRED_BROWSER_PORT)
+
 FRONTEND_PORT = find_available_port(_PREFERRED_FRONTEND_PORT)
 
-# Log port assignments if they changed
-if BROWSER_PORT != _PREFERRED_BROWSER_PORT:
+if not AI_DEBUG and BROWSER_PORT != _PREFERRED_BROWSER_PORT:
     print(
         f"⚠️  Browser port {_PREFERRED_BROWSER_PORT} was occupied, using port {BROWSER_PORT} instead"
     )
@@ -109,6 +120,22 @@ EXPENSE_CATEGORIES = [
     "Volunteer Event Items - Non US",
     "Volunteer Event Items - US",
 ]
+
+# Map of common currency symbols to their ISO codes (used by local LLM postprocessing)
+CURRENCY_SYMBOL_MAP = {
+    "$": "USD",
+    "£": "GBP",
+    "€": "EUR",
+    "¥": "JPY",
+    "₹": "INR",
+    "₩": "KRW",
+    "₽": "RUB",
+    "₺": "TRY",
+    "R$": "BRL",
+    "CHF": "CHF",
+    "kr": "SEK",
+    "zł": "PLN",
+}
 
 CURRENCY_CODES = [
     "AFN",

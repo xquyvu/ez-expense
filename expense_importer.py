@@ -52,7 +52,7 @@ def postprocess_expense_data(expense_df: pd.DataFrame) -> pd.DataFrame:
         DataFrame containing the post-processed expense data
     """
     expense_df = expense_df.replace({np.nan: None})
-    expense_df["Date"] = expense_df["Date"].dt.date.astype(str)
+    expense_df["Date"] = expense_df["Date"].dt.date.astype(str)  # type: ignore[union-attr]
 
     expense_df = split_currency_and_amount(expense_df)
 
@@ -85,6 +85,8 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
     # Navigate to the column selection dialog - wait for it to appear
     await page.wait_for_selector("div.dialog-popup-content", timeout=10000)
     dialog_content = await page.query_selector("div.dialog-popup-content")
+    if dialog_content is None:
+        raise ValueError("Column selection dialog not found")
     #  endregion
 
     # region: Show expense description / biz purpose
@@ -103,6 +105,8 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
             break
 
     expense_desc_checkbox = await expense_desc_column.query_selector("span.dyn-checkbox-span")
+    if expense_desc_checkbox is None:
+        raise ValueError("Expense description checkbox not found")
 
     await expense_desc_checkbox.set_checked(True)
 
@@ -117,7 +121,7 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
     await page.keyboard.press("Enter")
 
     # Uncheck all Created ID columns
-    dialog_content_rows = await dialog_content.query_selector_all(
+    dialog_content_rows = await dialog_content.query_selector_all(  # type: ignore[union-attr]
         "div.fixedDataTableCellGroupLayout_cellGroup"
     )
     created_id_columns = []
@@ -182,6 +186,8 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
     # Navigate to the column selection dialog - wait for it to appear
     await page.wait_for_selector("div.dialog-popup-content", timeout=10000)
     dialog_content = await page.query_selector("div.dialog-popup-content")
+    if dialog_content is None:
+        raise ValueError("Column selection dialog not found")
 
     expense_desc_rows = await dialog_content.query_selector_all(
         "div.fixedDataTableCellGroupLayout_cellGroup"
@@ -198,6 +204,8 @@ async def import_expense_my_expense(page: Page, save_path: Path | None = None) -
             break
 
     expense_desc_checkbox = await expense_desc_column.query_selector("span.dyn-checkbox-span")
+    if expense_desc_checkbox is None:
+        raise ValueError("Expense description checkbox not found")
 
     await expense_desc_checkbox.set_checked(False)
     await page.click('button[data-dyn-controlname="OK"]')

@@ -5,62 +5,61 @@ Tests the new 'Match receipts with expenses' button feature.
 """
 
 import os
-import sys
 
-# Add the project root to Python path
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+import pytest
 
 
 def test_match_functionality():
     """Test the receipt matching API endpoint"""
 
-    # Test data - mock bulk receipts
+    # Test data - mock bulk receipts (keys must match what receipt_match_score expects)
     bulk_receipts = [
         {
             "name": "grocery_receipt_2024-01-15.pdf",
             "file_path": "uploads/grocery_receipt_2024-01-15.pdf",
             "invoiceDetails": {
-                "amount": "45.67",
-                "date": "2024-01-15",
-                "vendor": "Whole Foods Market",
+                "Amount": 45.67,
+                "Date": "2024-01-15",
+                "Currency": "USD",
+                "Merchant": "Whole Foods Market",
             },
         },
         {
             "name": "gas_station_2024-01-16.pdf",
             "file_path": "uploads/gas_station_2024-01-16.pdf",
             "invoiceDetails": {
-                "amount": "52.30",
-                "date": "2024-01-16",
-                "vendor": "Shell Gas Station",
+                "Amount": 52.30,
+                "Date": "2024-01-16",
+                "Currency": "USD",
+                "Merchant": "Shell Gas Station",
             },
         },
     ]
 
-    # Test data - mock expense data
+    # Test data - mock expense data (keys must match what receipt_match_score expects)
     expense_data = [
         {
             "id": 1,
-            "date": "2024-01-15",
-            "description": "Groceries - weekly shopping",
-            "amount": 45.67,
-            "category": "Food & Dining",
+            "Date": "2024-01-15",
+            "Description": "Groceries - weekly shopping",
+            "Amount": "45.67",
+            "Currency": "USD",
             "receipts": [],
         },
         {
             "id": 2,
-            "date": "2024-01-16",
-            "description": "Gas for commute",
-            "amount": 52.30,
-            "category": "Transportation",
+            "Date": "2024-01-16",
+            "Description": "Gas for commute",
+            "Amount": "52.30",
+            "Currency": "USD",
             "receipts": [],
         },
         {
             "id": 3,
-            "date": "2024-01-14",
-            "description": "Office supplies",
-            "amount": 25.99,
-            "category": "Business",
+            "Date": "2024-01-14",
+            "Description": "Office supplies",
+            "Amount": "25.99",
+            "Currency": "USD",
             "receipts": [],
         },
     ]
@@ -75,28 +74,23 @@ def test_match_functionality():
 
         print("✓ Successfully imported receipt_match_score function")
     except ImportError as e:
-        print(f"✗ Failed to import receipt_match_score: {e}")
-        return False
+        pytest.fail(f"✗ Failed to import receipt_match_score: {e}")
 
-    # Test the matching function
+    # Test the matching function with individual receipt/expense pairs
     try:
-        result = receipt_match_score(bulk_receipts, expense_data)
-        print("✓ Matching function executed successfully")
-        print(f"✓ Returned result type: {type(result)}")
-        print(f"✓ Result value: {result}")
+        for receipt in bulk_receipts:
+            for expense in expense_data:
+                result = receipt_match_score(receipt, expense)
+                print(f"✓ receipt_match_score({receipt['name']}, expense {expense['id']}): {result}")
 
-        # Check if we get a reasonable result
-        if isinstance(result, (int, float)):
-            if 0 <= result <= 1:
-                print("✓ Result is within expected range [0-1]")
-            else:
-                print(f"⚠ Result {result} is outside expected range [0-1]")
-        else:
-            print(f"⚠ Expected numeric result, got {type(result)}")
+                # Check if we get a reasonable result
+                assert isinstance(result, (int, float)), f"Expected numeric result, got {type(result)}"
+                assert 0 <= result <= 1, f"Result {result} is outside expected range [0-1]"
+
+        print("✓ All receipt_match_score calls returned valid results")
 
     except Exception as e:
-        print(f"✗ Error calling receipt_match_score: {e}")
-        return False
+        pytest.fail(f"✗ Error calling receipt_match_score: {e}")
 
     print()
     print("=== Frontend Integration Test ===")
@@ -169,9 +163,6 @@ def test_match_functionality():
     print("4. Click the 'Match receipts with expenses' button")
     print("5. Review the matching results and apply them")
 
-    return True
-
 
 if __name__ == "__main__":
-    success = test_match_functionality()
-    sys.exit(0 if success else 1)
+    print("Run with: uv run -m pytest tests/test_receipt_matching.py -v")

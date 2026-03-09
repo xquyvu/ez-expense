@@ -119,9 +119,6 @@ fi
 cp "$DEPLOYMENT_DIR/USER_GUIDE.md" "$OUTPUT_DIR/"
 echo -e "${GREEN}✅ Included user guide${NC}"
 
-cp "$DEPLOYMENT_DIR/readme-templates/README.txt" "$OUTPUT_DIR/"
-echo -e "${GREEN}✅ Included README${NC}"
-
 # Copy environment template
 ENV_TEMPLATE_PATH="$DEPLOYMENT_DIR/../.env.template"
 cp "$ENV_TEMPLATE_PATH" "$OUTPUT_DIR/"

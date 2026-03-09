@@ -13,13 +13,18 @@ The app needs some configuration to work properly. You'll find a `.env.template`
 1. If you don't see the file. Make sure your file explorer is set to show hidden files.
 2. **Rename** `.env.template` to `.env`
 3. **Edit** the file with your settings, following the instructions in the file.
+   - Set your Azure OpenAI configuration (endpoint, API key, model name)
+   - Configure `DATE_FORMAT` to match your region (e.g., `DD/MM/YYYY` for UK, `MM/DD/YYYY` for US)
 
 **Additional instructions for MacOS:**
 
-This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning, but you can safely bypass it by right-clicking the app and selecting "Open", or using:
+This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning when you first try to open it.
+
+To bypass this, **right-click** `EZ-Expense.app` **→ Open → Open**. macOS will remember your choice and the app will open normally from then on.
+
+If that doesn't work, run this in Terminal:
 
 ```bash
-# After installing the app, replace this with the path to where you extracted the zip file
 /usr/bin/xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
 /usr/bin/xattr -cr <path_to_your_extracted_package>/ez-expense
 ```
@@ -35,6 +40,29 @@ When you launch the app, it will open MyExpense page, and also a local web inter
    fetch your expenses by clicking through the MyExpense page.
 
 ### Step 2: Upload and match receipts
+
+#### Choose an AI extraction option
+
+Before uploading receipts, select an AI extraction provider in the **AI Extraction
+Options** panel:
+
+| Provider     | Speed                      | Accuracy | Setup                                                       |
+| ------------ | -------------------------- | -------- | ----------------------------------------------------------- |
+| **Azure AI** | Fast (parallel processing) | Higher   | Requires Azure OpenAI configuration in `.env`               |
+| **Local AI** | Slower (sequential)        | Good     | No setup — just click "Download" to get the model (~400 MB) |
+
+- **Azure AI** sends receipts to Azure OpenAI for extraction. All receipts are processed
+  in parallel, making it significantly faster for bulk uploads. Requires
+  `AZURE_OPENAI_ENDPOINT` and `INVOICE_DETAILS_EXTRACTOR_MODEL_NAME` to be set in your
+  `.env` file.
+- **Local AI** runs entirely on your machine using a small language model. Receipts are
+  processed one at a time. No internet connection or API keys required — just download
+  the model on first use.
+
+You can also disable AI extraction entirely by leaving both options unselected. In that
+case, receipts will be uploaded without automatic detail extraction.
+
+#### Upload receipts
 
 There are multiple ways to upload receipts:
 
@@ -107,7 +135,7 @@ for /f "tokens=5" %a in ('netstat -ano ^| findstr ":5001 :9222"') do taskkill /P
 - macOS/Linux:
 
 ```bash
-uv run -m lsof -ti:5001,9222 | xargs kill -9
+lsof -ti:5001,9222 | xargs kill -9
 ```
 
 #### API Errors

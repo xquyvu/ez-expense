@@ -24,17 +24,32 @@ Just click the app, and it just works. No installation required, no coding invol
 2. Download the latest ZIP corresponding to your platform. This contains the executable file and all necessary dependencies.
 3. Extract the ZIP file
 4. Fill in the content of the `.env.template` file, and rename it to `.env`
+   - Configure `DATE_FORMAT` for your region (DD/MM/YYYY or MM/DD/YYYY)
+   - (Optional) Set your Azure OpenAI configuration for faster, more accurate extraction
 
 Refer to the [USER GUIDE](deployment/USER_GUIDE.md) for instructions on how to use the app, and common issues.
 
-**IMPORTANT:** You will need to provide your OpenAI API key to the app. Follow the instructions in the User Guide to set it up.
+### AI Extraction Options
+
+The app supports two AI providers for extracting invoice details from receipts:
+
+| Provider     | Speed               | Accuracy | Setup                                  |
+| ------------ | ------------------- | -------- | -------------------------------------- |
+| **Azure AI** | Fast (parallel)     | Higher   | Requires Azure OpenAI config in `.env` |
+| **Local AI** | Slower (sequential) | Good     | No setup — download model on first use |
+
+- **Azure AI** is recommended if you have access to Azure OpenAI. Set `AZURE_OPENAI_ENDPOINT` and `INVOICE_DETAILS_EXTRACTOR_MODEL_NAME` in your `.env` file.
+- **Local AI** works offline with no API keys. Just click "Download" in the app to get the model (~400 MB).
 
 ### For MacOS
 
-This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning, but you can safely bypass it by right-clicking the app and selecting "Open", or using:
+This app is not code-signed (requires $99/year Apple Developer Account). macOS will show a security warning when you first try to open it.
+
+To bypass this, **right-click** `EZ-Expense.app` **→ Open → Open**. macOS will remember your choice and the app will open normally from then on.
+
+If that doesn't work, run this in Terminal:
 
 ```bash
-# After installing the app, replace this with the path to where you extracted the zip file
 /usr/bin/xattr -cr <path_to_your_extracted_package>/EZ-Expense.app
 /usr/bin/xattr -cr <path_to_your_extracted_package>/ez-expense
 ```
@@ -45,7 +60,7 @@ See the tool in action by clicking on the image below:
 
 👇👇👇👇👇🎥🎥🎥🎥🎥🎥👇👇👇👇👇
 
-<a href="https://microsofteur-my.sharepoint.com/:v:/g/personal/vuquy_microsoft_com/EfkkIOuyr6xJi215xCZbS50BkEFFnWr2-sugqljIYg7-Ow?e=G6FzfQ">
+<a href="https://microsoft-my.sharepoint-df.com/:v:/p/vuquy/cQr5JCDrsq-sSYttecQmW0udEgUC0Lf9VrdlyBKq5jld8RURVg?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0=&">
   <img src="assets/video_thumbnail.png" alt="Product Demo Video" width="400">
 </a>
 
@@ -69,12 +84,9 @@ uv run python main.py
 ## TODO
 
 - Use another name for .env.template, like openai_config.json
-- Test when there are no existing expenses
 - Instructions to set up Azure OpenAI, create subscription etc.
 - Improve UX for people without AzureOpenAI / subscription etc.
 - Find other ports if the current ones are not available
 - Make names consistent (HVE, EZ-Expense, Hyper Velocity Expense)
 - Add one-shot mode
 - Tidy up the repo
-- Test on Linux
-- Check if the tests are still valid
