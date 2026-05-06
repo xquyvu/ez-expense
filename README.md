@@ -2,6 +2,10 @@
 
 Get your expenses done in just a few clicks (using AI of course).
 
+# ⚠️ This project is no longer maintained. ⚠️
+
+We now have better automation in place using ClawPilot with better authentication and does not require LLM setup. This was a fun project and I definitely learned a lot from it.
+
 ## Introduction
 
 Doing the expenses is boring and painful.
