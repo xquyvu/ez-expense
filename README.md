@@ -2,9 +2,13 @@
 
 Get your expenses done in just a few clicks (using AI of course).
 
-# ⚠️ This project is no longer maintained. ⚠️
+### ⚠️ No longer actively maintained ⚠️
 
-We now have better automation in place using ClawPilot with better authentication and does not require LLM setup. This was a fun project and I definitely learned a lot from it.
+This is because:
+- Due to other priorities taking place
+- We now have ClawPilot with better authentication and does not require LLM setup, which makes it much more accesssible for non-technical users.
+
+That being said, the tool still works fine, especially if you follow the instructions to set it up with Python. The tool has a finetuned user experience, a battle-tested workflows and it's still used by many people.
 
 ## Introduction
 
