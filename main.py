@@ -2,7 +2,6 @@ import logging
 import os
 import signal
 import sys
-import time
 import webbrowser
 from logging import getLogger
 from threading import Timer
@@ -121,22 +120,19 @@ def setup_browser_session():
         _browser_process = BrowserProcess(browser_name=browser_name, port=BROWSER_PORT)
         print("🔧 BrowserProcess created")
 
-        # If the debug port is already active, skip closing/restarting
+        # Reuse an existing debug browser if one is already on the port; otherwise launch a
+        # dedicated-profile browser in the background. We never close the user's own browser.
         if _browser_process.is_debug_port_active():
-            print(f"✅ Browser already running in debug mode on port {BROWSER_PORT}, reusing.")
-            logger.info(f"Browser already running in debug mode on port {BROWSER_PORT}")
+            print(f"✅ Reusing browser already in debug mode on port {BROWSER_PORT}.")
+            logger.info(f"Reusing debug browser on port {BROWSER_PORT}")
         else:
-            # Try to close existing browser gracefully
-            print("🔧 Closing existing browser instances...")
-            if not _browser_process.close_browser_if_running():
-                logger.error("Browser setup cancelled by user")
-                print("❌ Browser setup cancelled by user")
-                return None
-
-            print("🔧 Starting browser in debug mode...")
+            print("🔧 Launching a dedicated debug browser (your own browser is left untouched)...")
+            logger.info("Launching dedicated debug browser")
             _browser_process.start_browser_debug_mode()
-            print("🔧 Browser started, waiting 2 seconds...")
-            time.sleep(2)  # Give Browser time to start
+            if not _browser_process.wait_for_debug_port(timeout=60):
+                logger.error(f"Debug browser did not become reachable on port {BROWSER_PORT}")
+                print("❌ Debug browser did not become reachable")
+                return None
 
         print("🔧 Browser setup complete")
 

@@ -17,6 +17,8 @@ logger = getLogger(__name__)
 class BrowserConfig(BaseModel):
     application_path: str
     process_name: str
+    cdp_token: str = ""  # token in the CDP /json/version "Browser" string, e.g. "Edg/"
+    app_name: str = ""  # macOS app name for `open -a`, e.g. "Microsoft Edge"
 
 
 class PlatformHandler(ABC):
@@ -51,10 +53,14 @@ class MacOSHandler(PlatformHandler):
             "edge": BrowserConfig(
                 application_path="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
                 process_name="Microsoft Edge.app",
+                cdp_token="Edg/",
+                app_name="Microsoft Edge",
             ),
             "chrome": BrowserConfig(
                 application_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
                 process_name="Google Chrome.app",
+                cdp_token="Chrome/",
+                app_name="Google Chrome",
             ),
         }
 
@@ -103,6 +109,7 @@ class WindowsHandler(PlatformHandler):
                 config["edge"] = BrowserConfig(
                     application_path=path,
                     process_name="msedge.exe",
+                    cdp_token="Edg/",
                 )
                 break
 
@@ -112,6 +119,7 @@ class WindowsHandler(PlatformHandler):
                 config["chrome"] = BrowserConfig(
                     application_path=path,
                     process_name="chrome.exe",
+                    cdp_token="Chrome/",
                 )
                 break
 
@@ -192,10 +200,12 @@ class LinuxHandler(PlatformHandler):
             "edge": BrowserConfig(
                 application_path="microsoft-edge",
                 process_name="msedge",
+                cdp_token="Edg/",
             ),
             "chrome": BrowserConfig(
                 application_path="google-chrome",
                 process_name="chrome",
+                cdp_token="Chrome/",
             ),
         }
 
@@ -277,24 +287,56 @@ class BrowserProcess:
             data = json.loads(resp.read())
             browser_str = data.get("Browser", "")
             # Verify it's the expected browser (e.g. "Edg/" for Edge, "Chrome/" for Chrome)
-            expected = {"msedge.exe": "Edg/", "chrome.exe": "Chrome/"}
-            token = expected.get(self.browser.process_name, "")
+            token = self.browser.cdp_token
             return token != "" and token in browser_str
         except Exception:
             return False
 
+    def _profile_dir(self) -> str:
+        """Dedicated, app-owned browser profile (kept separate from the user's)."""
+        name = "edge" if "Edg" in self.browser.cdp_token else "chrome"
+        profile = Path.home() / ".ez-expense" / f"{name}_profile"
+        profile.mkdir(parents=True, exist_ok=True)
+        return str(profile)
+
     def start_browser_debug_mode(self):
-        subprocess.Popen(
-            [
-                self.browser.application_path,
-                f"--remote-debugging-port={self.port}",
-                "--new",
-                "--log-level=3",  # Only fatal errors (suppresses INFO/WARNING)
-                "--disable-logging",  # Disable Chrome's internal logging
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        """Launch the browser in debug mode using a DEDICATED profile, in the background.
+
+        Uses a separate --user-data-dir so it runs alongside (and never closes) the user's
+        own browser, and `open -g` on macOS so it doesn't steal focus.
+        """
+        args = [
+            "--no-first-run",
+            "--no-default-browser-check",
+            f"--user-data-dir={self._profile_dir()}",
+            f"--remote-debugging-port={self.port}",
+            "--remote-debugging-address=127.0.0.1",
+            "--remote-allow-origins=*",
+            "--log-level=3",
+            "--disable-logging",
+        ]
+        if sys.platform == "darwin" and self.browser.app_name:
+            # `open -g` = background (no focus steal), `-n` = new instance.
+            subprocess.Popen(
+                ["open", "-g", "-n", "-a", self.browser.app_name, "--args", *args],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            subprocess.Popen(
+                [self.browser.application_path, *args],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+    def wait_for_debug_port(self, timeout: float = 60.0) -> bool:
+        """Poll until the debug port is reachable (or timeout)."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.is_debug_port_active():
+                return True
+            time.sleep(0.5)
+        return False
 
     def close_browser_gracefully(self):
         """Gracefully close the browser using platform-specific methods"""
