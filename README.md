@@ -2,15 +2,6 @@
 
 Get your expenses done in just a few clicks (using AI of course).
 
-## ⚠️ No longer actively maintained ⚠️
-
-This is because:
-
-- Due to other priorities taking place
-- For non-technical users, we now have ClawPilot with easier authentication and does not require LLM setup.
-
-That being said, the tool still works well, especially if you follow [the instructions to set it up with Python](#installation). The tool has a finetuned user experience, a battle-tested workflows and it's still used by many people.
-
 ## Introduction
 
 Doing the expenses is boring and painful.
@@ -24,8 +15,6 @@ What if you could just, give the receipts to someone and say "Go figure it out"?
 This tool lets you do exactly just that. It uses AI and automation to parse the
 receipts, match them to the correct expense lines, then go and fill in the expense
 report without you needing to do a single thing.
-
-Just click the app, and it just works. No installation required, no coding involve.
 
 ## Demo
 
@@ -60,9 +49,13 @@ uv run python main.py
 
 ### For non-technical users without python
 
+#### ⚠️ No longer actively maintained ⚠️
+
 As noted at the beginning, we now have ClawPilot which truly requires zero setup. While the app releases for this expense tool are available and tested, developing an app that works on every machine is a difficult problem, and as a data scientist, I don't have the motivation nor bandwith to help with all the edge cases.
 
-Therefore, if you have trouble running the app, I highly recommend switching to MSFT's ClawPilot which lets you get started quickly, as the cost of controllability and stability.
+That being said, the tool still works well, especially if you follow [the instructions to set it up with Python](#installation). The tool has a finetuned user experience, a battle-tested workflows and it's still used by many people.
+
+Therefore, if you have trouble running the app, I highly recommend switching to MSFT's ClawPilot which lets you get started quickly, as the cost of controllability, stability and accuracy.
 
 #### 📥 Download and use
 
