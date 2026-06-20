@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 # Add parent directory to path for importing the invoice extractor
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from config import RECEIPT_EXTENSIONS
 from expense_matcher import match_receipts_with_expenses
 from invoice_extractor import extract_invoice_details
 
@@ -54,7 +55,7 @@ async def upload_receipt():
             ), 400
 
         # Check file extension
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
         if not allowed_file(file.filename, allowed_extensions):
             return jsonify(
                 {
@@ -122,7 +123,7 @@ def list_receipts():
             )
 
         receipts = []
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
 
         for filename in os.listdir(upload_folder):
             if allowed_file(filename, allowed_extensions):
@@ -178,7 +179,7 @@ def download_receipt(filename):
             ), 404
 
         # Check if it's an allowed file type
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
         if not allowed_file(filename, allowed_extensions):
             return jsonify(
                 {"error": "Invalid file type", "message": "File is not a valid receipt"}
@@ -216,7 +217,7 @@ def preview_receipt(filename):
             ), 404
 
         # Check if it's an allowed file type
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
         if not allowed_file(filename, allowed_extensions):
             return jsonify(
                 {"error": "Invalid file type", "message": "File is not a valid receipt"}
@@ -254,7 +255,7 @@ def delete_receipt(filename):
             ), 404
 
         # Check if it's an allowed file type
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
         if not allowed_file(filename, allowed_extensions):
             return jsonify(
                 {"error": "Invalid file type", "message": "File is not a valid receipt"}
@@ -314,7 +315,7 @@ async def upload_multiple_receipts():
         results = []
         success_count = 0
         error_count = 0
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
 
         for file in files:
             try:
@@ -584,7 +585,7 @@ async def extract_invoice_details_endpoint():
                 ), 400
 
             # Check file extension
-            allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
+            allowed_extensions = RECEIPT_EXTENSIONS
             if not allowed_file(file.filename, allowed_extensions):
                 return jsonify(
                     {

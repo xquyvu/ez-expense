@@ -21,6 +21,7 @@ from config import (
     FLASK_DEBUG,
     FRONTEND_PORT,
     MAX_CONTENT_LENGTH,
+    RECEIPT_EXTENSIONS,
     SECRET_KEY,
 )
 
@@ -146,7 +147,11 @@ def create_app():
             """Render the main application page."""
             import time
 
-            return await render_template("index.html", cache_bust=int(time.time()))
+            return await render_template(
+                "index.html",
+                cache_bust=int(time.time()),
+                receipt_extensions=sorted(RECEIPT_EXTENSIONS),
+            )
 
         @app.route("/health")
         def health_check():

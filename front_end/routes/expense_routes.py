@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from config import AI_DEBUG, DATE_FORMAT, IMPORT_EXPENSE_MOCK
+from config import AI_DEBUG, DATE_FORMAT, IMPORT_EXPENSE_MOCK, RECEIPT_EXTENSIONS
 
 # Add the parent directory to the path to import existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -271,7 +271,7 @@ async def upload_receipt():
             ), 400
 
         # Check file extension
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
         if not allowed_file(file.filename, allowed_extensions):
             return jsonify(
                 {
@@ -427,7 +427,7 @@ def list_receipts():
             )
 
         receipts = []
-        allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+        allowed_extensions = RECEIPT_EXTENSIONS
 
         for filename in os.listdir(upload_folder):
             if allowed_file(filename, allowed_extensions):

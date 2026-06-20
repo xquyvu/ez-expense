@@ -269,6 +269,10 @@
         // Configure PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
+    <script>
+        // Single source of truth for accepted receipt file types (from config.RECEIPT_EXTENSIONS).
+        window.EZ_RECEIPT_EXTENSIONS = {{ receipt_extensions | tojson }};
+    </script>
     <script src="{{ url_for('static', filename='js/column-config.js') }}?v={{ cache_bust }}"></script>
     <script src="{{ url_for('static', filename='js/autocomplete.js') }}?v={{ cache_bust }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v={{ cache_bust }}"></script>

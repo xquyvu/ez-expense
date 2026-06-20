@@ -2424,7 +2424,7 @@ class EZExpenseApp {
             <button onclick="app.selectReceipt(${expenseId})" class="attach-receipt-btn">
                 <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Upload Receipts' : 'Upload Receipts'}
             </button>
-            <input type="file" id="receipt-input-${expenseId}" accept="image/*,.pdf" multiple style="display: none;"
+            <input type="file" id="receipt-input-${expenseId}" accept="image/*,.pdf,.heic,.heif" multiple style="display: none;"
                    onchange="app.handleMultipleReceiptSelection(${expenseId}, this.files)">
         `;
 
@@ -2557,11 +2557,10 @@ class EZExpenseApp {
         const duplicateFiles = [];
 
         // Validate all files first
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
         const maxFileSize = 16 * 1024 * 1024; // 16MB
 
         for (const file of filesArray) {
-            if (!allowedTypes.includes(file.type)) {
+            if (!this.isValidReceiptFile(file)) {
                 invalidFiles.push(`${file.name}: Invalid file type`);
             } else if (file.size > maxFileSize) {
                 invalidFiles.push(`${file.name}: File too large (max 16MB)`);
@@ -2766,14 +2765,24 @@ class EZExpenseApp {
     }
 
     /**
+     * Single source of truth for valid receipt files — extensions come from the backend's
+     * config.RECEIPT_EXTENSIONS (injected as window.EZ_RECEIPT_EXTENSIONS). Extension-based
+     * because HEIC files often report an empty or non-standard MIME type in the browser.
+     */
+    isValidReceiptFile(file) {
+        const exts = window.EZ_RECEIPT_EXTENSIONS || ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'heic', 'heif'];
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        return exts.includes(ext);
+    }
+
+    /**
      * Handle receipt file selection
      */
     async handleReceiptSelection(expenseId, file) {
         if (!file) return;
 
         // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
-        if (!allowedTypes.includes(file.type)) {
+        if (!this.isValidReceiptFile(file)) {
             this.showToast('Please select an image or PDF file', 'error');
             return;
         }
@@ -3002,6 +3011,12 @@ class EZExpenseApp {
      * Create image preview URL
      */
     createImagePreview(file) {
+        // Browsers can't render HEIC/HEIF, so don't produce a (broken) data URL for them —
+        // extraction still works server-side; the thumbnail just falls back to a placeholder.
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (ext === 'heic' || ext === 'heif') {
+            return Promise.resolve('');
+        }
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
@@ -3845,11 +3860,10 @@ class EZExpenseApp {
         const skippedFiles = [];
 
         // Validate files using same logic as receipts column
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
         const maxFileSize = 16 * 1024 * 1024; // 16MB
 
         for (const file of filesArray) {
-            if (!allowedTypes.includes(file.type)) {
+            if (!this.isValidReceiptFile(file)) {
                 invalidFiles.push(`${file.name}: Invalid file type`);
             } else if (file.size > maxFileSize) {
                 invalidFiles.push(`${file.name}: File too large (max 16MB)`);
@@ -3926,24 +3940,33 @@ class EZExpenseApp {
                 }));
 
                 const promises = filesToProcess.map(async (file, i) => {
-                    // Generate preview
-                    if (file.type.startsWith('image/')) {
-                        receiptSlots[i].preview = await this.createImagePreview(file);
-                        receiptSlots[i].type = 'image';
-                    } else if (file.type === 'application/pdf') {
-                        receiptSlots[i].preview = await this.createPDFPreview(file);
-                        receiptSlots[i].type = 'pdf';
-                    }
-
-                    // Extract (skip if cancelled)
-                    if (!this.extractionCancelled) {
-                        try {
-                            receiptSlots[i].invoiceDetails = await this.extractInvoiceDetails(file);
-                        } catch (error) {
+                    // Kick off the extraction request immediately so every file runs
+                    // concurrently — never gate it behind (CPU-bound) preview rendering.
+                    const extractionPromise = (!this.extractionCancelled)
+                        ? this.extractInvoiceDetails(file).catch(error => {
                             console.warn(`Failed to extract invoice details for ${file.name}:`, error);
+                            return null;
+                        })
+                        : Promise.resolve(null);
+
+                    // Generate a preview alongside (best-effort; never blocks extraction).
+                    try {
+                        const ext = (file.name.split('.').pop() || '').toLowerCase();
+                        if (file.type === 'application/pdf' || ext === 'pdf') {
+                            receiptSlots[i].preview = await this.createPDFPreview(file);
+                            receiptSlots[i].type = 'pdf';
+                        } else if (ext === 'heic' || ext === 'heif') {
+                            // Browsers can't render HEIC to a thumbnail — skip the preview.
+                            receiptSlots[i].type = 'image';
+                        } else if (file.type.startsWith('image/')) {
+                            receiptSlots[i].preview = await this.createImagePreview(file);
+                            receiptSlots[i].type = 'image';
                         }
+                    } catch (e) {
+                        // Preview is optional.
                     }
 
+                    receiptSlots[i].invoiceDetails = await extractionPromise;
                     completedCount++;
                     this.updateExtractionProgress(completedCount, filesToProcess.length);
                 });
@@ -4396,7 +4419,7 @@ class EZExpenseApp {
 
         // Show the file input but hidden
         html += `
-            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
+            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf,.heic,.heif" multiple style="display: none;"
                    onchange="app.handleBulkReceiptSelection(this.files)">
         `;
 

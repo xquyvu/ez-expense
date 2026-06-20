@@ -83,6 +83,10 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB max file size
 ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
 
+# Single source of truth for accepted receipt file types (used by every backend
+# upload check and injected into the frontend as window.EZ_RECEIPT_EXTENSIONS).
+RECEIPT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
+
 EXPENSE_CATEGORIES = [
     "Admin Services - Misc.",
     "Airfare",
