@@ -322,6 +322,14 @@ class BrowserProcess:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+        elif sys.platform == "win32":
+            # `start "" /min` launches the browser minimized so it doesn't grab focus —
+            # the closest Windows equivalent to macOS `open -g`.
+            subprocess.Popen(
+                ["cmd", "/c", "start", "", "/min", self.browser.application_path, *args],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         else:
             subprocess.Popen(
                 [self.browser.application_path, *args],

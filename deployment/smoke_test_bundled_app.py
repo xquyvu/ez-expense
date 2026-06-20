@@ -25,10 +25,11 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+# Allow importing the app's own modules (browser.py, etc.) regardless of CWD.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 CDP_PORT = 9222
 CDP_URL = f"http://127.0.0.1:{CDP_PORT}"
-EDGE_PROFILE = Path.home() / ".ez-expense" / "edge_profile"
-EDGE_APP = "Microsoft Edge"
 
 
 def _edge_cdp_up() -> bool:
@@ -40,28 +41,22 @@ def _edge_cdp_up() -> bool:
 
 
 def connect_or_launch_edge() -> None:
-    """Reuse a debug Edge on :9222, else launch a dedicated-profile one in the background."""
+    """Reuse a debug Edge on :9222, else launch a dedicated-profile one.
+
+    Delegates to the app's own (cross-platform) BrowserProcess launcher, so this test
+    runs on macOS and Windows alike and never touches the user's own browser.
+    """
     if _edge_cdp_up():
         print(f"[edge] reusing existing debug Edge on {CDP_URL}")
         return
-    EDGE_PROFILE.mkdir(parents=True, exist_ok=True)
-    print(f"[edge] launching dedicated debug Edge (profile: {EDGE_PROFILE})")
-    subprocess.Popen(
-        [
-            "open", "-g", "-n", "-a", EDGE_APP, "--args",
-            "--no-first-run", "--no-default-browser-check",
-            f"--user-data-dir={EDGE_PROFILE}",
-            f"--remote-debugging-port={CDP_PORT}",
-            "--remote-debugging-address=127.0.0.1", "--remote-allow-origins=*",
-            "about:blank",
-        ]
-    )
-    for _ in range(120):
-        if _edge_cdp_up():
-            print("[edge] CDP endpoint is up")
-            return
-        time.sleep(0.5)
-    raise RuntimeError("Edge CDP endpoint did not come up within 60s")
+    print("[edge] launching a dedicated debug Edge via the app's BrowserProcess")
+    from browser import BrowserProcess
+
+    bp = BrowserProcess("edge", CDP_PORT)
+    bp.start_browser_debug_mode()
+    if not bp.wait_for_debug_port(timeout=60):
+        raise RuntimeError("Edge CDP endpoint did not come up within 60s")
+    print("[edge] CDP endpoint is up")
 
 
 def launch_app(cmd: list[str], env: dict) -> tuple[subprocess.Popen, int]:
