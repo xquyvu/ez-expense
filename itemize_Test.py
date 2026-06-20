@@ -74,3 +74,6 @@ with sync_playwright() as playwright:
 
     # Close the dialog
     popup_pane.locator("button[name='CloseButton']").click()
+
+    # TODO: Also need the following functionality: when there's already existing itemization data: We need to clear them all.
+    # Do that by clicking anywhere on the first row (if exist), then press shift + down until all rows are selected, then click delete.

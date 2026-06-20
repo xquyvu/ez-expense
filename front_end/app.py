@@ -290,7 +290,7 @@ if __name__ == "__main__":
     import hypercorn.config
 
     config = hypercorn.config.Config()
-    config.bind = [f"0.0.0.0:{FRONTEND_PORT}"]
+    config.bind = [f"127.0.0.1:{FRONTEND_PORT}"]
     config.debug = FLASK_DEBUG
 
     asyncio.run(hypercorn.asyncio.serve(app, config))
