@@ -584,7 +584,7 @@ async def extract_invoice_details_endpoint():
                 ), 400
 
             # Check file extension
-            allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif"}
+            allowed_extensions = {"pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
             if not allowed_file(file.filename, allowed_extensions):
                 return jsonify(
                     {
@@ -612,8 +612,12 @@ async def extract_invoice_details_endpoint():
                 }
             ), 400
 
+        # Optional provider override selected in the UI (azure | copilot | local)
+        form = await request.form
+        provider = form.get("provider") or None
+
         # Extract invoice details using the file path - now works with async!
-        invoice_details = await extract_invoice_details(file_path)
+        invoice_details = await extract_invoice_details(file_path, provider=provider)
 
         logger.info(f"Successfully extracted invoice details for: {filename}")
 

@@ -27,6 +27,22 @@ AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-pre
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
 
+# Invoice extraction provider selection.
+#   "auto"    -> Azure if configured, otherwise local OCR + LLM (default; back-compatible)
+#   "azure"   -> Azure OpenAI vision
+#   "copilot" -> GitHub Copilot SDK vision (zero setup; uses the user's Copilot login)
+#   "local"   -> local OCR + llama
+EXTRACTION_PROVIDER = os.getenv("EXTRACTION_PROVIDER", "auto").lower()
+
+# GitHub Copilot SDK settings (used when EXTRACTION_PROVIDER="copilot").
+# Leave COPILOT_MODEL empty to auto-select a vision-capable model from the user's
+# available Copilot models; set it only to pin a specific model.
+COPILOT_MODEL = os.getenv("COPILOT_MODEL", "")
+COPILOT_TIMEOUT = int(os.getenv("COPILOT_TIMEOUT", "180"))
+# Max receipts extracted concurrently via Copilot (bounds parallel/bulk requests).
+# Safe to raise, but throughput plateaus ~5-8: all sessions multiplex over one CLI subprocess.
+COPILOT_MAX_CONCURRENCY = int(os.getenv("COPILOT_MAX_CONCURRENCY", "8"))
+
 # Local model settings
 LOCAL_MODEL_DIR = os.getenv("EZ_EXPENSE_MODEL_DIR", os.path.expanduser("~/.ez-expense/models"))
 
@@ -65,7 +81,7 @@ FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 # Flask configuration
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB max file size
-ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif"}
+ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
 
 EXPENSE_CATEGORIES = [
     "Admin Services - Misc.",

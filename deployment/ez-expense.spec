@@ -3,6 +3,8 @@ import os
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+
 # Get the current working directory (should be project root when script is run)
 project_root = Path(os.getcwd())
 
@@ -16,6 +18,22 @@ datas = [
     (str(project_root / "front_end" / "static"), "front_end/static"),
     # Configuration files if they exist
 ]
+
+# The GitHub Copilot SDK ships its CLI at copilot/bin/copilot; bundle it (so Copilot
+# extraction + login work without a separately-installed CLI) plus pillow-heif's native
+# libs (HEIC decoding). The exec bit is restored at runtime by _copilot_cli_path().
+import copilot as _copilot_pkg
+
+_copilot_bin_dir = Path(_copilot_pkg.__file__).parent / "bin"
+datas += collect_data_files("copilot")
+# collect_data_files skips the bare bin/copilot executable (no file extension), so add it
+# (and the VERSION file) explicitly, preserving the copilot/bin/ layout the SDK expects.
+datas += [
+    (str(p), "copilot/bin")
+    for p in _copilot_bin_dir.iterdir()
+    if p.is_file() and p.suffix != ".py"
+]
+binaries = collect_dynamic_libs("pillow_heif")
 
 # NOTE: .env file is intentionally NOT included for security reasons
 # Users should create their own .env file in the same directory as the executable
@@ -74,6 +92,9 @@ hiddenimports = [
     "pyee",
 ]
 
+# Copilot SDK submodules (dynamically imported) + pillow-heif
+hiddenimports += collect_submodules("copilot") + ["pillow_heif"]
+
 # Exclude unnecessary modules to reduce size
 excludes = [
     "tkinter",
@@ -91,7 +112,7 @@ excludes = [
 a = Analysis(
     [str(project_root / "main.py")],
     pathex=[str(project_root)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[str(deployment_root / "hooks")],

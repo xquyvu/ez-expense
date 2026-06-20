@@ -15,8 +15,8 @@ class EZExpenseApp {
         this.validCategories = new Set(); // Valid expense categories
         this.validCurrencies = new Set(); // Valid currency codes
         this.validationEnabled = true; // Enable/disable validation
-        this.aiStatus = { azure_configured: false, downloaded: false, model_name: '', size_mb: 0 };
-        this.aiSelectedProvider = null; // 'azure' | 'local' | null — tracks user's checkbox choice
+        this.aiStatus = { azure_configured: false, downloaded: false, model_name: '', size_mb: 0, extraction_provider: '', copilot_available: false, copilot_installed: false, copilot_login: null };
+        this.aiSelectedProvider = null; // 'azure' | 'copilot' | 'local' | null — tracks user's checkbox choice
         this.extractionCancelled = false;
 
         this.init();
@@ -968,6 +968,9 @@ class EZExpenseApp {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            if (this.aiSelectedProvider) {
+                formData.append('provider', this.aiSelectedProvider);
+            }
 
             const response = await fetch('/api/receipts/extract_invoice_details', {
                 method: 'POST',
@@ -3907,7 +3910,10 @@ class EZExpenseApp {
                 this.showLoading(`Processing ${filesToProcess.length} new receipts...`);
             }
 
-            const useParallel = aiExtractionEnabled && this.aiSelectedProvider === 'azure';
+            // Parallel-safe for remote providers (Azure, Copilot); the local model is
+            // CPU-bound, so it stays sequential.
+            const useParallel = aiExtractionEnabled &&
+                (this.aiSelectedProvider === 'azure' || this.aiSelectedProvider === 'copilot');
             const receipts = [];
             let completedCount = 0;
             let cancelled = false;
@@ -4429,6 +4435,19 @@ class EZExpenseApp {
             ? '<span style="color: #28a745; font-size: 0.8rem; margin-left: 0.25rem;">Available</span>'
             : '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not available</span> <span onclick="app.toggleAzureWhyPopover(event)" style="color: #e67e22; font-size: 0.8rem; margin-left: 0.25rem; cursor: pointer; position: relative;"><i class="fas fa-exclamation-circle"></i> Why?<div id="azure-why-popover" style="display:none; position:absolute; left:0; top:1.4rem; z-index:1000; background:#fff; border:1px solid #ddd; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.15); padding:0.6rem 0.75rem; width:280px; font-size:0.78rem; color:#444; line-height:1.5; white-space:normal; cursor:default;" onclick="event.stopPropagation()">Azure OpenAI is not configured.<br><br>Please check your <b>.env</b> file and fill in the required variables.<br><br>See <b>README.md</b> or <b>USER_GUIDE.md</b> for more information.</div></span>';
 
+        // Copilot AI status (uses the user's GitHub Copilot login)
+        const copilotAvailable = this.aiStatus.copilot_available;   // installed AND signed in
+        const copilotInstalled = this.aiStatus.copilot_installed;
+        let copilotStatusHtml;
+        if (copilotAvailable) {
+            const who = this.aiStatus.copilot_login ? ` (${this.aiStatus.copilot_login})` : '';
+            copilotStatusHtml = `<span style="color: #28a745; font-size: 0.8rem; margin-left: 0.25rem;">Available${who}</span>`;
+        } else if (copilotInstalled) {
+            copilotStatusHtml = '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not signed in</span> <a href="#" onclick="app.copilotLogin(); return false;" style="color: #667eea; font-size: 0.8rem; margin-left: 0.5rem; font-weight: 600; text-decoration: none;"><i class="fas fa-sign-in-alt"></i> Login</a>';
+        } else {
+            copilotStatusHtml = '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not available</span>';
+        }
+
         // Local AI status
         const localReady = this.aiStatus.downloaded;
         let localStatusHtml;
@@ -4441,13 +4460,21 @@ class EZExpenseApp {
         // Determine which checkbox should be checked — preserve user's selection if still valid
         let azureChecked = false;
         let localChecked = false;
+        let copilotChecked = false;
         if (this.aiSelectedProvider === 'azure' && azureAvailable) {
             azureChecked = true;
+        } else if (this.aiSelectedProvider === 'copilot' && copilotAvailable) {
+            copilotChecked = true;
         } else if (this.aiSelectedProvider === 'local' && localReady) {
             localChecked = true;
         } else if (this.aiSelectedProvider === null) {
-            // No user selection yet — default: prefer Azure if available, else local
-            if (azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
+            // No user selection yet — default to the backend's configured provider, else first available
+            const configured = this.aiStatus.extraction_provider;
+            if (configured === 'copilot' && copilotAvailable) { copilotChecked = true; this.aiSelectedProvider = 'copilot'; }
+            else if (configured === 'azure' && azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
+            else if (configured === 'local' && localReady) { localChecked = true; this.aiSelectedProvider = 'local'; }
+            else if (azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
+            else if (copilotAvailable) { copilotChecked = true; this.aiSelectedProvider = 'copilot'; }
             else if (localReady) { localChecked = true; this.aiSelectedProvider = 'local'; }
         }
 
@@ -4461,6 +4488,10 @@ class EZExpenseApp {
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${azureAvailable ? '#333' : '#999'}; margin: 0; cursor: ${azureAvailable ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="azure-ai-checkbox" ${azureChecked ? 'checked' : ''} ${azureAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('azure', this)" style="cursor: ${azureAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
                                 Azure AI Extraction ${azureStatusHtml}
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${copilotAvailable ? '#333' : '#999'}; margin: 0; cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'};">
+                                <input type="radio" name="ai-provider" id="copilot-ai-checkbox" ${copilotChecked ? 'checked' : ''} ${copilotAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('copilot', this)" style="cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
+                                Copilot AI Extraction ${copilotStatusHtml}
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${localReady ? '#333' : '#999'}; margin: 0; cursor: ${localReady ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="local-ai-checkbox" ${localChecked ? 'checked' : ''} ${localReady ? '' : 'disabled'} onclick="app.onAIRadioClick('local', this)" style="cursor: ${localReady ? 'pointer' : 'not-allowed'}; margin: 0;">
@@ -4696,10 +4727,12 @@ class EZExpenseApp {
      */
     isAIExtractionEnabled() {
         const azureCheckbox = document.getElementById('azure-ai-checkbox');
+        const copilotCheckbox = document.getElementById('copilot-ai-checkbox');
         const localCheckbox = document.getElementById('local-ai-checkbox');
         const azureChecked = azureCheckbox ? azureCheckbox.checked : false;
+        const copilotChecked = copilotCheckbox ? copilotCheckbox.checked : false;
         const localChecked = localCheckbox ? localCheckbox.checked : false;
-        return azureChecked || localChecked;
+        return azureChecked || copilotChecked || localChecked;
     }
 
     // ===== END AI EXTRACTION CONTROL =====
@@ -4825,7 +4858,11 @@ class EZExpenseApp {
                     azure_configured: data.azure_configured || false,
                     downloaded: data.downloaded || false,
                     model_name: data.model_name || '',
-                    size_mb: data.size_mb || 0
+                    size_mb: data.size_mb || 0,
+                    extraction_provider: data.extraction_provider || '',
+                    copilot_available: data.copilot_available || false,
+                    copilot_installed: data.copilot_installed || false,
+                    copilot_login: data.copilot_login || null
                 };
             }
             this.updateBulkReceiptActions();
@@ -4897,6 +4934,69 @@ class EZExpenseApp {
         } catch (error) {
             this.showToast('Model download failed: ' + error.message, 'error');
             this.closeDownloadModal();
+        }
+    }
+
+    async copilotLogin() {
+        let modal = document.getElementById('copilot-login-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'copilot-login-modal';
+            modal.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+            modal.innerHTML = `
+                <div style="background:#fff;border-radius:8px;padding:1.25rem 1.5rem;max-width:520px;width:90%;box-shadow:0 8px 24px rgba(0,0,0,0.2);">
+                    <h3 style="margin:0 0 0.5rem;font-size:1rem;">Sign in to GitHub Copilot</h3>
+                    <p style="font-size:0.83rem;color:#555;margin:0 0 0.75rem;">A browser window should open. If it doesn't, use the code and link shown below.</p>
+                    <pre id="copilot-login-log" style="background:#f6f8fa;border:1px solid #e1e4e8;border-radius:6px;padding:0.75rem;font-size:0.8rem;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0 0 0.75rem;"></pre>
+                    <div style="text-align:right;"><button onclick="document.getElementById('copilot-login-modal').remove()" class="btn btn-sm">Close</button></div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+        const log = document.getElementById('copilot-login-log');
+        const esc = (s) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const append = (s) => {
+            log.innerHTML += esc(s).replace(/(https?:\/\/[^\s]+)/g,
+                '<a href="$1" target="_blank" rel="noopener" style="color:#0969da;text-decoration:underline;">$1</a>') + '\n';
+            log.scrollTop = log.scrollHeight;
+        };
+        log.innerHTML = '';
+        append('Starting sign-in…');
+        try {
+            const response = await fetch('/api/model/copilot-login', { method: 'POST' });
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const text = decoder.decode(value, { stream: true });
+                for (const line of text.split('\n').filter(l => l.startsWith('data: '))) {
+                    try {
+                        const ev = JSON.parse(line.substring(6));
+                        if (ev.line) {
+                            append(ev.line);
+                        } else if (ev.status === 'complete') {
+                            if (ev.authenticated) {
+                                append('\n✅ Signed in' + (ev.login ? ' as ' + ev.login : '') + '.');
+                                this.showToast('Signed in to Copilot' + (ev.login ? ' as ' + ev.login : ''), 'success');
+                                setTimeout(() => {
+                                    const m = document.getElementById('copilot-login-modal');
+                                    if (m) m.remove();
+                                    this.checkModelStatus();
+                                }, 1200);
+                            } else {
+                                append('\n⚠️ Not signed in. Please try again.');
+                                this.showToast('Copilot sign-in did not complete', 'error');
+                            }
+                        } else if (ev.status === 'error') {
+                            append('\nError: ' + ev.message);
+                            this.showToast('Copilot sign-in failed: ' + ev.message, 'error');
+                        }
+                    } catch (e) { /* skip unparseable lines */ }
+                }
+            }
+        } catch (error) {
+            append('\nError: ' + error.message);
+            this.showToast('Copilot sign-in failed: ' + error.message, 'error');
         }
     }
 

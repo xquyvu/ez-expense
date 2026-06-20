@@ -24,6 +24,8 @@ dependencies = [
     "rapidocr-onnxruntime>=1.4.0",
     "llama-cpp-python>=0.3.0",
     "huggingface-hub>=0.25.0",
+    "github-copilot-sdk>=1.0.2",
+    "pillow-heif>=1.4.0",
 ]
 
 [dependency-groups]
