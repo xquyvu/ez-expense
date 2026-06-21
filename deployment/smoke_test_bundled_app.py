@@ -146,6 +146,12 @@ def main() -> int:
                     failures.append("copilot radio not found in the UI")
                 elif "Available" not in info.get("text", ""):
                     failures.append(f"copilot radio does not show 'Available' (text={info.get('text')!r})")
+
+                # Confirm HEIC support is live (single source injected from the backend).
+                exts = page.evaluate("() => window.EZ_RECEIPT_EXTENSIONS || []")
+                print(f"[ui] receipt extensions: {exts}")
+                if "heic" not in (exts or []):
+                    failures.append(f"HEIC missing from window.EZ_RECEIPT_EXTENSIONS ({exts})")
             except Exception as e:
                 failures.append(f"UI check failed: {e}")
             page.close()
