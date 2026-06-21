@@ -150,11 +150,31 @@ def main() -> int:
                 # Confirm HEIC support is live (single source injected from the backend).
                 exts = page.evaluate("() => window.EZ_RECEIPT_EXTENSIONS || []")
                 print(f"[ui] receipt extensions: {exts}")
-                if "heic" not in (exts or []):
-                    failures.append(f"HEIC missing from window.EZ_RECEIPT_EXTENSIONS ({exts})")
+                for needed in ("heic", "html"):
+                    if needed not in (exts or []):
+                        failures.append(f"{needed!r} missing from EZ_RECEIPT_EXTENSIONS ({exts})")
             except Exception as e:
                 failures.append(f"UI check failed: {e}")
             page.close()
+
+        # Confirm the packaged app can actually extract an HTML receipt (bs4 + text path).
+        try:
+            import requests
+
+            html_path = Path(__file__).resolve().parent.parent / "tests" / "test_data" / "sample_receipt.html"
+            with open(html_path, "rb") as fh:
+                r = requests.post(
+                    f"http://127.0.0.1:{port}/api/receipts/extract_invoice_details",
+                    files={"file": ("sample_receipt.html", fh, "text/html")},
+                    data={"provider": "copilot"},
+                    timeout=180,
+                )
+            details = (r.json() or {}).get("invoice_details") or {}
+            print(f"[html] extracted: {details}")
+            if not details.get("Amount") and not details.get("Merchant"):
+                failures.append(f"HTML extraction returned nothing useful: {details}")
+        except Exception as e:
+            failures.append(f"HTML extraction check failed: {e}")
     finally:
         print("[teardown] stopping app")
         proc.terminate()
