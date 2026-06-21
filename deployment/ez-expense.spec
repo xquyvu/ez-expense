@@ -93,7 +93,7 @@ hiddenimports = [
 ]
 
 # Copilot SDK submodules (dynamically imported) + pillow-heif
-hiddenimports += collect_submodules("copilot") + ["pillow_heif"]
+hiddenimports += collect_submodules("copilot") + collect_submodules("bs4") + ["pillow_heif"]
 
 # Exclude unnecessary modules to reduce size
 excludes = [

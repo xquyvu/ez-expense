@@ -249,36 +249,41 @@ def _parse_local_llm_response(raw: str) -> dict:
     return data
 
 
-async def _extract_with_azure(image_data: List[str]) -> dict:
-    """Extract invoice details using Azure OpenAI (existing path)."""
+async def _extract_with_azure(
+    image_data: Optional[List[str]] = None, text: Optional[str] = None
+) -> dict:
+    """Extract invoice details using Azure OpenAI (images, or text for HTML receipts)."""
     from openai.types.chat import (
         ChatCompletionContentPartImageParam,
+        ChatCompletionContentPartTextParam,
         ChatCompletionSystemMessageParam,
         ChatCompletionUserMessageParam,
     )
 
     client = _get_azure_client()
 
+    if text is not None:
+        user_content = [
+            ChatCompletionContentPartTextParam(type="text", text=f"Receipt content:\n{text}")
+        ]
+    else:
+        user_content = [
+            ChatCompletionContentPartImageParam(
+                type="image_url",
+                image_url={"url": f"data:image/jpeg;base64,{image_base64}"},
+            )
+            for image_base64 in (image_data or [])
+        ]
+
     messages = [
         ChatCompletionSystemMessageParam(
             role="system",
             content=dedent("""\
-                Extract invoice/receipt details from the provided image to
+                Extract invoice/receipt details from the provided receipt to
                 the provided output format. Be precise and only extract
-                information that is clearly visible in the receipt."""),
+                information that is clearly present in the receipt."""),
         ),
-        ChatCompletionUserMessageParam(
-            role="user",
-            content=[
-                *[
-                    ChatCompletionContentPartImageParam(
-                        type="image_url",
-                        image_url={"url": f"data:image/jpeg;base64,{image_base64}"},
-                    )
-                    for image_base64 in image_data
-                ]
-            ],
-        ),
+        ChatCompletionUserMessageParam(role="user", content=user_content),
     ]
 
     completion = await client.beta.chat.completions.parse(
@@ -435,22 +440,29 @@ async def _reset_copilot_client() -> None:
     _copilot_auth_cache = None
 
 
-async def _extract_with_copilot(image_data: List[str]) -> dict:
-    """Extract invoice details using the GitHub Copilot SDK (vision + prompt-and-parse)."""
+async def _extract_with_copilot(
+    image_data: Optional[List[str]] = None, text: Optional[str] = None
+) -> dict:
+    """Extract invoice details via the GitHub Copilot SDK (vision, or text for HTML receipts)."""
     from copilot.session import PermissionHandler
 
     client = await _get_copilot_client()
     model = await _resolve_copilot_model(client)
 
-    attachments = [
-        {
-            "type": "blob",
-            "data": image_base64,
-            "mimeType": "image/jpeg",
-            "displayName": f"receipt_p{i}.jpg",
-        }
-        for i, image_base64 in enumerate(image_data)
-    ]
+    if text is not None:
+        prompt = _build_text_extraction_prompt(text)
+        attachments = None
+    else:
+        prompt = _build_vision_extraction_prompt()
+        attachments = [
+            {
+                "type": "blob",
+                "data": image_base64,
+                "mimeType": "image/jpeg",
+                "displayName": f"receipt_p{i}.jpg",
+            }
+            for i, image_base64 in enumerate(image_data or [])
+        ]
 
     # Bound how many receipts hit Copilot at once (callers may fire many in parallel).
     async with _copilot_semaphore:
@@ -460,7 +472,7 @@ async def _extract_with_copilot(image_data: List[str]) -> dict:
             available_tools=[],  # pure inference, no agentic tools
         )
         response = await session.send_and_wait(
-            _build_vision_extraction_prompt(),
+            prompt,
             attachments=attachments,
             timeout=COPILOT_TIMEOUT,
         )
@@ -491,30 +503,32 @@ async def _extract_with_local(file_path: str) -> dict:
 
     file_ext = Path(file_path).suffix.lower()
 
-    # Get images from file
-    images: List[Image.Image] = []
-    if file_ext == ".pdf":
-        images = pdf_to_images(file_path)
-    elif file_ext in [".png", ".jpg", ".jpeg", ".gif"]:
-        images = [Image.open(file_path)]
+    if file_ext in (".html", ".htm"):
+        combined_text = _load_html_text(file_path)
     else:
-        raise Exception(f"Unsupported file type: {file_ext}")
+        # Get images from file
+        images: List[Image.Image] = []
+        if file_ext == ".pdf":
+            images = pdf_to_images(file_path)
+        elif file_ext in [".png", ".jpg", ".jpeg", ".gif", ".heic", ".heif"]:
+            images = [Image.open(file_path)]
+        else:
+            raise Exception(f"Unsupported file type: {file_ext}")
 
-    if not images:
-        raise Exception("No images to process")
+        if not images:
+            raise Exception("No images to process")
 
-    # OCR all pages and combine text
-    ocr_texts = []
-    for image in images:
-        text = _ocr_image(image)
-        if text:
-            ocr_texts.append(text)
+        # OCR all pages and combine text
+        ocr_texts = []
+        for image in images:
+            ocr = _ocr_image(image)
+            if ocr:
+                ocr_texts.append(ocr)
 
-    combined_text = "\n\n".join(ocr_texts)
-    if not combined_text.strip():
-        raise Exception("OCR extracted no text from the receipt")
-
-    logger.info(f"OCR extracted {len(combined_text)} characters from {len(images)} page(s)")
+        combined_text = "\n\n".join(ocr_texts)
+        if not combined_text.strip():
+            raise Exception("OCR extracted no text from the receipt")
+        logger.info(f"OCR extracted {len(combined_text)} characters from {len(images)} page(s)")
 
     # Build prompt and run local LLM
     prompt = _build_extraction_prompt(combined_text)
@@ -539,6 +553,34 @@ async def _extract_with_local(file_path: str) -> dict:
         "Merchant": data.get("Merchant", ""),
         "Additional information": data.get("Additional information", ""),
     }
+
+
+def _build_text_extraction_prompt(content: str) -> str:
+    """Schema-based extraction prompt for text content (e.g. an HTML receipt)."""
+    schema = json.dumps(InvoiceDetails.model_json_schema(by_alias=True), ensure_ascii=False)
+    return (
+        "Extract invoice/receipt details from the receipt content below to the provided "
+        "output format. Be precise and only extract information clearly present.\n\n"
+        'For "Amount", use the TOTAL - the final amount actually paid.\n'
+        '"Merchant" is the SELLER company, not the buyer/customer.\n\n'
+        "Return ONLY a single raw JSON object (no markdown fences) conforming to this JSON "
+        "Schema:\n" + schema + "\n\nReceipt content:\n" + content + "\n\nOutput JSON only."
+    )
+
+
+def _load_html_text(file_path: str) -> str:
+    """Extract visible text from an HTML receipt (scripts/styles stripped, length-capped)."""
+    from bs4 import BeautifulSoup
+
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        soup = BeautifulSoup(f.read(), "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    lines = [ln.strip() for ln in soup.get_text(separator="\n").splitlines()]
+    text = "\n".join(ln for ln in lines if ln)
+    if not text.strip():
+        raise Exception("No text extracted from HTML")
+    return text[:30000]
 
 
 def _load_image_data(file_path: str) -> List[str]:
@@ -611,9 +653,10 @@ async def extract_invoice_details(
     file_path: Optional[str] = None, provider: Optional[str] = None
 ) -> dict:
     """
-    Extract invoice details from a PDF or image file (PDF, PNG, JPG, GIF, HEIC).
+    Extract invoice details from a receipt file (PDF, PNG, JPG, GIF, HEIC, or HTML).
 
-    The backend is chosen by `provider` (per-request override) or EXTRACTION_PROVIDER:
+    HTML is read as text (visible text via BeautifulSoup); everything else is sent to
+    the model as image(s). The backend is chosen by `provider` or EXTRACTION_PROVIDER:
       - "auto" (default): Azure OpenAI if configured, else local OCR + LLM
       - "azure":   Azure OpenAI vision
       - "copilot": GitHub Copilot SDK vision (zero setup, uses the Copilot login)
@@ -632,11 +675,17 @@ async def extract_invoice_details(
         resolved = _resolve_extraction_provider(provider)
         logger.info(f"Using '{resolved}' provider for invoice extraction")
 
+        is_html = Path(file_path).suffix.lower() in (".html", ".htm")
+
         if resolved == "copilot":
-            return await _extract_with_copilot(_load_image_data(file_path))
+            if is_html:
+                return await _extract_with_copilot(text=_load_html_text(file_path))
+            return await _extract_with_copilot(image_data=_load_image_data(file_path))
         elif resolved == "azure":
-            return await _extract_with_azure(_load_image_data(file_path))
-        else:  # local
+            if is_html:
+                return await _extract_with_azure(text=_load_html_text(file_path))
+            return await _extract_with_azure(image_data=_load_image_data(file_path))
+        else:  # local (handles HTML + images internally)
             return await _extract_with_local(file_path)
 
     except Exception as e:

@@ -85,7 +85,7 @@ ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
 
 # Single source of truth for accepted receipt file types (used by every backend
 # upload check and injected into the frontend as window.EZ_RECEIPT_EXTENSIONS).
-RECEIPT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
+RECEIPT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "heic", "heif", "html", "htm"}
 
 EXPENSE_CATEGORIES = [
     "Admin Services - Misc.",

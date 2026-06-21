@@ -2424,7 +2424,7 @@ class EZExpenseApp {
             <button onclick="app.selectReceipt(${expenseId})" class="attach-receipt-btn">
                 <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Upload Receipts' : 'Upload Receipts'}
             </button>
-            <input type="file" id="receipt-input-${expenseId}" accept="image/*,.pdf,.heic,.heif" multiple style="display: none;"
+            <input type="file" id="receipt-input-${expenseId}" accept="image/*,.pdf,.heic,.heif,.html,.htm" multiple style="display: none;"
                    onchange="app.handleMultipleReceiptSelection(${expenseId}, this.files)">
         `;
 
@@ -4419,7 +4419,7 @@ class EZExpenseApp {
 
         // Show the file input but hidden
         html += `
-            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf,.heic,.heif" multiple style="display: none;"
+            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf,.heic,.heif,.html,.htm" multiple style="display: none;"
                    onchange="app.handleBulkReceiptSelection(this.files)">
         `;
 
