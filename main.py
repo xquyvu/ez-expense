@@ -1,10 +1,11 @@
+import asyncio
 import logging
 import os
 import signal
 import sys
+import time
 import webbrowser
 from logging import getLogger
-from threading import Timer
 
 try:
     import playwright_manager
@@ -184,7 +185,96 @@ async def get_expense_page_from_browser(browser):
     return page
 
 
-async def start_quart_app():
+async def _wait_for_frontend(port: int, timeout: float = 15.0) -> bool:
+    """Poll until the front-end server is accepting TCP connections (or timeout)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            _, writer = await asyncio.open_connection("127.0.0.1", port)
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return True
+        except OSError:
+            await asyncio.sleep(0.2)
+    return False
+
+
+def _raise_dedicated_browser_to_front() -> None:
+    """Best-effort: bring the dedicated browser app to the foreground (macOS only).
+
+    The dedicated browser is launched in the background (``open -g``) so it doesn't steal
+    focus on startup; once the web UI is ready we surface it so the user can see it.
+    """
+    if sys.platform != "darwin":
+        return
+    app_name = getattr(getattr(_browser_process, "browser", None), "app_name", None)
+    if not app_name:
+        return
+    try:
+        import subprocess
+
+        subprocess.run(
+            ["osascript", "-e", f'tell application "{app_name}" to activate'],
+            check=False,
+            capture_output=True,
+        )
+    except Exception:
+        pass  # Focus is a nicety; never fail the launch over it
+
+
+def _notify_ready(url: str) -> None:
+    """Show a macOS notification that the web interface is ready."""
+    try:
+        import subprocess
+
+        subprocess.run(
+            [
+                "osascript",
+                "-e",
+                f'display notification "Web interface is now available at {url}" '
+                'with title "EZ-Expense Ready!" sound name "default"',
+            ],
+            check=False,
+            capture_output=True,
+        )
+    except Exception:
+        pass  # Silently ignore notification failures
+
+
+async def _open_frontend_when_ready(browser, url: str) -> None:
+    """Open the web UI in the SAME dedicated-profile browser that drives MyExpense.
+
+    This keeps the automation page and the web interface together in one isolated profile,
+    never the user's main browser. Falls back to the OS default browser if the dedicated
+    browser is unavailable.
+    """
+    await _wait_for_frontend(FRONTEND_PORT)
+
+    opened_in_dedicated = False
+    if browser is not None:
+        try:
+            context = browser.contexts[0] if browser.contexts else await browser.new_context()
+            page = await context.new_page()
+            await page.goto(url)
+            await page.bring_to_front()
+            _raise_dedicated_browser_to_front()
+            opened_in_dedicated = True
+            print("🌐 Opened the web interface in the dedicated browser profile")
+            logger.info("Opened web interface in the dedicated browser profile")
+        except Exception as e:
+            logger.warning(f"Could not open web interface in dedicated browser: {e}")
+
+    if not opened_in_dedicated:
+        print("🔧 Opening web interface in the default browser...")
+        webbrowser.open_new(url)
+
+    _notify_ready(url)
+
+
+async def start_quart_app(browser=None):
     """Start the Quart web application"""
     print("🔧 Initializing Quart application...")
     logger.info("Starting Quart application")
@@ -193,31 +283,14 @@ async def start_quart_app():
         from front_end.app import create_app
 
         app = create_app()
+        frontend_url = f"http://127.0.0.1:{FRONTEND_PORT}"
         print(f"🚀 Starting Quart application on port {FRONTEND_PORT}...")
-        print(f"🌐 Access the web interface at http://127.0.0.1:{FRONTEND_PORT}")
+        print(f"🌐 Access the web interface at {frontend_url}")
         logger.info(f"Quart app starting on port {FRONTEND_PORT}")
 
-        def _open_browser():
-            print("🔧 Opening browser to web interface...")
-            webbrowser.open_new(f"http://127.0.0.1:{FRONTEND_PORT}")
-
-            # Show notification that the app is ready
-            try:
-                import subprocess
-
-                subprocess.run(
-                    [
-                        "osascript",
-                        "-e",
-                        f'display notification "Web interface is now available at http://127.0.0.1:{FRONTEND_PORT}" with title "EZ-Expense Ready!" sound name "default"',
-                    ],
-                    check=False,
-                    capture_output=True,
-                )
-            except Exception:
-                pass  # Silently ignore notification failures
-
-        Timer(1, _open_browser).start()
+        # Open the web UI in the dedicated debug browser (same isolated profile as
+        # MyExpense) once the server is reachable, concurrently with serving.
+        asyncio.create_task(_open_frontend_when_ready(browser, frontend_url))
 
         # Use hypercorn (Quart's recommended ASGI server) instead of Flask's built-in server
         import hypercorn.asyncio
@@ -278,8 +351,8 @@ async def run_expense_automation():
             print("\n✅ Browser setup complete. Starting Quart web interface...")
             logger.info("Browser setup complete, starting Quart web interface")
 
-            # Start Quart in async context
-            await start_quart_app()
+            # Start Quart in async context (opens the web UI in the same dedicated browser)
+            await start_quart_app(browser)
 
         except KeyboardInterrupt:
             print("\n🛑 Keyboard interrupt received. Exiting gracefully...")

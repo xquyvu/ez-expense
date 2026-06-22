@@ -57,8 +57,37 @@ _PREFERRED_BROWSER_PORT = int(os.getenv("EZ_EXPENSE_BROWSER_PORT", 9222))
 _PREFERRED_FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
 
 # In AI_DEBUG mode, browser port is fixed (browser is already running, managed externally).
-# In normal mode, find an available port (original behavior).
+# In normal mode, reuse a matching debug browser already on the preferred port; otherwise
+# find an available port (original behavior).
+def _has_matching_debug_browser(port: int) -> bool:
+    """True if a debug browser matching the configured BROWSER is already reachable on the
+    port via the CDP ``/json/version`` endpoint.
+
+    Used so that relaunching the app reuses an already-open debug browser (same dedicated
+    profile) instead of allocating a new port and spawning a second, conflicting browser.
+    """
+    try:
+        import json
+        import urllib.request
+
+        from browser import BROWSER_CONFIG
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as resp:
+            browser_str = json.loads(resp.read()).get("Browser", "")
+
+        browser_config = BROWSER_CONFIG.get(BROWSER)
+        token = browser_config.cdp_token if browser_config else ""
+        return bool(token) and token in browser_str
+    except Exception:
+        return False
+
+
 if AI_DEBUG:
+    BROWSER_PORT = _PREFERRED_BROWSER_PORT
+elif _has_matching_debug_browser(_PREFERRED_BROWSER_PORT):
+    # A matching debug browser is already running on the preferred port — reuse it rather
+    # than allocating a new port (which would launch a second browser on the same dedicated
+    # profile that cannot start its own debug server, leaving the app stuck).
     BROWSER_PORT = _PREFERRED_BROWSER_PORT
 else:
     BROWSER_PORT = find_available_port(_PREFERRED_BROWSER_PORT)
