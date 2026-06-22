@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 from quart import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
@@ -14,7 +15,7 @@ from werkzeug.utils import secure_filename
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config import RECEIPT_EXTENSIONS
 from expense_matcher import match_receipts_with_expenses
-from invoice_extractor import extract_invoice_details
+from invoice_extractor import HEIC_EXTENSIONS, convert_heic_to_jpg, extract_invoice_details
 
 # Create blueprint
 receipt_bp = Blueprint("receipts", __name__)
@@ -24,6 +25,18 @@ logger = logging.getLogger(__name__)
 def allowed_file(filename: str, allowed_extensions: set) -> bool:
     """Check if the uploaded file has an allowed extension."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_extensions
+
+
+def _normalize_uploaded_receipt(file_path: str) -> str:
+    """
+    Convert a freshly uploaded HEIC/HEIF receipt to a JPG stored on disk.
+
+    Browsers cannot render HEIC/HEIF and MyExpense rejects them, so we persist a JPG and
+    discard the original. Other file types are returned unchanged.
+    """
+    if Path(file_path).suffix.lower() in HEIC_EXTENSIONS:
+        return convert_heic_to_jpg(file_path, remove_original=True)
+    return file_path
 
 
 @receipt_bp.route("/upload", methods=["POST"])
@@ -77,6 +90,12 @@ async def upload_receipt():
         os.makedirs(upload_folder, exist_ok=True)
         file_path = os.path.join(upload_folder, unique_filename)
         await file.save(file_path)
+
+        # HEIC/HEIF can't be rendered by browsers or attached to MyExpense, so persist a
+        # JPG on disk instead and use that everywhere downstream.
+        file_path = _normalize_uploaded_receipt(file_path)
+        unique_filename = os.path.basename(file_path)
+        ext = os.path.splitext(unique_filename)[1]
 
         # Get expense ID if provided
         form = await request.form
@@ -351,6 +370,11 @@ async def upload_multiple_receipts():
                 os.makedirs(upload_folder, exist_ok=True)
                 file_path = os.path.join(upload_folder, unique_filename)
                 await file.save(file_path)
+
+                # Persist HEIC/HEIF receipts as JPG (browsers + MyExpense reject HEIC).
+                file_path = _normalize_uploaded_receipt(file_path)
+                unique_filename = os.path.basename(file_path)
+                ext = os.path.splitext(unique_filename)[1]
 
                 # Get file size
                 file_size = os.path.getsize(file_path)

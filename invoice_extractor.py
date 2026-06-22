@@ -144,6 +144,41 @@ def image_to_base64(image: Image.Image) -> str:
     return base64_string
 
 
+HEIC_EXTENSIONS = (".heic", ".heif")
+
+
+def convert_heic_to_jpg(file_path: str, remove_original: bool = False) -> str:
+    """
+    Convert a HEIC/HEIF image to a JPG saved alongside it and return the JPG path.
+
+    MyExpense does not accept HEIC/HEIF attachments and browsers cannot render them, so
+    receipts are converted to JPG when they are uploaded. The JPG is written next to the
+    source using the same stem; when ``remove_original`` is True the source HEIC/HEIF file
+    is deleted after a successful conversion.
+
+    Args:
+        file_path: Path to the source HEIC/HEIF image.
+        remove_original: Delete the source file after a successful conversion.
+
+    Returns:
+        Path to the JPG file.
+    """
+    source = Path(file_path)
+
+    image = Image.open(source)
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+
+    output_path = source.with_suffix(".jpg")
+    image.save(output_path, format="JPEG", quality=85)
+
+    if remove_original and output_path != source:
+        source.unlink(missing_ok=True)
+
+    logger.info(f"Converted HEIC/HEIF '{source.name}' to JPG '{output_path.name}'")
+    return str(output_path)
+
+
 def _build_extraction_prompt(ocr_text: str) -> str:
     """Build a compact extraction prompt for a small LLM."""
     # Keep a short representative sample of categories to save tokens

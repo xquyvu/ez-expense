@@ -1559,9 +1559,6 @@ class EZExpenseApp {
         }
 
         try {
-            // Show loading state
-            this.showLoading('Filling expense report...');
-
             // Update expenses from table to get latest data
             this.updateExpensesFromTable();
 
@@ -1583,6 +1580,9 @@ class EZExpenseApp {
                 timestamp: new Date().toISOString()
             };
 
+            // Show the progress bar (filled lines / total lines)
+            this.showFillProgress();
+
             // Send data to the fill-expense-report route
             const response = await fetch('/api/expenses/fill-expense-report', {
                 method: 'POST',
@@ -1592,23 +1592,63 @@ class EZExpenseApp {
                 body: JSON.stringify(expenseData)
             });
 
+            // Validation/setup errors are returned as a JSON error response
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                let message = `HTTP error! status: ${response.status}`;
+                try {
+                    const errBody = await response.json();
+                    message = errBody.message || message;
+                } catch (e) { /* response had no JSON body */ }
+                this.hideFillProgress();
+                this.showToast(`Failed to fill expense report: ${message}`, 'error');
+                return;
             }
 
-            const result = await response.json();
+            // Success path streams server-sent progress events
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-            this.hideLoading();
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            if (result.success) {
-                this.showToast('Expense report filled successfully!', 'success');
-                console.log('Fill expense report result:', result);
-            } else {
-                this.showToast(`Failed to fill expense report: ${result.message || 'Unknown error'}`, 'error');
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                // Keep the last (possibly partial) line in the buffer
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+
+                    let eventData;
+                    try {
+                        eventData = JSON.parse(line.substring(6));
+                    } catch (e) {
+                        continue; // skip unparseable lines
+                    }
+
+                    if (eventData.status === 'starting') {
+                        this.updateFillProgress(0, eventData.total || 0);
+                    } else if (eventData.status === 'progress') {
+                        this.updateFillProgress(eventData.current, eventData.total);
+                    } else if (eventData.status === 'complete') {
+                        this.updateFillProgress(eventData.data?.total_expenses || 0, eventData.data?.total_expenses || 0);
+                        this.hideFillProgress();
+                        this.showToast('Expense report filled successfully!', 'success');
+                        console.log('Fill expense report result:', eventData);
+                    } else if (eventData.status === 'error') {
+                        this.hideFillProgress();
+                        this.showToast(`Failed to fill expense report: ${eventData.message || 'Unknown error'}`, 'error');
+                    }
+                }
             }
+
+            // Ensure the overlay is dismissed if the stream ended without an explicit event
+            this.hideFillProgress();
 
         } catch (error) {
-            this.hideLoading();
+            this.hideFillProgress();
             console.error('Error filling expense report:', error);
             this.showToast(`Error filling expense report: ${error.message}`, 'error');
         }
@@ -2366,8 +2406,9 @@ class EZExpenseApp {
             console.log(`Creating HTML for ${receipts.length} receipts`);
             html += '<div class="receipts-container">';
             receipts.forEach((receipt, index) => {
+                const imgSrc = this.receiptImageSrc(receipt);
                 // Escape quotes in preview URL for HTML attributes
-                const escapedPreview = receipt.preview ? receipt.preview.replace(/'/g, '&#39;') : '';
+                const escapedPreview = imgSrc ? imgSrc.replace(/'/g, '&#39;') : '';
                 const escapedName = receipt.name ? receipt.name.replace(/'/g, '&#39;') : '';
 
                 html += `
@@ -2380,16 +2421,11 @@ class EZExpenseApp {
                         <button onclick="app.removeReceipt(${expenseId}, ${index})" class="btn btn-sm">
                             <i class="fas fa-trash"></i>
                         </button>
-                        ${receipt.type === 'image' ?
-                        `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
+                        ${imgSrc ?
+                        `<img src="${imgSrc}" alt="Receipt" class="receipt-thumbnail"
                               onclick="app.showReceiptModal(${expenseId}, ${index})"
                               onmouseenter="app.showTooltip(event, '${escapedPreview}', 'image')"
                               onmouseleave="app.hideTooltip()">` :
-                        receipt.preview && receipt.preview.startsWith('data:image') ?
-                            `<img src="${receipt.preview}" alt="PDF Preview" class="receipt-thumbnail"
-                                  onclick="app.showReceiptModal(${expenseId}, ${index})"
-                                  onmouseenter="app.showTooltip(event, '${escapedPreview}', 'pdf')"
-                                  onmouseleave="app.hideTooltip()">` :
                             `<div class="pdf-preview receipt-thumbnail"
                                   onclick="app.showReceiptModal(${expenseId}, ${index})"
                                   onmouseenter="app.showTooltip(event, null, 'pdf', '${escapedName}')"
@@ -3025,6 +3061,27 @@ class EZExpenseApp {
     }
 
     /**
+     * Resolve the best <img> source for a receipt thumbnail/preview.
+     * Prefers an inline data-URL preview; otherwise falls back to the server-stored file
+     * when it is a browser-renderable image (HEIC/HEIF uploads are converted to JPG on the
+     * server). Returns '' when there is no image to show (e.g. PDFs) so callers can fall
+     * back to a placeholder.
+     */
+    receiptImageSrc(receipt) {
+        if (!receipt) return '';
+        if (receipt.preview && receipt.preview.startsWith('data:image')) {
+            return receipt.preview;
+        }
+        const name = receipt.filename || receipt.name || '';
+        const ext = (name.split('.').pop() || '').toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+        if (receipt.filename && imageExts.includes(ext)) {
+            return `/api/receipts/preview/${encodeURIComponent(receipt.filename)}`;
+        }
+        return '';
+    }
+
+    /**
      * Create PDF preview (first page as image)
      */
     async createPDFPreview(file) {
@@ -3119,8 +3176,9 @@ class EZExpenseApp {
 
         const contentDiv = document.getElementById('receipt-content');
 
-        if (receipt.type === 'image') {
-            contentDiv.innerHTML = `<img src="${receipt.preview}" alt="Receipt" style="max-width: 100%; max-height: 80vh;">`;
+        const modalImgSrc = this.receiptImageSrc(receipt);
+        if (modalImgSrc) {
+            contentDiv.innerHTML = `<img src="${modalImgSrc}" alt="Receipt" style="max-width: 100%; max-height: 80vh;">`;
         } else if (receipt.type === 'pdf') {
             // For PDF, show embedded PDF viewer
             const pdfUrl = URL.createObjectURL(receipt.file);
@@ -4215,7 +4273,7 @@ class EZExpenseApp {
                     name: receipt.name,
                     type: receipt.type || (receipt.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'),
                     preview: receipt.preview || null,
-                    confidence: 100, // Backend matches are considered high confidence
+                    confidence: (receipt.confidence !== null && receipt.confidence !== undefined) ? receipt.confidence : 100, // Use the score from the backend match, default to high confidence
                     file: null, // File object not available from backend
                     filePath: receipt.filePath || receipt.file_path,
                     filename: receipt.filename || receipt.name,
@@ -4363,8 +4421,9 @@ class EZExpenseApp {
         if (receipts.length > 0) {
             html += '<div class="receipts-container">';
             receipts.forEach((receipt, index) => {
+                const imgSrc = this.receiptImageSrc(receipt);
                 // Escape quotes in preview URL for HTML attributes
-                const escapedPreview = receipt.preview ? receipt.preview.replace(/'/g, '&#39;') : '';
+                const escapedPreview = imgSrc ? imgSrc.replace(/'/g, '&#39;') : '';
                 const escapedName = receipt.name ? receipt.name.replace(/'/g, '&#39;') : '';
 
                 html += `
@@ -4377,16 +4436,11 @@ class EZExpenseApp {
                         <button onclick="app.removeBulkReceipt(${index})" class="btn btn-sm">
                             <i class="fas fa-trash"></i>
                         </button>
-                        ${receipt.type === 'image' ?
-                        `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
+                        ${imgSrc ?
+                        `<img src="${imgSrc}" alt="Receipt" class="receipt-thumbnail"
                               onclick="app.showBulkReceiptModal(${index})"
                               onmouseenter="app.showTooltip(event, '${escapedPreview}', 'image')"
                               onmouseleave="app.hideTooltip()">` :
-                        receipt.preview && receipt.preview.startsWith('data:image') ?
-                            `<img src="${receipt.preview}" alt="PDF Preview" class="receipt-thumbnail"
-                                  onclick="app.showBulkReceiptModal(${index})"
-                                  onmouseenter="app.showTooltip(event, '${escapedPreview}', 'pdf')"
-                                  onmouseleave="app.hideTooltip()">` :
                             `<div class="pdf-preview receipt-thumbnail"
                                   onclick="app.showBulkReceiptModal(${index})"
                                   onmouseenter="app.showTooltip(event, null, 'pdf', '${escapedName}')"
@@ -4726,8 +4780,9 @@ class EZExpenseApp {
         const modal = document.getElementById('receipt-modal');
         const modalBody = modal.querySelector('.modal-body #receipt-preview');
 
-        if (receipt.type === 'image' || (receipt.preview && receipt.preview.startsWith('data:image'))) {
-            modalBody.innerHTML = `<img src="${receipt.preview}" alt="Receipt" style="max-width: 100%; height: auto;">`;
+        const modalImgSrc = this.receiptImageSrc(receipt);
+        if (modalImgSrc) {
+            modalBody.innerHTML = `<img src="${modalImgSrc}" alt="Receipt" style="max-width: 100%; height: auto;">`;
         } else {
             modalBody.innerHTML = `
                 <div style="text-align: center; padding: 2rem;">
@@ -5066,6 +5121,42 @@ class EZExpenseApp {
         if (overlay) overlay.style.display = 'none';
         if (progressContainer) progressContainer.style.display = 'none';
     }
+
+    // ===== FILL EXPENSE REPORT PROGRESS =====
+
+    showFillProgress() {
+        const overlay = document.getElementById('loading-overlay');
+        const progressContainer = document.getElementById('loading-progress-container');
+        const cancelBtn = document.getElementById('cancel-extraction-btn');
+        // Filling MyExpense shouldn't be cancellable mid-way, so hide the cancel button
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (overlay) overlay.style.display = 'flex';
+        if (progressContainer) progressContainer.style.display = 'block';
+        this.updateFillProgress(0, 0);
+    }
+
+    updateFillProgress(current, total) {
+        const bar = document.getElementById('loading-progress-bar');
+        const text = document.getElementById('loading-text');
+        if (bar) bar.style.width = total > 0 ? `${(current / total) * 100}%` : '0%';
+        if (text) {
+            text.textContent = total > 0
+                ? `Filling expense ${current}/${total}...`
+                : 'Filling expense report...';
+        }
+    }
+
+    hideFillProgress() {
+        const overlay = document.getElementById('loading-overlay');
+        const progressContainer = document.getElementById('loading-progress-container');
+        const cancelBtn = document.getElementById('cancel-extraction-btn');
+        if (overlay) overlay.style.display = 'none';
+        if (progressContainer) progressContainer.style.display = 'none';
+        // Restore the cancel button so extraction can use it again
+        if (cancelBtn) cancelBtn.style.display = '';
+    }
+
+    // ===== END FILL EXPENSE REPORT PROGRESS =====
 
     cancelExtraction() {
         this.extractionCancelled = true;
