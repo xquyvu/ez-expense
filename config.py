@@ -28,11 +28,11 @@ AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
 
 # Invoice extraction provider selection.
-#   "auto"    -> Azure if configured, otherwise local OCR + LLM (default; back-compatible)
+#   "copilot" -> GitHub Copilot SDK vision (default; zero setup, uses the user's Copilot login)
+#   "auto"    -> Azure if configured, otherwise local OCR + LLM
 #   "azure"   -> Azure OpenAI vision
-#   "copilot" -> GitHub Copilot SDK vision (zero setup; uses the user's Copilot login)
 #   "local"   -> local OCR + llama
-EXTRACTION_PROVIDER = os.getenv("EXTRACTION_PROVIDER", "auto").lower()
+EXTRACTION_PROVIDER = os.getenv("EXTRACTION_PROVIDER", "copilot").lower()
 
 # GitHub Copilot SDK settings (used when EXTRACTION_PROVIDER="copilot").
 # Leave COPILOT_MODEL empty to auto-select a vision-capable model from the user's

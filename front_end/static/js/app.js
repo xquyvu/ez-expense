@@ -4513,8 +4513,8 @@ class EZExpenseApp {
             if (configured === 'copilot' && copilotAvailable) { copilotChecked = true; this.aiSelectedProvider = 'copilot'; }
             else if (configured === 'azure' && azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
             else if (configured === 'local' && localReady) { localChecked = true; this.aiSelectedProvider = 'local'; }
-            else if (azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
             else if (copilotAvailable) { copilotChecked = true; this.aiSelectedProvider = 'copilot'; }
+            else if (azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
             else if (localReady) { localChecked = true; this.aiSelectedProvider = 'local'; }
         }
 
@@ -4525,13 +4525,13 @@ class EZExpenseApp {
                     <div style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
                         <div style="font-size: 0.8rem; font-weight: 600; color: #555; margin-bottom: 0.4rem;">🤖 AI Extraction Options</div>
                         <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${copilotAvailable ? '#333' : '#999'}; margin: 0; cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'};">
+                                <input type="radio" name="ai-provider" id="copilot-ai-checkbox" ${copilotChecked ? 'checked' : ''} ${copilotAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('copilot', this)" style="cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
+                                GitHub Copilot AI Extraction ${copilotStatusHtml}
+                            </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${azureAvailable ? '#333' : '#999'}; margin: 0; cursor: ${azureAvailable ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="azure-ai-checkbox" ${azureChecked ? 'checked' : ''} ${azureAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('azure', this)" style="cursor: ${azureAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
                                 Azure AI Extraction ${azureStatusHtml}
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${copilotAvailable ? '#333' : '#999'}; margin: 0; cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'};">
-                                <input type="radio" name="ai-provider" id="copilot-ai-checkbox" ${copilotChecked ? 'checked' : ''} ${copilotAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('copilot', this)" style="cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
-                                Copilot AI Extraction ${copilotStatusHtml}
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${localReady ? '#333' : '#999'}; margin: 0; cursor: ${localReady ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="local-ai-checkbox" ${localChecked ? 'checked' : ''} ${localReady ? '' : 'disabled'} onclick="app.onAIRadioClick('local', this)" style="cursor: ${localReady ? 'pointer' : 'not-allowed'}; margin: 0;">
