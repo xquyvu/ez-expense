@@ -853,11 +853,6 @@ class EZExpenseApp {
             this.updateNavigationStatus();
         });
 
-        // Zoom confirmation checkbox event
-        document.getElementById('zoom-confirmation-checkbox').addEventListener('change', (e) => {
-            this.updateValidationStatus();
-        });
-
         // Table management events
         document.getElementById('add-row-btn').addEventListener('click', () => {
             this.addNewRow();
@@ -873,18 +868,11 @@ class EZExpenseApp {
             // Check if button is disabled due to validation errors
             const button = document.getElementById('fill-expense-report-btn');
             if (button.disabled) {
-                const zoomConfirmationCheckbox = document.getElementById('zoom-confirmation-checkbox');
-                const isZoomConfirmed = zoomConfirmationCheckbox && zoomConfirmationCheckbox.checked;
-
                 const table = document.getElementById('expenses-table');
                 const errorFields = table ? table.querySelectorAll('.validation-error') : [];
                 const hasValidationErrors = errorFields.length > 0;
 
-                if (!isZoomConfirmed && hasValidationErrors) {
-                    this.showToast('Please fix validation errors and confirm zoom status before proceeding', 'warning');
-                } else if (!isZoomConfirmed) {
-                    this.showToast('Please confirm that you have zoomed out the My Expense page before proceeding', 'warning');
-                } else if (hasValidationErrors) {
+                if (hasValidationErrors) {
                     this.showToast('Please fix all validation errors before filling the expense report', 'warning');
                 }
                 return;
@@ -905,8 +893,6 @@ class EZExpenseApp {
                 this.handleRowCheckboxChange(e.target);
             } else if (e.target.id === 'select-all-checkbox') {
                 this.handleSelectAllChange(e.target);
-            } else if (e.target.id === 'zoom-confirmation-checkbox') {
-                this.updateValidationStatus();
             }
         });
     }
@@ -1470,17 +1456,11 @@ class EZExpenseApp {
         const validationMessage = document.getElementById('validation-message');
         const validationIcon = document.getElementById('validation-icon');
         const validationText = document.getElementById('validation-text');
-        const zoomConfirmationStatus = document.getElementById('zoom-confirmation-status');
-        const zoomStatusMessage = document.getElementById('zoom-status-message');
-        const zoomStatusIcon = document.getElementById('zoom-status-icon');
-        const zoomStatusText = document.getElementById('zoom-status-text');
         const fillButton = document.getElementById('fill-expense-report-btn');
-        const zoomConfirmationCheckbox = document.getElementById('zoom-confirmation-checkbox');
 
         // Don't show validation if no table or no expenses
         if (!table || !this.expenses || this.expenses.length === 0) {
             validationGuidance.style.display = 'none';
-            zoomConfirmationStatus.style.display = 'none';
             fillButton.disabled = false;
             return;
         }
@@ -1510,9 +1490,6 @@ class EZExpenseApp {
             }
         });
 
-        // Check if zoom confirmation checkbox is checked
-        const isZoomConfirmed = zoomConfirmationCheckbox && zoomConfirmationCheckbox.checked;
-
         const totalErrors = errorFields.length + receiptValidationErrors;
         const hasValidationErrors = totalErrors > 0;
 
@@ -1529,22 +1506,8 @@ class EZExpenseApp {
             validationText.textContent = 'All validation tests have passed';
         }
 
-        // Handle zoom confirmation section
-        if (!isZoomConfirmed) {
-            zoomConfirmationStatus.style.display = 'block';
-            zoomConfirmationStatus.className = 'zoom-confirmation-status validation-failed';
-            zoomStatusIcon.className = 'fas fa-exclamation-triangle';
-            zoomStatusText.textContent = 'Please confirm that you have zoomed out the My Expense page';
-        } else {
-            zoomConfirmationStatus.style.display = 'block';
-            zoomConfirmationStatus.className = 'zoom-confirmation-status validation-passed';
-            zoomStatusIcon.className = 'fas fa-check-circle';
-            zoomStatusText.textContent = 'Zoom status confirmed';
-        }
-
-        // Enable/disable button based on both conditions
-        const canProceed = !hasValidationErrors && isZoomConfirmed;
-        fillButton.disabled = !canProceed;
+        // Enable/disable button based on validation
+        fillButton.disabled = hasValidationErrors;
     }
 
     /**

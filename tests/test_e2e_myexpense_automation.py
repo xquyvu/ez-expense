@@ -98,7 +98,7 @@ class TestImportFlow:
 
 class TestFillExpenseReport:
     def test_fill_with_receipt(self, real_page, setup_expense_report, test_jpeg):
-        """Import, upload receipt, confirm zoom, fill — expect success toast."""
+        """Import, upload receipt, fill — expect success toast."""
         import_real_expenses(real_page)
         upload_receipts_via_input(real_page, test_jpeg)
 
@@ -109,11 +109,8 @@ class TestFillExpenseReport:
             match_btn.click()
             real_page.wait_for_selector("#loading-overlay", state="hidden", timeout=30_000)
 
-        real_page.check("#zoom-confirmation-checkbox")
-        real_page.wait_for_timeout(500)
-
         fill_btn = real_page.locator("#fill-expense-report-btn")
-        assert fill_btn.is_enabled(), "Fill button should be enabled after zoom confirmed + valid data"
+        assert fill_btn.is_enabled(), "Fill button should be enabled with valid data"
 
         fill_btn.click()
 
@@ -123,14 +120,6 @@ class TestFillExpenseReport:
             state="visible",
             timeout=120_000,
         )
-
-    def test_fill_button_disabled_without_zoom_confirmation(
-        self, real_page, setup_expense_report
-    ):
-        """Fill button is disabled before checking the zoom confirmation checkbox."""
-        import_real_expenses(real_page)
-        btn = real_page.locator("#fill-expense-report-btn")
-        assert btn.is_disabled()
 
 
 # ===================================================================
@@ -248,9 +237,8 @@ class TestValidationFailure:
 
         import_real_expenses(real_page)
 
-        # Tick both confirmation checkboxes
+        # Tick the navigation confirmation checkbox
         real_page.check("#navigation-checkbox")
-        real_page.check("#zoom-confirmation-checkbox")
         real_page.wait_for_timeout(1000)
 
         # Validation should fail because an expense has "Receipts attached: No"

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 
 from playwright.async_api import TimeoutError as playwright_TimeoutError
@@ -26,6 +27,246 @@ from expense_matcher import receipt_match_score
 # Create blueprint
 expense_bp = Blueprint("expenses", __name__)
 logger = logging.getLogger(__name__)
+
+# Per-step fill timing diagnostics. Off by default to keep production fill logs clean; set
+# EZ_EXPENSE_TIMING=1 (or true/yes) to emit "[timing] ..." lines at INFO level when profiling
+# the fill flow (e.g. via scripts/drive_e2e.py). Measured dominant cost is the MyExpense
+# receipt-upload dialog round-trips (~6s/receipt), not this app's code.
+_TIMING_ENABLED = os.getenv("EZ_EXPENSE_TIMING", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _log_timing(message: str) -> None:
+    """Emit a fill step-timing line when EZ_EXPENSE_TIMING is enabled."""
+    if _TIMING_ENABLED:
+        logger.info(message)
+
+
+# Guards against concurrent fills. All fills drive the single shared Playwright page, so
+# two running at once corrupt each other (the symptom: "File chooser did not appear").
+_fill_in_progress = False
+
+
+async def _wait_for_shell_unblocked(page, timeout: float = 10_000) -> None:
+    """Best-effort wait for the Dynamics ShellBlockingDiv loading overlay to clear.
+
+    While that overlay is present it swallows clicks (e.g. on the Browse button), so we
+    wait for it to disappear before interacting. If the overlay isn't present this resolves
+    immediately.
+    """
+    try:
+        await page.wait_for_selector('[class*="ShellBlockingDiv"]', state="hidden", timeout=timeout)
+    except Exception:
+        # The overlay may simply not exist on this page/state; proceed regardless.
+        pass
+
+
+async def _locate_expense_line(page, created_id: str, max_scrolls: int = 20):
+    """Locate an expense line's "Created ID" cell, scrolling the virtualized grid as needed.
+
+    The MyExpense expense grid is virtualized: after import not every row is rendered (the
+    last rows are often missing), which previously required the user to manually zoom out so
+    all rows render. Instead of snapshotting rows once up front, this locates the target row
+    by its Created ID value on demand and, if it isn't rendered yet, repeatedly scrolls the
+    last rendered row into view to force the grid to render further rows until the target
+    appears.
+    """
+    created_id = str(created_id)
+    target = page.locator(f'input[aria-label="Created ID"][value="{created_id}"]')
+
+    start = time.monotonic()
+    last_count = -1
+    for scrolls in range(max_scrolls):
+        if await target.count() > 0:
+            _log_timing(
+                f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
+                f"({scrolls} scroll(s))"
+            )
+            return target.first
+
+        # Render more rows by scrolling the last currently-rendered Created ID row into view.
+        await page.evaluate(
+            """() => {
+                const inputs = [...document.querySelectorAll('input')]
+                    .filter(e => (e.getAttribute('aria-label') || '') === 'Created ID');
+                const last = inputs[inputs.length - 1];
+                const row = last && last.closest('[role="row"]');
+                if (row) row.scrollIntoView({ block: 'end' });
+            }"""
+        )
+        await page.wait_for_timeout(600)
+
+        count = await page.locator('input[aria-label="Created ID"]').count()
+        if count == last_count:
+            # Reached the bottom without rendering more rows; try once from the top in case
+            # the target is above the current window (e.g. out-of-order processing).
+            await page.evaluate(
+                """() => {
+                    const input = document.querySelector('input[aria-label="Created ID"]');
+                    const row = input && input.closest('[role="row"]');
+                    if (row) row.scrollIntoView({ block: 'start' });
+                }"""
+            )
+            await page.wait_for_timeout(600)
+            if await target.count() > 0:
+                _log_timing(
+                    f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
+                    f"({scrolls + 1} scroll(s), via top)"
+                )
+                return target.first
+            break
+        last_count = count
+
+    raise RuntimeError(
+        f"Could not locate expense line with Created ID {created_id} after scrolling the grid."
+    )
+
+
+async def _open_expense_line(page, expense_line_locator) -> None:
+    """Open/select an existing expense line from its "Created ID" grid cell.
+
+    The "Created ID" field itself is a hidden ``<input>``, so a real Playwright click on it
+    stalls on actionability. But a *synthetic* JS ``click()`` on the row does not trigger
+    Dynamics' row-selection handler (it ignores untrusted events), so the line never gets
+    selected and every receipt ends up on whichever line was already open. The fix is to
+    issue a **real** mouse click on the enclosing visible grid row: scroll the row into view
+    via JS (handles virtualization), then click the ``[role="row"]`` ancestor so Dynamics
+    receives genuine pointer events and selects the line.
+
+    Selecting a line makes Dynamics re-render the detail pane, so we then wait for the row
+    to actually become selected before returning — a fixed delay races that re-render and
+    causes receipts to land on the previously-selected line.
+    """
+    open_start = time.monotonic()
+    await _wait_for_shell_unblocked(page)
+    # Render the row first (it may be scrolled out of a virtualized grid).
+    await expense_line_locator.evaluate("el => el.scrollIntoView({ block: 'center' })")
+    row = expense_line_locator.locator("xpath=ancestor::*[@role='row'][1]")
+
+    # Click the row to select it. The click can transiently fail actionability while the
+    # grid/detail pane re-renders, so retry (re-centering + waiting for the overlay) and
+    # fall back to a forced click rather than letting one stuck click burn the full timeout.
+    click_start = time.monotonic()
+    clicked = False
+    for attempt in range(3):
+        try:
+            await row.scroll_into_view_if_needed(timeout=4_000)
+        except Exception:  # noqa: BLE001 - scrolling is best-effort
+            await expense_line_locator.evaluate("el => el.scrollIntoView({ block: 'center' })")
+        try:
+            await row.click(timeout=8_000)
+            clicked = True
+            break
+        except playwright_TimeoutError:
+            logger.info(f"Row click not actionable (attempt {attempt + 1}), retrying...")
+            await _wait_for_shell_unblocked(page)
+    if not clicked:
+        # Last resort: force a click near the row's top-left, which stays visible even when
+        # the row sits at the very bottom edge of the grid (its centre may be clipped).
+        await row.click(force=True, position={"x": 20, "y": 6})
+    _log_timing(f"[timing] row click: {time.monotonic() - click_start:.2f}s")
+
+    # Wait for Dynamics to finish loading/selecting the line (overlay clears + row marked
+    # selected) instead of a fixed delay.
+    await _wait_for_shell_unblocked(page)
+    await _wait_for_row_selected(page, row)
+    _log_timing(f"[timing] open_expense_line total: {time.monotonic() - open_start:.2f}s")
+
+
+async def _wait_for_row_selected(page, row, timeout: float = 10_000) -> None:
+    """Poll until the grid row reports it is selected (best-effort, with a settle fallback).
+
+    Logs whether a selection marker was detected (and how long it took) or whether it fell
+    through to the settle fallback. On fallback it dumps the row's attributes/outerHTML so we
+    can identify the *real* selection indicator Dynamics uses and replace this timeout-based
+    wait with a precise signal -- this poll, when no marker is found, is the dominant
+    per-expense latency in the fill flow (it runs once per expense line).
+    """
+    start = time.monotonic()
+    deadline = start + (timeout / 1000)
+    selected, classes = None, ""
+    while time.monotonic() < deadline:
+        try:
+            selected = await row.get_attribute("aria-selected")
+            classes = (await row.get_attribute("class")) or ""
+        except Exception:
+            selected, classes = None, ""
+        if selected == "true" or "selected" in classes.lower():
+            await page.wait_for_timeout(300)
+            _log_timing(
+                f"[timing] wait_for_row_selected: detected in "
+                f"{time.monotonic() - start:.2f}s (aria-selected={selected!r})"
+            )
+            return
+        await page.wait_for_timeout(250)
+    # No explicit selection marker observed; give the detail pane a moment to settle.
+    try:
+        row_html = await row.evaluate("el => el.outerHTML")
+    except Exception:
+        row_html = "<unavailable>"
+    logger.warning(
+        f"[timing] wait_for_row_selected: NO selection marker after "
+        f"{time.monotonic() - start:.1f}s; settling 0.8s. "
+        f"last aria-selected={selected!r}, class={classes!r}, "
+        f"row.outerHTML[:400]={(row_html or '')[:400]!r}"
+    )
+    await page.wait_for_timeout(800)
+
+
+async def _attach_receipt_file(page, receipt_file_path: str) -> None:
+    """Attach a single receipt file to the currently selected expense line.
+
+    Uses the Dynamics file-chooser flow: clicking "Browse" opens the native file chooser,
+    which we answer with the receipt path. Setting the file on ``<input type="file">``
+    directly does NOT work here — the Dynamics upload control keeps its "Upload" button
+    disabled unless the file arrives through its own Browse/file-chooser flow. The Browse
+    click can be swallowed by the ShellBlockingDiv loading overlay, so we wait for that
+    overlay to clear and retry the click if the chooser doesn't open.
+    """
+    attach_start = time.monotonic()
+    await page.click('a[name="EditReceipts"]')
+    t_edit = time.monotonic()
+    await page.click('button[name="AddButton"]')
+    await page.wait_for_load_state("domcontentloaded")
+    await _wait_for_shell_unblocked(page)
+    t_open = time.monotonic()
+
+    file_chooser = None
+    for _ in range(5):
+        try:
+            async with page.expect_file_chooser(timeout=2_000) as file_chooser_info:
+                browse_button = await page.wait_for_selector(
+                    'button[name="UploadControlBrowseButton"]'
+                )
+                await browse_button.click()  # type: ignore[reportOptionalMemberAccess]
+            file_chooser = await file_chooser_info.value
+            break
+        except playwright_TimeoutError:
+            logger.info("File chooser did not appear, retrying...")
+            await _wait_for_shell_unblocked(page)
+            await page.wait_for_timeout(1_000)
+    if file_chooser is None:
+        raise RuntimeError("File chooser did not appear after multiple attempts.")
+    await file_chooser.set_files(receipt_file_path)
+    t_browse = time.monotonic()
+
+    # The Upload button stays disabled until the control registers the selected file;
+    # Playwright's click auto-waits for it to become enabled.
+    await page.click('button[name="UploadControlUploadButton"]')
+    t_upload = time.monotonic()
+    await page.click('button[name="OkButtonAddNewTabPage"]')
+    await page.click('button[name="CloseButton"]')
+    t_close = time.monotonic()
+    _log_timing(
+        f"[timing] attach receipt: {t_close - attach_start:.2f}s "
+        f"(editReceipts={t_edit - attach_start:.2f} "
+        f"open[add+dom+shell]={t_open - t_edit:.2f} "
+        f"browse+chooser+setfiles={t_browse - t_open:.2f} "
+        f"upload={t_upload - t_browse:.2f} "
+        f"ok+close={t_close - t_upload:.2f})"
+    )
+    # NOTE: do not click CommandButtonNext here. That button reloads/navigates the report
+    # (the importer uses it precisely to force a reload), and clicking it after each receipt
+    # intermittently navigates away from the report, closing the page mid-fill.
 
 
 @expense_bp.route("/categories", methods=["GET"])
@@ -791,6 +1032,20 @@ async def fill_expense_report():
             }
         ), 500
 
+    # Reject duplicate/concurrent fills: they share one Playwright page and would corrupt
+    # each other's receipt uploads. This check-and-set is atomic (no await in between).
+    global _fill_in_progress
+    if _fill_in_progress:
+        logger.warning("Ignoring fill request: another fill is already in progress")
+        return jsonify(
+            {
+                "success": False,
+                "error": "Fill already in progress",
+                "message": "An expense fill is already running. Please wait for it to finish.",
+            }
+        ), 409
+    _fill_in_progress = True
+
     def _sse(payload: dict) -> str:
         return f"data: {json.dumps(payload)}\n\n"
 
@@ -798,19 +1053,11 @@ async def fill_expense_report():
         try:
             yield _sse({"status": "starting", "total": total_expenses})
 
-            expense_lines = await page.get_by_role(
-                "textbox", name="Created ID", include_hidden=True
-            ).all()
-
-            expense_line_mapping = {}
-            for expense_line in expense_lines:
-                value = await expense_line.get_attribute("value")
-                expense_line_mapping[value] = expense_line
-
             completed = 0
 
             # Update existing expenses in MyExpense with receipts
             for expense in existing_expenses_to_update:
+                expense_start = time.monotonic()
                 expense_created_id = expense["Created ID"]
 
                 attached_receipts = expense.get("Receipts", [])
@@ -818,12 +1065,11 @@ async def fill_expense_report():
                     f"Expense {expense_created_id}: {len(attached_receipts)} receipts attached"
                 )
 
-                # Select the expense line
-                expense_line_to_fill = expense_line_mapping[expense_created_id]
-
-                await expense_line_to_fill.scroll_into_view_if_needed()
-                await expense_line_to_fill.click()
-                await page.wait_for_timeout(500)
+                # Locate the expense line on demand, scrolling the virtualized grid so rows
+                # that aren't rendered yet (e.g. the last lines after import) are found
+                # without requiring the user to manually zoom out.
+                expense_line_to_fill = await _locate_expense_line(page, expense_created_id)
+                await _open_expense_line(page, expense_line_to_fill)
 
                 # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
                 text_box = await page.query_selector(
@@ -837,34 +1083,13 @@ async def fill_expense_report():
 
                 # Log receipt details
                 for _, receipt in enumerate(attached_receipts):
-                    receipt_file_path = receipt["filePath"]
-                    await page.click('a[name="EditReceipts"]')
-                    await page.click('button[name="AddButton"]')
-                    await page.wait_for_load_state("domcontentloaded")
+                    await _attach_receipt_file(page, receipt["filePath"])
 
-                    # Upload receipt
-
-                    # If the "Browse" button is hung, retry.
-                    for _ in range(5):
-                        try:
-                            async with page.expect_file_chooser(timeout=500) as file_chooser_info:
-                                upload_button = await page.wait_for_selector(
-                                    'button[name="UploadControlBrowseButton"]'
-                                )
-                                await upload_button.click()  # type: ignore[reportOptionalMemberAccess]
-                            break
-                        except playwright_TimeoutError:
-                            logger.info("File chooser did not appear, retrying...")
-                            await page.wait_for_timeout(1000)
-
-                    file_chooser = await file_chooser_info.value
-                    await file_chooser.set_files(receipt_file_path)
-
-                    await page.click('button[name="UploadControlUploadButton"]')
-                    await page.click('button[name="OkButtonAddNewTabPage"]')
-                    await page.click('button[name="CloseButton"]')
-                    await page.click('button[name="CommandButtonNext"]')
-
+                _log_timing(
+                    f"[timing] expense {expense_created_id} TOTAL: "
+                    f"{time.monotonic() - expense_start:.2f}s "
+                    f"({len(attached_receipts)} receipt(s))"
+                )
                 completed += 1
                 yield _sse(
                     {
@@ -916,25 +1141,7 @@ async def fill_expense_report():
                 await page.wait_for_timeout(3000)
 
                 for receipt in expense["Receipts"]:
-                    receipt_file_path = receipt["filePath"]
-                    await page.click('a[name="EditReceipts"]')
-                    await page.click('button[name="AddButton"]')
-                    await page.wait_for_load_state("domcontentloaded")
-
-                    # Upload receipt
-                    async with page.expect_file_chooser() as file_chooser_info:
-                        await page.wait_for_selector('button[name="UploadControlBrowseButton"]')
-                        await page.click('button[name="UploadControlBrowseButton"]')
-
-                    file_chooser = await file_chooser_info.value
-                    await file_chooser.set_files(receipt_file_path)
-
-                    await page.click('button[name="UploadControlUploadButton"]')
-                    await page.click('button[name="OkButtonAddNewTabPage"]')
-                    await page.click('button[name="CloseButton"]')
-                    await page.click('button[name="CommandButtonNext"]')
-
-                    # await page.click('button[data-dyn-controlname="CloseButton"][type="button"]')
+                    await _attach_receipt_file(page, receipt["filePath"])
 
                 completed += 1
                 yield _sse(
@@ -972,6 +1179,11 @@ async def fill_expense_report():
         except Exception as e:
             logger.error(f"Error filling expense report: {e}")
             yield _sse({"status": "error", "message": str(e)})
+
+        finally:
+            # Release the guard so a subsequent fill can run.
+            global _fill_in_progress
+            _fill_in_progress = False
 
     response = await make_response(generate(), 200)
     response.headers["Content-Type"] = "text/event-stream"
