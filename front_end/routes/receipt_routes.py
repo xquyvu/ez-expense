@@ -174,7 +174,7 @@ def list_receipts():
 
 
 @receipt_bp.route("/download/<filename>", methods=["GET"])
-def download_receipt(filename):
+async def download_receipt(filename):
     """
     Download a specific receipt file.
 
@@ -204,7 +204,7 @@ def download_receipt(filename):
                 {"error": "Invalid file type", "message": "File is not a valid receipt"}
             ), 400
 
-        return send_file(file_path, as_attachment=True)
+        return await send_file(file_path, as_attachment=True)
 
     except Exception as e:
         logger.error(f"Error downloading receipt: {e}")
@@ -212,7 +212,7 @@ def download_receipt(filename):
 
 
 @receipt_bp.route("/preview/<filename>", methods=["GET"])
-def preview_receipt(filename):
+async def preview_receipt(filename):
     """
     Preview a specific receipt file (serve for display).
 
@@ -242,7 +242,7 @@ def preview_receipt(filename):
                 {"error": "Invalid file type", "message": "File is not a valid receipt"}
             ), 400
 
-        return send_file(file_path)
+        return await send_file(file_path)
 
     except Exception as e:
         logger.error(f"Error previewing receipt: {e}")

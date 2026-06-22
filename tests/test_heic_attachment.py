@@ -99,3 +99,29 @@ async def test_upload_route_stores_heic_as_jpg(app):
     assert not stored.with_suffix(".heic").exists()
 
     stored.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_preview_endpoint_serves_converted_heic_as_jpeg(app):
+    """The /preview endpoint serves the converted JPG (regression: send_file must be awaited)."""
+    buffer = io.BytesIO()
+    Image.new("RGB", (40, 30), (12, 200, 90)).save(buffer, format="HEIF")
+    buffer.seek(0)
+
+    client = app.test_client()
+    upload = await client.post(
+        "/api/receipts/upload",
+        files={"file": FileStorage(stream=buffer, filename="My Receipt.heic")},
+    )
+    info = (await upload.get_json())["file_info"]
+    saved_filename = info["saved_filename"]
+
+    preview = await client.get(f"/api/receipts/preview/{saved_filename}")
+
+    assert preview.status_code == 200
+    assert preview.headers.get("Content-Type") == "image/jpeg"
+    body = await preview.get_data()
+    assert body[:3] == b"\xff\xd8\xff"  # JPEG magic bytes
+
+    Path(info["file_path"]).unlink(missing_ok=True)
+
