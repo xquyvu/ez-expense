@@ -2389,7 +2389,7 @@ class EZExpenseApp {
                               onclick="app.showReceiptModal(${expenseId}, ${index})"
                               onmouseenter="app.showTooltip(event, '${escapedPreview}', 'image')"
                               onmouseleave="app.hideTooltip()">` :
-                            `<div class="pdf-preview receipt-thumbnail"
+                        `<div class="pdf-preview receipt-thumbnail"
                                   onclick="app.showReceiptModal(${expenseId}, ${index})"
                                   onmouseenter="app.showTooltip(event, null, 'pdf', '${escapedName}')"
                                   onmouseleave="app.hideTooltip()">
@@ -4404,7 +4404,7 @@ class EZExpenseApp {
                               onclick="app.showBulkReceiptModal(${index})"
                               onmouseenter="app.showTooltip(event, '${escapedPreview}', 'image')"
                               onmouseleave="app.hideTooltip()">` :
-                            `<div class="pdf-preview receipt-thumbnail"
+                        `<div class="pdf-preview receipt-thumbnail"
                                   onclick="app.showBulkReceiptModal(${index})"
                                   onmouseenter="app.showTooltip(event, null, 'pdf', '${escapedName}')"
                                   onmouseleave="app.hideTooltip()">
@@ -4527,15 +4527,15 @@ class EZExpenseApp {
                         <div style="display: flex; flex-direction: column; gap: 0.3rem;">
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${copilotAvailable ? '#333' : '#999'}; margin: 0; cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="copilot-ai-checkbox" ${copilotChecked ? 'checked' : ''} ${copilotAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('copilot', this)" style="cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
-                                GitHub Copilot AI Extraction ${copilotStatusHtml}
+                                GitHub Copilot ${copilotStatusHtml}
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${azureAvailable ? '#333' : '#999'}; margin: 0; cursor: ${azureAvailable ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="azure-ai-checkbox" ${azureChecked ? 'checked' : ''} ${azureAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('azure', this)" style="cursor: ${azureAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
-                                Azure AI Extraction ${azureStatusHtml}
+                                Azure AI ${azureStatusHtml}
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${localReady ? '#333' : '#999'}; margin: 0; cursor: ${localReady ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="local-ai-checkbox" ${localChecked ? 'checked' : ''} ${localReady ? '' : 'disabled'} onclick="app.onAIRadioClick('local', this)" style="cursor: ${localReady ? 'pointer' : 'not-allowed'}; margin: 0;">
-                                Local AI Extraction ${localStatusHtml}
+                                Local model ${localStatusHtml}
                             </label>
                         </div>
                     </div>
