@@ -15,8 +15,8 @@ class EZExpenseApp {
         this.validCategories = new Set(); // Valid expense categories
         this.validCurrencies = new Set(); // Valid currency codes
         this.validationEnabled = true; // Enable/disable validation
-        this.aiStatus = { azure_configured: false, downloaded: false, model_name: '', size_mb: 0 };
-        this.aiSelectedProvider = null; // 'azure' | 'local' | null — tracks user's checkbox choice
+        this.aiStatus = { azure_configured: false, downloaded: false, model_name: '', size_mb: 0, extraction_provider: '', copilot_available: false, copilot_installed: false, copilot_login: null };
+        this.aiSelectedProvider = null; // 'azure' | 'copilot' | 'local' | null — tracks user's checkbox choice
         this.extractionCancelled = false;
 
         this.init();
@@ -853,11 +853,6 @@ class EZExpenseApp {
             this.updateNavigationStatus();
         });
 
-        // Zoom confirmation checkbox event
-        document.getElementById('zoom-confirmation-checkbox').addEventListener('change', (e) => {
-            this.updateValidationStatus();
-        });
-
         // Table management events
         document.getElementById('add-row-btn').addEventListener('click', () => {
             this.addNewRow();
@@ -873,18 +868,11 @@ class EZExpenseApp {
             // Check if button is disabled due to validation errors
             const button = document.getElementById('fill-expense-report-btn');
             if (button.disabled) {
-                const zoomConfirmationCheckbox = document.getElementById('zoom-confirmation-checkbox');
-                const isZoomConfirmed = zoomConfirmationCheckbox && zoomConfirmationCheckbox.checked;
-
                 const table = document.getElementById('expenses-table');
                 const errorFields = table ? table.querySelectorAll('.validation-error') : [];
                 const hasValidationErrors = errorFields.length > 0;
 
-                if (!isZoomConfirmed && hasValidationErrors) {
-                    this.showToast('Please fix validation errors and confirm zoom status before proceeding', 'warning');
-                } else if (!isZoomConfirmed) {
-                    this.showToast('Please confirm that you have zoomed out the My Expense page before proceeding', 'warning');
-                } else if (hasValidationErrors) {
+                if (hasValidationErrors) {
                     this.showToast('Please fix all validation errors before filling the expense report', 'warning');
                 }
                 return;
@@ -945,8 +933,6 @@ class EZExpenseApp {
                 this.handleRowCheckboxChange(e.target);
             } else if (e.target.id === 'select-all-checkbox') {
                 this.handleSelectAllChange(e.target);
-            } else if (e.target.id === 'zoom-confirmation-checkbox') {
-                this.updateValidationStatus();
             }
         });
     }
@@ -1008,6 +994,9 @@ class EZExpenseApp {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            if (this.aiSelectedProvider) {
+                formData.append('provider', this.aiSelectedProvider);
+            }
 
             const response = await fetch('/api/receipts/extract_invoice_details', {
                 method: 'POST',
@@ -1507,17 +1496,11 @@ class EZExpenseApp {
         const validationMessage = document.getElementById('validation-message');
         const validationIcon = document.getElementById('validation-icon');
         const validationText = document.getElementById('validation-text');
-        const zoomConfirmationStatus = document.getElementById('zoom-confirmation-status');
-        const zoomStatusMessage = document.getElementById('zoom-status-message');
-        const zoomStatusIcon = document.getElementById('zoom-status-icon');
-        const zoomStatusText = document.getElementById('zoom-status-text');
         const fillButton = document.getElementById('fill-expense-report-btn');
-        const zoomConfirmationCheckbox = document.getElementById('zoom-confirmation-checkbox');
 
         // Don't show validation if no table or no expenses
         if (!table || !this.expenses || this.expenses.length === 0) {
             validationGuidance.style.display = 'none';
-            zoomConfirmationStatus.style.display = 'none';
             fillButton.disabled = false;
             return;
         }
@@ -1547,9 +1530,6 @@ class EZExpenseApp {
             }
         });
 
-        // Check if zoom confirmation checkbox is checked
-        const isZoomConfirmed = zoomConfirmationCheckbox && zoomConfirmationCheckbox.checked;
-
         const totalErrors = errorFields.length + receiptValidationErrors;
         const hasValidationErrors = totalErrors > 0;
 
@@ -1566,22 +1546,8 @@ class EZExpenseApp {
             validationText.textContent = 'All validation tests have passed';
         }
 
-        // Handle zoom confirmation section
-        if (!isZoomConfirmed) {
-            zoomConfirmationStatus.style.display = 'block';
-            zoomConfirmationStatus.className = 'zoom-confirmation-status validation-failed';
-            zoomStatusIcon.className = 'fas fa-exclamation-triangle';
-            zoomStatusText.textContent = 'Please confirm that you have zoomed out the My Expense page';
-        } else {
-            zoomConfirmationStatus.style.display = 'block';
-            zoomConfirmationStatus.className = 'zoom-confirmation-status validation-passed';
-            zoomStatusIcon.className = 'fas fa-check-circle';
-            zoomStatusText.textContent = 'Zoom status confirmed';
-        }
-
-        // Enable/disable button based on both conditions
-        const canProceed = !hasValidationErrors && isZoomConfirmed;
-        fillButton.disabled = !canProceed;
+        // Enable/disable button based on validation
+        fillButton.disabled = hasValidationErrors;
     }
 
     /**
@@ -1596,9 +1562,6 @@ class EZExpenseApp {
         }
 
         try {
-            // Show loading state
-            this.showLoading('Filling expense report...');
-
             // Update expenses from table to get latest data
             this.updateExpensesFromTable();
 
@@ -1620,6 +1583,9 @@ class EZExpenseApp {
                 timestamp: new Date().toISOString()
             };
 
+            // Show the progress bar (filled lines / total lines)
+            this.showFillProgress();
+
             // Send data to the fill-expense-report route
             const response = await fetch('/api/expenses/fill-expense-report', {
                 method: 'POST',
@@ -1629,23 +1595,63 @@ class EZExpenseApp {
                 body: JSON.stringify(expenseData)
             });
 
+            // Validation/setup errors are returned as a JSON error response
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                let message = `HTTP error! status: ${response.status}`;
+                try {
+                    const errBody = await response.json();
+                    message = errBody.message || message;
+                } catch (e) { /* response had no JSON body */ }
+                this.hideFillProgress();
+                this.showToast(`Failed to fill expense report: ${message}`, 'error');
+                return;
             }
 
-            const result = await response.json();
+            // Success path streams server-sent progress events
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-            this.hideLoading();
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            if (result.success) {
-                this.showToast('Expense report filled successfully!', 'success');
-                console.log('Fill expense report result:', result);
-            } else {
-                this.showToast(`Failed to fill expense report: ${result.message || 'Unknown error'}`, 'error');
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                // Keep the last (possibly partial) line in the buffer
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+
+                    let eventData;
+                    try {
+                        eventData = JSON.parse(line.substring(6));
+                    } catch (e) {
+                        continue; // skip unparseable lines
+                    }
+
+                    if (eventData.status === 'starting') {
+                        this.updateFillProgress(0, eventData.total || 0);
+                    } else if (eventData.status === 'progress') {
+                        this.updateFillProgress(eventData.current, eventData.total);
+                    } else if (eventData.status === 'complete') {
+                        this.updateFillProgress(eventData.data?.total_expenses || 0, eventData.data?.total_expenses || 0);
+                        this.hideFillProgress();
+                        this.showToast('Expense report filled successfully!', 'success');
+                        console.log('Fill expense report result:', eventData);
+                    } else if (eventData.status === 'error') {
+                        this.hideFillProgress();
+                        this.showToast(`Failed to fill expense report: ${eventData.message || 'Unknown error'}`, 'error');
+                    }
+                }
             }
+
+            // Ensure the overlay is dismissed if the stream ended without an explicit event
+            this.hideFillProgress();
 
         } catch (error) {
-            this.hideLoading();
+            this.hideFillProgress();
             console.error('Error filling expense report:', error);
             this.showToast(`Error filling expense report: ${error.message}`, 'error');
         }
@@ -2472,8 +2478,9 @@ class EZExpenseApp {
             console.log(`Creating HTML for ${receipts.length} receipts`);
             html += '<div class="receipts-container">';
             receipts.forEach((receipt, index) => {
+                const imgSrc = this.receiptImageSrc(receipt);
                 // Escape quotes in preview URL for HTML attributes
-                const escapedPreview = receipt.preview ? receipt.preview.replace(/'/g, '&#39;') : '';
+                const escapedPreview = imgSrc ? imgSrc.replace(/'/g, '&#39;') : '';
                 const escapedName = receipt.name ? receipt.name.replace(/'/g, '&#39;') : '';
 
                 html += `
@@ -2486,17 +2493,12 @@ class EZExpenseApp {
                         <button onclick="app.removeReceipt(${expenseId}, ${index})" class="btn btn-sm">
                             <i class="fas fa-trash"></i>
                         </button>
-                        ${receipt.type === 'image' ?
-                        `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
+                        ${imgSrc ?
+                        `<img src="${imgSrc}" alt="Receipt" class="receipt-thumbnail"
                               onclick="app.showReceiptModal(${expenseId}, ${index})"
                               onmouseenter="app.showTooltip(event, '${escapedPreview}', 'image')"
                               onmouseleave="app.hideTooltip()">` :
-                        receipt.preview && receipt.preview.startsWith('data:image') ?
-                            `<img src="${receipt.preview}" alt="PDF Preview" class="receipt-thumbnail"
-                                  onclick="app.showReceiptModal(${expenseId}, ${index})"
-                                  onmouseenter="app.showTooltip(event, '${escapedPreview}', 'pdf')"
-                                  onmouseleave="app.hideTooltip()">` :
-                            `<div class="pdf-preview receipt-thumbnail"
+                        `<div class="pdf-preview receipt-thumbnail"
                                   onclick="app.showReceiptModal(${expenseId}, ${index})"
                                   onmouseenter="app.showTooltip(event, null, 'pdf', '${escapedName}')"
                                   onmouseleave="app.hideTooltip()">
@@ -2530,7 +2532,7 @@ class EZExpenseApp {
             <button onclick="app.selectReceipt(${expenseId})" class="attach-receipt-btn">
                 <i class="fas fa-paperclip"></i> ${receipts.length > 0 ? 'Upload Receipts' : 'Upload Receipts'}
             </button>
-            <input type="file" id="receipt-input-${expenseId}" accept="image/*,.pdf" multiple style="display: none;"
+            <input type="file" id="receipt-input-${expenseId}" accept="image/*,.pdf,.heic,.heif,.html,.htm" multiple style="display: none;"
                    onchange="app.handleMultipleReceiptSelection(${expenseId}, this.files)">
         `;
 
@@ -2663,11 +2665,10 @@ class EZExpenseApp {
         const duplicateFiles = [];
 
         // Validate all files first
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
         const maxFileSize = 16 * 1024 * 1024; // 16MB
 
         for (const file of filesArray) {
-            if (!allowedTypes.includes(file.type)) {
+            if (!this.isValidReceiptFile(file)) {
                 invalidFiles.push(`${file.name}: Invalid file type`);
             } else if (file.size > maxFileSize) {
                 invalidFiles.push(`${file.name}: File too large (max 16MB)`);
@@ -2872,14 +2873,24 @@ class EZExpenseApp {
     }
 
     /**
+     * Single source of truth for valid receipt files — extensions come from the backend's
+     * config.RECEIPT_EXTENSIONS (injected as window.EZ_RECEIPT_EXTENSIONS). Extension-based
+     * because HEIC files often report an empty or non-standard MIME type in the browser.
+     */
+    isValidReceiptFile(file) {
+        const exts = window.EZ_RECEIPT_EXTENSIONS || ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'heic', 'heif'];
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        return exts.includes(ext);
+    }
+
+    /**
      * Handle receipt file selection
      */
     async handleReceiptSelection(expenseId, file) {
         if (!file) return;
 
         // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
-        if (!allowedTypes.includes(file.type)) {
+        if (!this.isValidReceiptFile(file)) {
             this.showToast('Please select an image or PDF file', 'error');
             return;
         }
@@ -3108,11 +3119,38 @@ class EZExpenseApp {
      * Create image preview URL
      */
     createImagePreview(file) {
+        // Browsers can't render HEIC/HEIF, so don't produce a (broken) data URL for them —
+        // extraction still works server-side; the thumbnail just falls back to a placeholder.
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (ext === 'heic' || ext === 'heif') {
+            return Promise.resolve('');
+        }
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
             reader.readAsDataURL(file);
         });
+    }
+
+    /**
+     * Resolve the best <img> source for a receipt thumbnail/preview.
+     * Prefers an inline data-URL preview; otherwise falls back to the server-stored file
+     * when it is a browser-renderable image (HEIC/HEIF uploads are converted to JPG on the
+     * server). Returns '' when there is no image to show (e.g. PDFs) so callers can fall
+     * back to a placeholder.
+     */
+    receiptImageSrc(receipt) {
+        if (!receipt) return '';
+        if (receipt.preview && receipt.preview.startsWith('data:image')) {
+            return receipt.preview;
+        }
+        const name = receipt.filename || receipt.name || '';
+        const ext = (name.split('.').pop() || '').toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+        if (receipt.filename && imageExts.includes(ext)) {
+            return `/api/receipts/preview/${encodeURIComponent(receipt.filename)}`;
+        }
+        return '';
     }
 
     /**
@@ -3210,8 +3248,9 @@ class EZExpenseApp {
 
         const contentDiv = document.getElementById('receipt-content');
 
-        if (receipt.type === 'image') {
-            contentDiv.innerHTML = `<img src="${receipt.preview}" alt="Receipt" style="max-width: 100%; max-height: 80vh;">`;
+        const modalImgSrc = this.receiptImageSrc(receipt);
+        if (modalImgSrc) {
+            contentDiv.innerHTML = `<img src="${modalImgSrc}" alt="Receipt" style="max-width: 100%; max-height: 80vh;">`;
         } else if (receipt.type === 'pdf') {
             // For PDF, show embedded PDF viewer
             const pdfUrl = URL.createObjectURL(receipt.file);
@@ -3951,11 +3990,10 @@ class EZExpenseApp {
         const skippedFiles = [];
 
         // Validate files using same logic as receipts column
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
         const maxFileSize = 16 * 1024 * 1024; // 16MB
 
         for (const file of filesArray) {
-            if (!allowedTypes.includes(file.type)) {
+            if (!this.isValidReceiptFile(file)) {
                 invalidFiles.push(`${file.name}: Invalid file type`);
             } else if (file.size > maxFileSize) {
                 invalidFiles.push(`${file.name}: File too large (max 16MB)`);
@@ -4016,7 +4054,10 @@ class EZExpenseApp {
                 this.showLoading(`Processing ${filesToProcess.length} new receipts...`);
             }
 
-            const useParallel = aiExtractionEnabled && this.aiSelectedProvider === 'azure';
+            // Parallel-safe for remote providers (Azure, Copilot); the local model is
+            // CPU-bound, so it stays sequential.
+            const useParallel = aiExtractionEnabled &&
+                (this.aiSelectedProvider === 'azure' || this.aiSelectedProvider === 'copilot');
             const receipts = [];
             let completedCount = 0;
             let cancelled = false;
@@ -4029,24 +4070,33 @@ class EZExpenseApp {
                 }));
 
                 const promises = filesToProcess.map(async (file, i) => {
-                    // Generate preview
-                    if (file.type.startsWith('image/')) {
-                        receiptSlots[i].preview = await this.createImagePreview(file);
-                        receiptSlots[i].type = 'image';
-                    } else if (file.type === 'application/pdf') {
-                        receiptSlots[i].preview = await this.createPDFPreview(file);
-                        receiptSlots[i].type = 'pdf';
-                    }
-
-                    // Extract (skip if cancelled)
-                    if (!this.extractionCancelled) {
-                        try {
-                            receiptSlots[i].invoiceDetails = await this.extractInvoiceDetails(file);
-                        } catch (error) {
+                    // Kick off the extraction request immediately so every file runs
+                    // concurrently — never gate it behind (CPU-bound) preview rendering.
+                    const extractionPromise = (!this.extractionCancelled)
+                        ? this.extractInvoiceDetails(file).catch(error => {
                             console.warn(`Failed to extract invoice details for ${file.name}:`, error);
+                            return null;
+                        })
+                        : Promise.resolve(null);
+
+                    // Generate a preview alongside (best-effort; never blocks extraction).
+                    try {
+                        const ext = (file.name.split('.').pop() || '').toLowerCase();
+                        if (file.type === 'application/pdf' || ext === 'pdf') {
+                            receiptSlots[i].preview = await this.createPDFPreview(file);
+                            receiptSlots[i].type = 'pdf';
+                        } else if (ext === 'heic' || ext === 'heif') {
+                            // Browsers can't render HEIC to a thumbnail — skip the preview.
+                            receiptSlots[i].type = 'image';
+                        } else if (file.type.startsWith('image/')) {
+                            receiptSlots[i].preview = await this.createImagePreview(file);
+                            receiptSlots[i].type = 'image';
                         }
+                    } catch (e) {
+                        // Preview is optional.
                     }
 
+                    receiptSlots[i].invoiceDetails = await extractionPromise;
                     completedCount++;
                     this.updateExtractionProgress(completedCount, filesToProcess.length);
                 });
@@ -4295,7 +4345,7 @@ class EZExpenseApp {
                     name: receipt.name,
                     type: receipt.type || (receipt.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'),
                     preview: receipt.preview || null,
-                    confidence: 100, // Backend matches are considered high confidence
+                    confidence: (receipt.confidence !== null && receipt.confidence !== undefined) ? receipt.confidence : 100, // Use the score from the backend match, default to high confidence
                     file: null, // File object not available from backend
                     filePath: receipt.filePath || receipt.file_path,
                     filename: receipt.filename || receipt.name,
@@ -4443,8 +4493,9 @@ class EZExpenseApp {
         if (receipts.length > 0) {
             html += '<div class="receipts-container">';
             receipts.forEach((receipt, index) => {
+                const imgSrc = this.receiptImageSrc(receipt);
                 // Escape quotes in preview URL for HTML attributes
-                const escapedPreview = receipt.preview ? receipt.preview.replace(/'/g, '&#39;') : '';
+                const escapedPreview = imgSrc ? imgSrc.replace(/'/g, '&#39;') : '';
                 const escapedName = receipt.name ? receipt.name.replace(/'/g, '&#39;') : '';
 
                 html += `
@@ -4457,17 +4508,12 @@ class EZExpenseApp {
                         <button onclick="app.removeBulkReceipt(${index})" class="btn btn-sm">
                             <i class="fas fa-trash"></i>
                         </button>
-                        ${receipt.type === 'image' ?
-                        `<img src="${receipt.preview}" alt="Receipt" class="receipt-thumbnail"
+                        ${imgSrc ?
+                        `<img src="${imgSrc}" alt="Receipt" class="receipt-thumbnail"
                               onclick="app.showBulkReceiptModal(${index})"
                               onmouseenter="app.showTooltip(event, '${escapedPreview}', 'image')"
                               onmouseleave="app.hideTooltip()">` :
-                        receipt.preview && receipt.preview.startsWith('data:image') ?
-                            `<img src="${receipt.preview}" alt="PDF Preview" class="receipt-thumbnail"
-                                  onclick="app.showBulkReceiptModal(${index})"
-                                  onmouseenter="app.showTooltip(event, '${escapedPreview}', 'pdf')"
-                                  onmouseleave="app.hideTooltip()">` :
-                            `<div class="pdf-preview receipt-thumbnail"
+                        `<div class="pdf-preview receipt-thumbnail"
                                   onclick="app.showBulkReceiptModal(${index})"
                                   onmouseenter="app.showTooltip(event, null, 'pdf', '${escapedName}')"
                                   onmouseleave="app.hideTooltip()">
@@ -4499,7 +4545,7 @@ class EZExpenseApp {
 
         // Show the file input but hidden
         html += `
-            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf" multiple style="display: none;"
+            <input type="file" id="bulk-receipt-input" accept="image/*,.pdf,.heic,.heif,.html,.htm" multiple style="display: none;"
                    onchange="app.handleBulkReceiptSelection(this.files)">
         `;
 
@@ -4538,6 +4584,19 @@ class EZExpenseApp {
             ? '<span style="color: #28a745; font-size: 0.8rem; margin-left: 0.25rem;">Available</span>'
             : '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not available</span> <span onclick="app.toggleAzureWhyPopover(event)" style="color: #e67e22; font-size: 0.8rem; margin-left: 0.25rem; cursor: pointer; position: relative;"><i class="fas fa-exclamation-circle"></i> Why?<div id="azure-why-popover" style="display:none; position:absolute; left:0; top:1.4rem; z-index:1000; background:#fff; border:1px solid #ddd; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.15); padding:0.6rem 0.75rem; width:280px; font-size:0.78rem; color:#444; line-height:1.5; white-space:normal; cursor:default;" onclick="event.stopPropagation()">Azure OpenAI is not configured.<br><br>Please check your <b>.env</b> file and fill in the required variables.<br><br>See <b>README.md</b> or <b>USER_GUIDE.md</b> for more information.</div></span>';
 
+        // Copilot AI status (uses the user's GitHub Copilot login)
+        const copilotAvailable = this.aiStatus.copilot_available;   // installed AND signed in
+        const copilotInstalled = this.aiStatus.copilot_installed;
+        let copilotStatusHtml;
+        if (copilotAvailable) {
+            const who = this.aiStatus.copilot_login ? ` (${this.aiStatus.copilot_login})` : '';
+            copilotStatusHtml = `<span style="color: #28a745; font-size: 0.8rem; margin-left: 0.25rem;">Available${who}</span>`;
+        } else if (copilotInstalled) {
+            copilotStatusHtml = '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not signed in</span> <a href="#" onclick="app.copilotLogin(); return false;" style="color: #667eea; font-size: 0.8rem; margin-left: 0.5rem; font-weight: 600; text-decoration: none;"><i class="fas fa-sign-in-alt"></i> Login</a>';
+        } else {
+            copilotStatusHtml = '<span style="color: #dc3545; font-size: 0.8rem; margin-left: 0.25rem;">Not available</span>';
+        }
+
         // Local AI status
         const localReady = this.aiStatus.downloaded;
         let localStatusHtml;
@@ -4550,13 +4609,21 @@ class EZExpenseApp {
         // Determine which checkbox should be checked — preserve user's selection if still valid
         let azureChecked = false;
         let localChecked = false;
+        let copilotChecked = false;
         if (this.aiSelectedProvider === 'azure' && azureAvailable) {
             azureChecked = true;
+        } else if (this.aiSelectedProvider === 'copilot' && copilotAvailable) {
+            copilotChecked = true;
         } else if (this.aiSelectedProvider === 'local' && localReady) {
             localChecked = true;
         } else if (this.aiSelectedProvider === null) {
-            // No user selection yet — default: prefer Azure if available, else local
-            if (azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
+            // No user selection yet — default to the backend's configured provider, else first available
+            const configured = this.aiStatus.extraction_provider;
+            if (configured === 'copilot' && copilotAvailable) { copilotChecked = true; this.aiSelectedProvider = 'copilot'; }
+            else if (configured === 'azure' && azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
+            else if (configured === 'local' && localReady) { localChecked = true; this.aiSelectedProvider = 'local'; }
+            else if (copilotAvailable) { copilotChecked = true; this.aiSelectedProvider = 'copilot'; }
+            else if (azureAvailable) { azureChecked = true; this.aiSelectedProvider = 'azure'; }
             else if (localReady) { localChecked = true; this.aiSelectedProvider = 'local'; }
         }
 
@@ -4567,13 +4634,17 @@ class EZExpenseApp {
                     <div style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
                         <div style="font-size: 0.8rem; font-weight: 600; color: #555; margin-bottom: 0.4rem;">🤖 AI Extraction Options</div>
                         <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${copilotAvailable ? '#333' : '#999'}; margin: 0; cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'};">
+                                <input type="radio" name="ai-provider" id="copilot-ai-checkbox" ${copilotChecked ? 'checked' : ''} ${copilotAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('copilot', this)" style="cursor: ${copilotAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
+                                GitHub Copilot ${copilotStatusHtml}
+                            </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${azureAvailable ? '#333' : '#999'}; margin: 0; cursor: ${azureAvailable ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="azure-ai-checkbox" ${azureChecked ? 'checked' : ''} ${azureAvailable ? '' : 'disabled'} onclick="app.onAIRadioClick('azure', this)" style="cursor: ${azureAvailable ? 'pointer' : 'not-allowed'}; margin: 0;">
-                                Azure AI Extraction ${azureStatusHtml}
+                                Azure AI ${azureStatusHtml}
                             </label>
                             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: ${localReady ? '#333' : '#999'}; margin: 0; cursor: ${localReady ? 'pointer' : 'not-allowed'};">
                                 <input type="radio" name="ai-provider" id="local-ai-checkbox" ${localChecked ? 'checked' : ''} ${localReady ? '' : 'disabled'} onclick="app.onAIRadioClick('local', this)" style="cursor: ${localReady ? 'pointer' : 'not-allowed'}; margin: 0;">
-                                Local AI Extraction ${localStatusHtml}
+                                Local model ${localStatusHtml}
                             </label>
                         </div>
                     </div>
@@ -4781,8 +4852,9 @@ class EZExpenseApp {
         const modal = document.getElementById('receipt-modal');
         const modalBody = modal.querySelector('.modal-body #receipt-preview');
 
-        if (receipt.type === 'image' || (receipt.preview && receipt.preview.startsWith('data:image'))) {
-            modalBody.innerHTML = `<img src="${receipt.preview}" alt="Receipt" style="max-width: 100%; height: auto;">`;
+        const modalImgSrc = this.receiptImageSrc(receipt);
+        if (modalImgSrc) {
+            modalBody.innerHTML = `<img src="${modalImgSrc}" alt="Receipt" style="max-width: 100%; height: auto;">`;
         } else {
             modalBody.innerHTML = `
                 <div style="text-align: center; padding: 2rem;">
@@ -4805,10 +4877,12 @@ class EZExpenseApp {
      */
     isAIExtractionEnabled() {
         const azureCheckbox = document.getElementById('azure-ai-checkbox');
+        const copilotCheckbox = document.getElementById('copilot-ai-checkbox');
         const localCheckbox = document.getElementById('local-ai-checkbox');
         const azureChecked = azureCheckbox ? azureCheckbox.checked : false;
+        const copilotChecked = copilotCheckbox ? copilotCheckbox.checked : false;
         const localChecked = localCheckbox ? localCheckbox.checked : false;
-        return azureChecked || localChecked;
+        return azureChecked || copilotChecked || localChecked;
     }
 
     // ===== END AI EXTRACTION CONTROL =====
@@ -4934,7 +5008,11 @@ class EZExpenseApp {
                     azure_configured: data.azure_configured || false,
                     downloaded: data.downloaded || false,
                     model_name: data.model_name || '',
-                    size_mb: data.size_mb || 0
+                    size_mb: data.size_mb || 0,
+                    extraction_provider: data.extraction_provider || '',
+                    copilot_available: data.copilot_available || false,
+                    copilot_installed: data.copilot_installed || false,
+                    copilot_login: data.copilot_login || null
                 };
             }
             this.updateBulkReceiptActions();
@@ -5009,6 +5087,69 @@ class EZExpenseApp {
         }
     }
 
+    async copilotLogin() {
+        let modal = document.getElementById('copilot-login-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'copilot-login-modal';
+            modal.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+            modal.innerHTML = `
+                <div style="background:#fff;border-radius:8px;padding:1.25rem 1.5rem;max-width:520px;width:90%;box-shadow:0 8px 24px rgba(0,0,0,0.2);">
+                    <h3 style="margin:0 0 0.5rem;font-size:1rem;">Sign in to GitHub Copilot</h3>
+                    <p style="font-size:0.83rem;color:#555;margin:0 0 0.75rem;">A browser window should open. If it doesn't, use the code and link shown below.</p>
+                    <pre id="copilot-login-log" style="background:#f6f8fa;border:1px solid #e1e4e8;border-radius:6px;padding:0.75rem;font-size:0.8rem;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0 0 0.75rem;"></pre>
+                    <div style="text-align:right;"><button onclick="document.getElementById('copilot-login-modal').remove()" class="btn btn-sm">Close</button></div>
+                </div>`;
+            document.body.appendChild(modal);
+        }
+        const log = document.getElementById('copilot-login-log');
+        const esc = (s) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const append = (s) => {
+            log.innerHTML += esc(s).replace(/(https?:\/\/[^\s]+)/g,
+                '<a href="$1" target="_blank" rel="noopener" style="color:#0969da;text-decoration:underline;">$1</a>') + '\n';
+            log.scrollTop = log.scrollHeight;
+        };
+        log.innerHTML = '';
+        append('Starting sign-in…');
+        try {
+            const response = await fetch('/api/model/copilot-login', { method: 'POST' });
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const text = decoder.decode(value, { stream: true });
+                for (const line of text.split('\n').filter(l => l.startsWith('data: '))) {
+                    try {
+                        const ev = JSON.parse(line.substring(6));
+                        if (ev.line) {
+                            append(ev.line);
+                        } else if (ev.status === 'complete') {
+                            if (ev.authenticated) {
+                                append('\n✅ Signed in' + (ev.login ? ' as ' + ev.login : '') + '.');
+                                this.showToast('Signed in to Copilot' + (ev.login ? ' as ' + ev.login : ''), 'success');
+                                setTimeout(() => {
+                                    const m = document.getElementById('copilot-login-modal');
+                                    if (m) m.remove();
+                                    this.checkModelStatus();
+                                }, 1200);
+                            } else {
+                                append('\n⚠️ Not signed in. Please try again.');
+                                this.showToast('Copilot sign-in did not complete', 'error');
+                            }
+                        } else if (ev.status === 'error') {
+                            append('\nError: ' + ev.message);
+                            this.showToast('Copilot sign-in failed: ' + ev.message, 'error');
+                        }
+                    } catch (e) { /* skip unparseable lines */ }
+                }
+            }
+        } catch (error) {
+            append('\nError: ' + error.message);
+            this.showToast('Copilot sign-in failed: ' + error.message, 'error');
+        }
+    }
+
     async deleteModel() {
         if (!confirm('Delete the local AI model? You can re-download it later.')) return;
 
@@ -5052,6 +5193,42 @@ class EZExpenseApp {
         if (overlay) overlay.style.display = 'none';
         if (progressContainer) progressContainer.style.display = 'none';
     }
+
+    // ===== FILL EXPENSE REPORT PROGRESS =====
+
+    showFillProgress() {
+        const overlay = document.getElementById('loading-overlay');
+        const progressContainer = document.getElementById('loading-progress-container');
+        const cancelBtn = document.getElementById('cancel-extraction-btn');
+        // Filling MyExpense shouldn't be cancellable mid-way, so hide the cancel button
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (overlay) overlay.style.display = 'flex';
+        if (progressContainer) progressContainer.style.display = 'block';
+        this.updateFillProgress(0, 0);
+    }
+
+    updateFillProgress(current, total) {
+        const bar = document.getElementById('loading-progress-bar');
+        const text = document.getElementById('loading-text');
+        if (bar) bar.style.width = total > 0 ? `${(current / total) * 100}%` : '0%';
+        if (text) {
+            text.textContent = total > 0
+                ? `Filling expense ${current}/${total}...`
+                : 'Filling expense report...';
+        }
+    }
+
+    hideFillProgress() {
+        const overlay = document.getElementById('loading-overlay');
+        const progressContainer = document.getElementById('loading-progress-container');
+        const cancelBtn = document.getElementById('cancel-extraction-btn');
+        if (overlay) overlay.style.display = 'none';
+        if (progressContainer) progressContainer.style.display = 'none';
+        // Restore the cancel button so extraction can use it again
+        if (cancelBtn) cancelBtn.style.display = '';
+    }
+
+    // ===== END FILL EXPENSE REPORT PROGRESS =====
 
     cancelExtraction() {
         this.extractionCancelled = true;

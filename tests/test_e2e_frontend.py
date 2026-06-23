@@ -96,15 +96,15 @@ class TestImportExpenses:
 
 class TestAIOptionsPanel:
     def test_ai_options_panel_visible(self, page):
-        """Panel shows AI Extraction Options text with two radio options."""
+        """Panel shows AI Extraction Options text with three radio options."""
         import_mock_expenses(page)
         # The AI options are rendered inside the bulk receipt actions area
         panel = page.locator("#bulk-receipt-actions")
         assert panel.is_visible()
         assert "AI Extraction Options" in panel.text_content()
-        # Two radio inputs for ai-provider
+        # Three radio inputs for ai-provider (GitHub Copilot, Azure, Local)
         radios = page.locator("input[name='ai-provider']")
-        assert radios.count() == 2
+        assert radios.count() == 3
 
     def test_azure_radio_state_matches_config(self, page, live_server):
         """Azure radio disabled/enabled state matches model status API."""

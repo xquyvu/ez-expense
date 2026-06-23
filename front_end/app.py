@@ -21,6 +21,7 @@ from config import (
     FLASK_DEBUG,
     FRONTEND_PORT,
     MAX_CONTENT_LENGTH,
+    RECEIPT_EXTENSIONS,
     SECRET_KEY,
 )
 
@@ -86,6 +87,18 @@ def create_app():
         app.config["SECRET_KEY"] = SECRET_KEY
         print("🔧 [Quart] Secret key configured")
 
+        # Disable Quart's default 60s RESPONSE_TIMEOUT app-wide. Every streaming (SSE)
+        # endpoint here legitimately runs for minutes: "Fill Expense Report" drives MyExpense
+        # (~8-9s per expense line), model download, and copilot-login (waits on the user's
+        # OAuth device flow). Quart bounds only the *response-send* phase with
+        # asyncio.wait_for(RESPONSE_TIMEOUT) (see quart/asgi.py handle_request): a normal
+        # jsonify body sends instantly so this never trips, but an SSE generator is iterated
+        # *inside* that send phase, so the whole stream is aborted at ~60s (e.g. around the
+        # 6th expense). Converting fill from a plain JSON response to SSE for the progress bar
+        # is what first exposed this -- the work moved from the (untimed) request-handler
+        # phase into the timed response-send phase.
+        app.config["RESPONSE_TIMEOUT"] = None
+
         # Use system temporary directory for both temp operations and uploads
         app.config["TEMP_FOLDER"] = tempfile.gettempdir()
         # Store uploaded receipts in a temporary directory that will be cleaned up
@@ -146,7 +159,11 @@ def create_app():
             """Render the main application page."""
             import time
 
-            return await render_template("index.html", cache_bust=int(time.time()))
+            return await render_template(
+                "index.html",
+                cache_bust=int(time.time()),
+                receipt_extensions=sorted(RECEIPT_EXTENSIONS),
+            )
 
         @app.route("/health")
         def health_check():

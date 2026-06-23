@@ -27,6 +27,22 @@ AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-pre
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 INVOICE_DETAILS_EXTRACTOR_MODEL_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
 
+# Invoice extraction provider selection.
+#   "copilot" -> GitHub Copilot SDK vision (default; zero setup, uses the user's Copilot login)
+#   "auto"    -> Azure if configured, otherwise local OCR + LLM
+#   "azure"   -> Azure OpenAI vision
+#   "local"   -> local OCR + llama
+EXTRACTION_PROVIDER = os.getenv("EXTRACTION_PROVIDER", "copilot").lower()
+
+# GitHub Copilot SDK settings (used when EXTRACTION_PROVIDER="copilot").
+# Leave COPILOT_MODEL empty to auto-select a vision-capable model from the user's
+# available Copilot models; set it only to pin a specific model.
+COPILOT_MODEL = os.getenv("COPILOT_MODEL", "")
+COPILOT_TIMEOUT = int(os.getenv("COPILOT_TIMEOUT", "180"))
+# Max receipts extracted concurrently via Copilot (bounds parallel/bulk requests).
+# Safe to raise, but throughput plateaus ~5-8: all sessions multiplex over one CLI subprocess.
+COPILOT_MAX_CONCURRENCY = int(os.getenv("COPILOT_MAX_CONCURRENCY", "8"))
+
 # Local model settings
 LOCAL_MODEL_DIR = os.getenv("EZ_EXPENSE_MODEL_DIR", os.path.expanduser("~/.ez-expense/models"))
 
@@ -41,8 +57,37 @@ _PREFERRED_BROWSER_PORT = int(os.getenv("EZ_EXPENSE_BROWSER_PORT", 9222))
 _PREFERRED_FRONTEND_PORT = int(os.getenv("EZ_EXPENSE_FRONTEND_PORT", 5001))
 
 # In AI_DEBUG mode, browser port is fixed (browser is already running, managed externally).
-# In normal mode, find an available port (original behavior).
+# In normal mode, reuse a matching debug browser already on the preferred port; otherwise
+# find an available port (original behavior).
+def _has_matching_debug_browser(port: int) -> bool:
+    """True if a debug browser matching the configured BROWSER is already reachable on the
+    port via the CDP ``/json/version`` endpoint.
+
+    Used so that relaunching the app reuses an already-open debug browser (same dedicated
+    profile) instead of allocating a new port and spawning a second, conflicting browser.
+    """
+    try:
+        import json
+        import urllib.request
+
+        from browser import BROWSER_CONFIG
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1) as resp:
+            browser_str = json.loads(resp.read()).get("Browser", "")
+
+        browser_config = BROWSER_CONFIG.get(BROWSER)
+        token = browser_config.cdp_token if browser_config else ""
+        return bool(token) and token in browser_str
+    except Exception:
+        return False
+
+
 if AI_DEBUG:
+    BROWSER_PORT = _PREFERRED_BROWSER_PORT
+elif _has_matching_debug_browser(_PREFERRED_BROWSER_PORT):
+    # A matching debug browser is already running on the preferred port — reuse it rather
+    # than allocating a new port (which would launch a second browser on the same dedicated
+    # profile that cannot start its own debug server, leaving the app stuck).
     BROWSER_PORT = _PREFERRED_BROWSER_PORT
 else:
     BROWSER_PORT = find_available_port(_PREFERRED_BROWSER_PORT)
@@ -65,7 +110,11 @@ FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
 # Flask configuration
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB max file size
-ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif"}
+ALLOWED_EXTENSIONS = {"csv", "pdf", "png", "jpg", "jpeg", "gif", "heic", "heif"}
+
+# Single source of truth for accepted receipt file types (used by every backend
+# upload check and injected into the frontend as window.EZ_RECEIPT_EXTENSIONS).
+RECEIPT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "heic", "heif", "html", "htm"}
 
 EXPENSE_CATEGORIES = [
     "Admin Services - Misc.",
