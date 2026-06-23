@@ -60,21 +60,40 @@ async def _wait_for_shell_unblocked(page, timeout: float = 10_000) -> None:
         pass
 
 
-async def _locate_expense_line(page, created_id: str, max_scrolls: int = 20):
+async def _locate_expense_line(page, created_id: str, max_scrolls: int = 30):
     """Locate an expense line's "Created ID" cell, scrolling the virtualized grid as needed.
 
-    The MyExpense expense grid is virtualized: after import not every row is rendered (the
-    last rows are often missing), which previously required the user to manually zoom out so
-    all rows render. Instead of snapshotting rows once up front, this locates the target row
-    by its Created ID value on demand and, if it isn't rendered yet, repeatedly scrolls the
-    last rendered row into view to force the grid to render further rows until the target
-    appears.
+    The MyExpense expense grid is virtualized *and windowed*: as you scroll down it renders new
+    rows at the bottom while unloading rows above, so the *number* of rendered "Created ID"
+    inputs plateaus almost immediately even when many more rows still exist below. Treating a
+    stable rendered-row count as "reached the bottom" therefore gives up far too early and can
+    never reach rows near the end of a long report (e.g. the last line) — the grid keeps a
+    roughly fixed-size window of rows in the DOM no matter how far down we are.
+
+    Instead we track the *value* of the last rendered "Created ID" row: while scrolling keeps
+    revealing new rows that value keeps changing, and only once it stops changing across
+    several consecutive scrolls have we genuinely hit the bottom. This lets us walk all the way
+    down to a target at the very end of the grid.
     """
     created_id = str(created_id)
     target = page.locator(f'input[aria-label="Created ID"][value="{created_id}"]')
 
+    # Scroll the last rendered "Created ID" row to the bottom of the viewport (forcing the grid
+    # to render the next batch below it) and return that row's value so we can tell whether the
+    # scroll actually advanced us further down the grid. Returns null if no rows are rendered.
+    scroll_down_js = """() => {
+        const inputs = [...document.querySelectorAll('input')]
+            .filter(e => (e.getAttribute('aria-label') || '') === 'Created ID');
+        const last = inputs[inputs.length - 1];
+        if (!last) return null;
+        const row = last.closest('[role="row"]');
+        if (row) row.scrollIntoView({ block: 'end' });
+        return last.getAttribute('value') || '';
+    }"""
+
     start = time.monotonic()
-    last_count = -1
+    last_value = None
+    stale = 0
     for scrolls in range(max_scrolls):
         if await target.count() > 0:
             _log_timing(
@@ -83,38 +102,35 @@ async def _locate_expense_line(page, created_id: str, max_scrolls: int = 20):
             )
             return target.first
 
-        # Render more rows by scrolling the last currently-rendered Created ID row into view.
-        await page.evaluate(
-            """() => {
-                const inputs = [...document.querySelectorAll('input')]
-                    .filter(e => (e.getAttribute('aria-label') || '') === 'Created ID');
-                const last = inputs[inputs.length - 1];
-                const row = last && last.closest('[role="row"]');
-                if (row) row.scrollIntoView({ block: 'end' });
-            }"""
-        )
+        last_rendered = await page.evaluate(scroll_down_js)
         await page.wait_for_timeout(600)
 
-        count = await page.locator('input[aria-label="Created ID"]').count()
-        if count == last_count:
-            # Reached the bottom without rendering more rows; try once from the top in case
-            # the target is above the current window (e.g. out-of-order processing).
-            await page.evaluate(
-                """() => {
-                    const input = document.querySelector('input[aria-label="Created ID"]');
-                    const row = input && input.closest('[role="row"]');
-                    if (row) row.scrollIntoView({ block: 'start' });
-                }"""
-            )
-            await page.wait_for_timeout(600)
-            if await target.count() > 0:
-                _log_timing(
-                    f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
-                    f"({scrolls + 1} scroll(s), via top)"
+        # Detect real progress by the last rendered row's value rather than the row count
+        # (which plateaus immediately on this windowed grid). Only conclude we've hit the
+        # bottom after a few consecutive no-progress scrolls, to tolerate transient render lag.
+        if last_rendered is None or last_rendered == last_value:
+            stale += 1
+            if stale >= 3:
+                # Genuinely at the bottom and the target wasn't found there; as a last resort
+                # scroll back to the top in case it sits above the current window.
+                await page.evaluate(
+                    """() => {
+                        const input = document.querySelector('input[aria-label="Created ID"]');
+                        const row = input && input.closest('[role="row"]');
+                        if (row) row.scrollIntoView({ block: 'start' });
+                    }"""
                 )
-                return target.first
-            break
-        last_count = count
+                await page.wait_for_timeout(600)
+                if await target.count() > 0:
+                    _log_timing(
+                        f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
+                        f"({scrolls + 1} scroll(s), via top)"
+                    )
+                    return target.first
+                break
+        else:
+            stale = 0
+        last_value = last_rendered
 
     raise RuntimeError(
         f"Could not locate expense line with Created ID {created_id} after scrolling the grid."
@@ -138,8 +154,12 @@ async def _open_expense_line(page, expense_line_locator) -> None:
     """
     open_start = time.monotonic()
     await _wait_for_shell_unblocked(page)
-    # Render the row first (it may be scrolled out of a virtualized grid).
-    await expense_line_locator.evaluate("el => el.scrollIntoView({ block: 'center' })")
+    # Bring the row into view if needed, using 'nearest' so a row that is already visible
+    # (e.g. the line Dynamics just auto-scrolled to after "Save and continue") does not get
+    # yanked to the middle of the viewport on every expense — that re-centering is what made
+    # the screen jump around during a fill. 'nearest' scrolls the minimum amount, and only
+    # when the row is actually off-screen.
+    await expense_line_locator.evaluate("el => el.scrollIntoView({ block: 'nearest' })")
     row = expense_line_locator.locator("xpath=ancestor::*[@role='row'][1]")
 
     # Click the row to select it. The click can transiently fail actionability while the
@@ -267,6 +287,20 @@ async def _attach_receipt_file(page, receipt_file_path: str) -> None:
     # NOTE: do not click CommandButtonNext here. That button reloads/navigates the report
     # (the importer uses it precisely to force a reload), and clicking it after each receipt
     # intermittently navigates away from the report, closing the page mid-fill.
+
+
+async def _save_and_continue(page) -> None:
+    """Force-save the currently open expense line via the "Save and continue" button.
+
+    MyExpense does not auto-save edits to the "Additional information" text box; only
+    attaching a receipt persists the line. So when an expense line has no receipt to attach,
+    the only change we make is filling that text box, which would be silently discarded
+    unless we explicitly save. Clicking "Save and continue" persists the line while keeping
+    us on the report so the fill loop can proceed to the next expense.
+    """
+    await _wait_for_shell_unblocked(page)
+    await page.get_by_role("button", name="Save and continue").click()
+    await _wait_for_shell_unblocked(page)
 
 
 @expense_bp.route("/categories", methods=["GET"])
@@ -1084,6 +1118,11 @@ async def fill_expense_report():
                 # Log receipt details
                 for _, receipt in enumerate(attached_receipts):
                     await _attach_receipt_file(page, receipt["filePath"])
+
+                # Force-save the line. Attaching a receipt persists the line, but a
+                # text-box-only edit (no receipt) is not auto-saved, so without this the
+                # "Additional information" we just filled would be lost.
+                await _save_and_continue(page)
 
                 _log_timing(
                     f"[timing] expense {expense_created_id} TOTAL: "

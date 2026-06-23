@@ -171,12 +171,17 @@ def _make_fake_expense_page(created_id: str) -> MagicMock:
     text_box.wait_for_element_state = AsyncMock()
     text_box.fill = AsyncMock()
 
+    # "Save and continue" force-save button used after filling/attaching each line.
+    save_button = MagicMock()
+    save_button.click = AsyncMock()
+
     page = MagicMock()
     page.locator = MagicMock(return_value=created_locator)
     page.evaluate = AsyncMock()
     page.wait_for_timeout = AsyncMock()
     page.wait_for_selector = AsyncMock(return_value=None)
     page.query_selector = AsyncMock(return_value=text_box)
+    page.get_by_role = MagicMock(return_value=save_button)
     return page
 
 
@@ -186,9 +191,8 @@ async def test_fill_expense_report_streams_progress(app, monkeypatch):
     from front_end.routes import expense_routes
 
     created_id = "EXP-1"
-    monkeypatch.setattr(
-        expense_routes, "get_expense_page", lambda: _make_fake_expense_page(created_id)
-    )
+    fake_page = _make_fake_expense_page(created_id)
+    monkeypatch.setattr(expense_routes, "get_expense_page", lambda: fake_page)
 
     payload = {
         "expenses": [
@@ -226,6 +230,14 @@ async def test_fill_expense_report_streams_progress(app, monkeypatch):
 
     assert statuses[-1] == "complete"
     assert events[-1]["data"]["total_expenses"] == 1
+
+    # The line is force-saved even though it has no receipt (a text-box-only edit is not
+    # auto-saved by MyExpense), via the "Save and continue" button.
+    save_role_calls = [
+        call.kwargs.get("name") for call in fake_page.get_by_role.call_args_list
+    ]
+    assert "Save and continue" in save_role_calls
+    fake_page.get_by_role.return_value.click.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -401,20 +413,15 @@ async def test_locate_expense_line_scrolls_until_row_renders():
     from front_end.routes import expense_routes
 
     target = MagicMock()
-    # Not rendered on the first 2 checks, then appears.
+    # Not rendered on the first 2 checks, then appears after scrolling.
     target.count = AsyncMock(side_effect=[0, 0, 1])
     target.first = "TARGET_LOCATOR"
 
-    # Rendered-row count keeps increasing so the bottom-plateau branch isn't taken.
-    all_created = MagicMock()
-    all_created.count = AsyncMock(side_effect=[10, 20, 30])
-
-    def _locator(selector):
-        return target if "value=" in selector else all_created
-
     page = MagicMock()
-    page.locator = MagicMock(side_effect=_locator)
-    page.evaluate = AsyncMock()
+    page.locator = MagicMock(return_value=target)
+    # Each scroll renders new rows below, so the last rendered Created ID value keeps changing
+    # (progress is detected by value change, not by rendered-row count which plateaus).
+    page.evaluate = AsyncMock(side_effect=["1001", "1002"])
     page.wait_for_timeout = AsyncMock()
 
     result = await expense_routes._locate_expense_line(page, "5889114209", max_scrolls=5)
@@ -432,19 +439,15 @@ async def test_locate_expense_line_raises_when_never_found():
     target = MagicMock()
     target.count = AsyncMock(return_value=0)  # never rendered
 
-    all_created = MagicMock()
-    all_created.count = AsyncMock(return_value=12)  # plateau -> triggers top retry then raise
-
-    def _locator(selector):
-        return target if "value=" in selector else all_created
-
     page = MagicMock()
-    page.locator = MagicMock(side_effect=_locator)
-    page.evaluate = AsyncMock()
+    page.locator = MagicMock(return_value=target)
+    # The grid never renders new rows below: the last rendered value stays constant, so after
+    # several consecutive stale scrolls the search concludes it has hit the bottom and gives up.
+    page.evaluate = AsyncMock(return_value="9999")
     page.wait_for_timeout = AsyncMock()
 
     with pytest.raises(RuntimeError, match="Could not locate expense line"):
-        await expense_routes._locate_expense_line(page, "999", max_scrolls=4)
+        await expense_routes._locate_expense_line(page, "999", max_scrolls=10)
 
 
 if __name__ == "__main__":
