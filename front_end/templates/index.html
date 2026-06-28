@@ -45,9 +45,6 @@
                     <button id="bring-to-front-btn" class="btn btn-secondary" style="background-color: #17a2b8; border-color: #17a2b8;">
                         <i class="fas fa-window-restore"></i> Bring MyExpense to Front
                     </button>
-                    <button id="itemize-expenses-btn" class="btn btn-secondary" style="margin-left: 1rem;">
-                        <i class="fas fa-list-ul"></i> Itemize Expenses
-                    </button>
                 </div>
                 <div
                     style="margin-bottom: 1rem; margin-top: 1rem; padding: 1rem; border-left: 4px solid #ff9800; background-color: #fff3e0;">
@@ -157,6 +154,23 @@
                     </button>
                 </div>
 
+                <!-- Hotel Itemization Review (inline) -->
+                <div id="itemization-review-inline" class="itemization-review-inline" style="display: none; margin-top: 2rem;">
+                    <div class="section-header">
+                        <h3><i class="fas fa-list-ul"></i> Review Hotel Itemization</h3>
+                        <p>Review and edit the extracted hotel charges below, then click <strong>Confirm</strong> to lock the data. It will be filled into MyExpense as part of <em>Fill Expense Report</em>.</p>
+                    </div>
+                    <div id="itemization-review-body"></div>
+                    <div class="itemization-review-actions" style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                        <button class="btn btn-danger" onclick="app.itemization.clear()">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                        <button class="btn btn-primary" id="itemization-confirm-btn" onclick="app.itemization.confirm()" title="Validate and lock the itemization data">
+                            <i class="fas fa-check"></i> Confirm
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Export Section (formerly Step 4) -->
                 <div class="section-header" style="margin-top: 2rem;">
                     <h3><i class="fas fa-file-export"></i> Fill Expense Report</h3>
@@ -188,9 +202,6 @@
                 <div class="export-actions" style="margin-top: 1rem;">
                     <button id="fill-expense-report-btn" class="btn btn-primary">
                         <i class="fas fa-file-upload"></i> Fill Expense Report
-                    </button>
-                    <button id="itemize-expenses-btn" class="btn btn-secondary" style="margin-left: 1rem;">
-                        <i class="fas fa-list-ul"></i> Itemize Expenses
                     </button>
                 </div>
 
@@ -265,6 +276,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/column-config.js') }}?v={{ cache_bust }}"></script>
     <script src="{{ url_for('static', filename='js/autocomplete.js') }}?v={{ cache_bust }}"></script>
+    <script src="{{ url_for('static', filename='js/itemization.js') }}?v={{ cache_bust }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v={{ cache_bust }}"></script>
 </body>
 

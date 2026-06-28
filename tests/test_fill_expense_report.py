@@ -419,35 +419,80 @@ async def test_locate_expense_line_scrolls_until_row_renders():
 
     page = MagicMock()
     page.locator = MagicMock(return_value=target)
-    # Each scroll renders new rows below, so the last rendered Created ID value keeps changing
-    # (progress is detected by value change, not by rendered-row count which plateaus).
-    page.evaluate = AsyncMock(side_effect=["1001", "1002"])
+    # Each wheel-scroll iteration issues 2 evaluates: the grid_state probe (returns dict
+    # with rect + renderedIds) and the verify probe (returns the new renderedIds list).
+    # renderedIds change between iterations so the stale counter resets.
+    page.evaluate = AsyncMock(
+        side_effect=[
+            {"rect": {"x": 0, "y": 0, "width": 1000, "height": 400}, "renderedIds": ["1000"]},
+            ["1001"],  # verify after wheel
+            {"rect": {"x": 0, "y": 0, "width": 1000, "height": 400}, "renderedIds": ["1001"]},
+            ["1002"],
+        ]
+    )
     page.wait_for_timeout = AsyncMock()
+    page.mouse = MagicMock()
+    page.mouse.move = AsyncMock()
+    page.mouse.wheel = AsyncMock()
 
     result = await expense_routes._locate_expense_line(page, "5889114209", max_scrolls=5)
 
     assert result == "TARGET_LOCATOR"
-    # It scrolled at least once to render the row.
-    assert page.evaluate.await_count >= 1
+    assert page.mouse.wheel.await_count >= 1
 
 
 @pytest.mark.asyncio
 async def test_locate_expense_line_raises_when_never_found():
-    """_locate_expense_line raises a clear error if the row never renders."""
+    """_locate_expense_line raises a clear error if the row never renders.
+
+    Exercises the full fallback chain: wheel scrolling stalls, keyboard nav setup fails
+    (no rows to click), scroll-to-top still doesn't render the target, and the diagnostic
+    dump runs before the RuntimeError.
+    """
     from front_end.routes import expense_routes
 
     target = MagicMock()
     target.count = AsyncMock(return_value=0)  # never rendered
 
+    # The .last locator used by keyboard nav setup raises when we try to click it (no rows),
+    # which causes the keyboard nav fallback to return False and the search to keep going
+    # to scroll-to-top + diagnostic dump.
+    last_locator = MagicMock()
+    last_locator.evaluate = AsyncMock(side_effect=Exception("no last row"))
+
     page = MagicMock()
-    page.locator = MagicMock(return_value=target)
-    # The grid never renders new rows below: the last rendered value stays constant, so after
-    # several consecutive stale scrolls the search concludes it has hit the bottom and gives up.
-    page.evaluate = AsyncMock(return_value="9999")
+    # Different page.locator() calls return different mocks; the .last accessor on the
+    # "input[aria-label=...Created ID...]" locator is what keyboard nav uses.
+    def locator_side_effect(selector):
+        loc = MagicMock()
+        loc.count = AsyncMock(return_value=0)
+        loc.first = "FIRST_TARGET"
+        loc.last = last_locator
+        return loc
+
+    page.locator = MagicMock(side_effect=locator_side_effect)
+    # Grid state stays the same on every probe → renderedIds stay identical → after 2
+    # consecutive no-progress wheel iterations, switch to keyboard nav (which fails),
+    # then scroll-to-top + final diagnostic dump (last evaluate).
+    page.evaluate = AsyncMock(
+        return_value={
+            "rect": {"x": 0, "y": 0, "width": 1000, "height": 400},
+            "renderedIds": ["9999"],
+        }
+    )
     page.wait_for_timeout = AsyncMock()
+    page.mouse = MagicMock()
+    page.mouse.move = AsyncMock()
+    page.mouse.wheel = AsyncMock()
+    page.keyboard = MagicMock()
+    page.keyboard.press = AsyncMock()
 
     with pytest.raises(RuntimeError, match="Could not locate expense line"):
-        await expense_routes._locate_expense_line(page, "999", max_scrolls=10)
+        # Re-fetch target by overriding the FIRST locator call (the one that creates the
+        # target locator at the top of the function).
+        page.locator.side_effect = None
+        page.locator.return_value = target
+        await expense_routes._locate_expense_line(page, "999", max_scrolls=3)
 
 
 if __name__ == "__main__":

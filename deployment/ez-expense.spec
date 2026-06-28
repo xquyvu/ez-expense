@@ -16,6 +16,8 @@ datas = [
     # Frontend files
     (str(project_root / "front_end" / "templates"), "front_end/templates"),
     (str(project_root / "front_end" / "static"), "front_end/static"),
+    # Hotel itemization subcategory list (loaded by config.py at runtime)
+    (str(project_root / "hotel_subcategories.txt"), "."),
     # Configuration files if they exist
 ]
 

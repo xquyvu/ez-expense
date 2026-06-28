@@ -19,6 +19,9 @@ class EZExpenseApp {
         this.aiSelectedProvider = null; // 'azure' | 'copilot' | 'local' | null — tracks user's checkbox choice
         this.extractionCancelled = false;
 
+        // Hotel itemization review/lifecycle (see static/js/itemization.js)
+        this.itemization = new ItemizationManager(this);
+
         this.init();
     }
 
@@ -880,46 +883,6 @@ class EZExpenseApp {
             this.fillExpenseReport();
         });
 
-        // Itemize expenses button
-        const itemizeButton = document.getElementById('itemize-expenses-btn');
-        if (itemizeButton) {
-            // Use capture phase to ensure our handler runs before the global click handler
-            itemizeButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation(); // Prevent event from bubbling up to global handlers
-                console.log('Itemize button clicked');
-                try {
-                    this.itemizeExpenses();
-                } catch (error) {
-                    console.error('Error in itemizeExpenses:', error);
-                    this.showToast('An error occurred while itemizing expenses', 'error');
-                }
-            }, true); // Use capture phase
-            console.log('Itemize button event listener attached');
-        } else {
-            console.error('Itemize button not found');
-            // Try again after DOM is fully loaded
-            setTimeout(() => {
-                const retryButton = document.getElementById('itemize-expenses-btn');
-                if (retryButton) {
-                    retryButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('Itemize button clicked (retry)');
-                        try {
-                            this.itemizeExpenses();
-                        } catch (error) {
-                            console.error('Error in itemizeExpenses (retry):', error);
-                            this.showToast('An error occurred while itemizing expenses', 'error');
-                        }
-                    }, true);
-                    console.log('Itemize button event listener attached (retry)');
-                } else {
-                    console.error('Itemize button still not found after retry');
-                }
-            }, 500);
-        }
-
         // Receipts import events
         this.initBulkReceiptsImport();
 
@@ -1551,7 +1514,8 @@ class EZExpenseApp {
     }
 
     /**
-     * Fill expense report by sending current expense data to the backend
+     * Fill expense report by sending current expense data to the backend, then — if the
+     * user has confirmed itemization — fill the itemization data into MyExpense too.
      */
     async fillExpenseReport() {
         console.log('Filling expense report...');
@@ -1560,6 +1524,20 @@ class EZExpenseApp {
             this.showToast('No expense data to fill. Please import expenses first.', 'warning');
             return;
         }
+
+        // If the user extracted itemization but hasn't locked it via "Confirm", refuse to
+        // proceed — otherwise their pending edits would be silently dropped.
+        if (this.itemization.isVisible() && !this.itemization.isConfirmed()) {
+            this.showToast(
+                'You have unconfirmed itemization. Click "Confirm" to lock it (or "Clear" to skip itemization) before filling.',
+                'warning'
+            );
+            return;
+        }
+
+        // Track whether the expense fill SSE stream ended with an explicit error so we
+        // know whether to chain itemization filling.
+        let expenseFillFailed = false;
 
         try {
             // Update expenses from table to get latest data
@@ -1638,9 +1616,9 @@ class EZExpenseApp {
                     } else if (eventData.status === 'complete') {
                         this.updateFillProgress(eventData.data?.total_expenses || 0, eventData.data?.total_expenses || 0);
                         this.hideFillProgress();
-                        this.showToast('Expense report filled successfully!', 'success');
                         console.log('Fill expense report result:', eventData);
                     } else if (eventData.status === 'error') {
+                        expenseFillFailed = true;
                         this.hideFillProgress();
                         this.showToast(`Failed to fill expense report: ${eventData.message || 'Unknown error'}`, 'error');
                     }
@@ -1654,76 +1632,63 @@ class EZExpenseApp {
             this.hideFillProgress();
             console.error('Error filling expense report:', error);
             this.showToast(`Error filling expense report: ${error.message}`, 'error');
+            return;
+        }
+
+        // If the expense fill failed, stop here — itemization needs the expense lines to
+        // already exist in MyExpense to be filled.
+        if (expenseFillFailed) return;
+
+        // Phase 2: fill confirmed itemization into MyExpense (if any). The itemization
+        // manager already validated everything at confirm-time, so we just dispatch.
+        if (this.itemization.isConfirmed() && this.itemization.hasItems()) {
+            try {
+                this.showLoading('Filling hotel itemization into MyExpense...');
+                const result = await this.itemization.fillIntoMyExpense();
+                this.hideLoading();
+                if (result.success) {
+                    this.showToast(
+                        `Expense report and itemization filled successfully. ${result.message}`,
+                        'success'
+                    );
+                } else {
+                    this.showToast(
+                        `Expense report filled, but itemization failed: ${result.message}`,
+                        'error'
+                    );
+                }
+            } catch (error) {
+                this.hideLoading();
+                console.error('Error filling itemization:', error);
+                this.showToast(`Error filling itemization: ${error.message}`, 'error');
+            }
+        } else {
+            this.showToast('Expense report filled successfully!', 'success');
         }
     }
 
     /**
-     * Itemize expenses by sending current expense data to the backend
+     * Parse an amount that may be a number or a currency string.
      */
-    async itemizeExpenses() {
-        console.log('Itemizing expenses...');
-        console.log('Current expenses:', this.expenses);
+    parseAmount(value) {
+        if (value === null || value === undefined || value === '') return null;
+        if (typeof value === 'number') return value;
+        const cleaned = String(value).replace(/[^\d.\-]/g, '');
+        if (cleaned === '' || cleaned === '-' || cleaned === '.') return null;
+        const n = parseFloat(cleaned);
+        return isNaN(n) ? null : n;
+    }
 
-        if (!this.expenses || this.expenses.length === 0) {
-            this.showToast('No expense data to itemize. Please import expenses first.', 'warning');
-            console.log('No expenses available for itemization');
-            return;
-        }
-
-        try {
-            // Show loading state
-            this.showLoading('Itemizing expenses...');
-
-            // Update expenses from table to get latest data
-            this.updateExpensesFromTable();
-
-            // Prepare expense data with receipts attached to each expense line
-            const expensesWithReceipts = this.expenses.map(expense => {
-                // Get receipts for this expense
-                const expenseReceipts = this.receipts.get(expense.id) || [];
-
-                // Create a copy of the expense and add the receipts
-                return {
-                    ...expense,
-                    Receipts: expenseReceipts
-                };
-            });
-
-            // Prepare the expense data to send
-            const expenseData = {
-                expenses: expensesWithReceipts,
-                timestamp: new Date().toISOString()
-            };
-
-            // Send data to the itemize route
-            const response = await fetch('/api/expenses/itemize', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(expenseData)
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
-
-            this.hideLoading();
-
-            if (result.success) {
-                this.showToast('Expenses itemized successfully!', 'success');
-                console.log('Itemize expenses result:', result);
-            } else {
-                this.showToast(`Failed to itemize expenses: ${result.message || 'Unknown error'}`, 'error');
-            }
-
-        } catch (error) {
-            this.hideLoading();
-            console.error('Error itemizing expenses:', error);
-            this.showToast(`Error itemizing expenses: ${error.message}`, 'error');
-        }
+    /**
+     * Minimal HTML-escape for values interpolated into innerHTML.
+     */
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     /**
@@ -4578,6 +4543,12 @@ class EZExpenseApp {
         const disabledClass = !hasReceipts ? 'btn-disabled' : '';
         const altText = !hasReceipts ? 'title="Requires receipts in the Bulk Receipt Upload Area"' : '';
 
+        // "Itemize hotel expenses" is only actionable once a Hotel expense has a matched receipt.
+        const hotelReady = this.itemization.getHotelExpensesWithReceipts().length > 0;
+        const itemizeDisabledAttr = !hotelReady ? 'disabled' : '';
+        const itemizeDisabledClass = !hotelReady ? 'btn-disabled' : '';
+        const itemizeAltText = !hotelReady ? 'title="Match a receipt to a Hotel expense first"' : '';
+
         // Azure AI status
         const azureAvailable = this.aiStatus.azure_configured;
         const azureStatusHtml = azureAvailable
@@ -4628,7 +4599,7 @@ class EZExpenseApp {
         }
 
         let html = `
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; width: 100%;">
                 <!-- Left column: AI options + Upload -->
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     <div style="padding: 0.5rem 0.75rem; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
@@ -4648,7 +4619,7 @@ class EZExpenseApp {
                             </label>
                         </div>
                     </div>
-                    <button onclick="app.selectBulkReceipts()" class="btn btn-primary btn-sm">
+                    <button onclick="app.selectBulkReceipts()" class="btn btn-primary btn-sm" style="flex: 1; justify-content: center; min-height: 60px;">
                         <i class="fas fa-paperclip"></i> Upload Receipts
                     </button>
                 </div>
@@ -4660,6 +4631,9 @@ class EZExpenseApp {
                     </button>
                     <button onclick="app.createExpensesFromReceipts()" class="btn btn-primary btn-sm ${disabledClass}" style="background-color: #6f42c1; border-color: #6f42c1;" ${disabledAttr} ${altText}>
                         <i class="fas fa-plus"></i> Create expenses from receipts
+                    </button>
+                    <button onclick="app.itemization.extract()" class="btn btn-sm ${itemizeDisabledClass}" style="background-color: #fd7e14; border-color: #fd7e14; color: #fff;" ${itemizeDisabledAttr} ${itemizeAltText}>
+                        <i class="fas fa-list-ul"></i> Itemize hotel expenses
                     </button>
                 </div>
             </div>

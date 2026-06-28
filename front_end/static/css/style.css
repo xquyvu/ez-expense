@@ -150,6 +150,28 @@ body {
     color: white;
 }
 
+.btn-warning {
+    background-color: #fd7e14;
+    color: white;
+}
+
+.btn-warning:hover {
+    background-color: #e8690a;
+    transform: translateY(-1px);
+}
+
+.btn-sm {
+    padding: 0.4rem 0.85rem;
+    font-size: 0.85rem;
+    border-width: 1px;
+    margin-right: 0;
+    margin-bottom: 0;
+}
+
+.btn-sm.btn-outline {
+    border-width: 1.5px;
+}
+
 .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -2154,4 +2176,479 @@ textarea.table-input.non-editable:focus {
     transform: none !important;
     background-color: #6c757d !important;
     border-color: #6c757d !important;
+}
+/* ─── Hotel Itemization Review (inline) ───────────────────────────────── */
+.itemization-review-inline {
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.itemization-review-inline > .section-header {
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #f1f3f5;
+    padding-bottom: 0.75rem;
+}
+
+.itemization-review-inline > .section-header h3 {
+    color: #fd7e14;
+    margin: 0 0 0.25rem 0;
+}
+
+.itemization-review-inline > .section-header p {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.itemization-expense {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #fff;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+
+.itemization-expense:hover {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.itemization-expense-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(180deg, #fff7ef 0%, #fff1e2 100%);
+    border-bottom: 1px solid #fce0c4;
+}
+
+.itemization-expense-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #5c3a1d;
+    min-width: 0;
+}
+
+.itemization-expense-title i {
+    color: #fd7e14;
+    flex-shrink: 0;
+}
+
+.itemization-expense-title .merchant-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.itemization-expense-amount {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #5c3a1d;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid #fce0c4;
+    font-size: 0.85rem;
+}
+
+.itemization-expense-body {
+    padding: 0.75rem 1rem 1rem;
+    display: flex;
+    gap: 1rem;
+    align-items: stretch;
+    height: 480px;
+    max-height: 60vh;
+    overflow: hidden;
+}
+
+.itemization-pane-left {
+    flex: 0 0 58%;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.itemization-pane-left > .itemization-table-container {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.itemization-pane-left > .itemization-table-actions {
+    flex: 0 0 auto;
+}
+
+.itemization-pane-left > .itemization-totals {
+    flex: 0 0 auto;
+    margin-top: auto;
+}
+
+.itemization-pane-right {
+    flex: 1 1 42%;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 0;
+}
+
+@media (max-width: 900px) {
+    .itemization-expense-body { flex-direction: column; max-height: none; }
+    .itemization-pane-left,
+    .itemization-pane-right { flex: 1 1 100%; }
+    .itemization-pane-right { min-height: 360px; max-height: 50vh; }
+}
+
+.itemization-receipt-frame {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.itemization-receipt-name {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    color: #495057;
+    background: #fff;
+    border-bottom: 1px solid #e9ecef;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.itemization-receipt-name > i {
+    flex: 0 0 auto;
+}
+
+.itemization-receipt-name > span,
+.itemization-receipt-name {
+    /* Truncate long names but let the icon and open-link stay visible */
+}
+
+.itemization-receipt-open {
+    margin-left: auto;
+    color: #6c757d;
+    text-decoration: none;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    flex: 0 0 auto;
+}
+
+.itemization-receipt-open:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.itemization-receipt-image-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0.5rem;
+    background:
+        linear-gradient(45deg, #ebedef 25%, transparent 25%),
+        linear-gradient(-45deg, #ebedef 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ebedef 75%),
+        linear-gradient(-45deg, transparent 75%, #ebedef 75%);
+    background-size: 18px 18px;
+    background-position: 0 0, 0 9px, 9px -9px, -9px 0px;
+    background-color: #f4f5f7;
+}
+
+.itemization-receipt-image {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+}
+
+.itemization-receipt-canvas {
+    display: block;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+    max-width: 100%;
+    height: auto;
+}
+
+.itemization-receipt-pdf {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    border: 0;
+    background: #fff;
+}
+
+.itemization-receipt-empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #adb5bd;
+    font-size: 0.85rem;
+    gap: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.itemization-receipt-empty i {
+    font-size: 2rem;
+    opacity: 0.5;
+}
+
+.itemization-error {
+    color: #b00020;
+    font-size: 0.85rem;
+    background: #fdecef;
+    border: 1px solid #f5c2c7;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+}
+
+.itemization-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 0;
+    table-layout: fixed;
+    background: #fff;
+}
+
+/* The itemization tables live in a 2-pane card, so override the main .data-table's
+   tall scroll container with a more modest max-height that fits the layout. */
+.itemization-table-container {
+    max-height: 50vh;
+    min-height: 120px;
+    overflow: auto;
+    box-shadow: none;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 0;
+}
+
+.itemization-table thead th {
+    background: #f8f9fa;
+    color: #495057;
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+    border-right: 1px solid #e9ecef;
+    text-align: left;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    max-height: none;
+    overflow: visible;
+    white-space: nowrap;
+    box-shadow: 0 1px 0 #e9ecef;
+}
+
+.itemization-table thead th:last-child {
+    border-right: none;
+    text-align: center;
+}
+
+.itemization-table tbody td {
+    padding: 0.35rem 0.45rem;
+    border-bottom: 1px solid #f1f3f5;
+    border-right: 1px solid #f1f3f5;
+    vertical-align: middle;
+    font-size: 0.85rem;
+}
+
+.itemization-table tbody td:last-child {
+    border-right: none;
+    text-align: center;
+    width: 36px;
+}
+
+.itemization-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.itemization-table tbody tr:hover td {
+    background-color: #fafbfc;
+}
+
+.itemization-table .col-subcategory { width: 36%; }
+.itemization-table .col-date        { width: 22%; }
+.itemization-table .col-rate        { width: 18%; }
+.itemization-table .col-qty         { width: 14%; }
+.itemization-table .col-actions     { width: 36px; }
+
+/* Inputs inside the itemization table — compact, no jumpy resize on focus. */
+.itemization-table .table-input {
+    width: 100%;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.85rem;
+    min-height: 0;
+    line-height: 1.3;
+    border: 1px solid #dee2e6;
+    background: #ffffff;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.itemization-table .table-input:focus {
+    border: 1px solid #fd7e14;
+    box-shadow: 0 0 0 3px rgba(253, 126, 20, 0.15);
+    background: #fff;
+    z-index: auto;
+    position: static;
+    height: auto;
+    min-height: 0;
+}
+
+.itemization-table .table-input:hover {
+    border-color: #adb5bd;
+    background: #fff;
+}
+
+.itemization-table input[type="number"].table-input {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Validation feedback — keep the cell background subtle (the main table's solid wash
+   looks heavy in this denser, scrollable layout). */
+.itemization-table .table-input.validation-error {
+    background-color: #fff5f5 !important;
+    border: 1px solid #f5a4a4 !important;
+}
+
+.itemization-table .table-input.validation-error:focus {
+    background-color: #fff !important;
+    border-color: #e53e3e !important;
+    box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.18) !important;
+}
+
+.itemization-table td.validation-valid {
+    background-color: #f3fbf4 !important;
+}
+
+.itemization-table td.validation-invalid {
+    background-color: #fff5f5 !important;
+}
+
+.itemization-table tbody tr:hover td.validation-valid {
+    background-color: #eaf7eb !important;
+}
+
+.itemization-table tbody tr:hover td.validation-invalid {
+    background-color: #ffeaea !important;
+}
+
+.itemization-row-remove {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #adb5bd;
+    border-radius: 6px;
+    padding: 0.2rem 0.35rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.itemization-row-remove:hover {
+    background: #fdecef;
+    color: #b00020;
+    border-color: #f5c2c7;
+}
+
+.itemization-table-actions {
+    display: flex;
+    justify-content: flex-start;
+}
+
+/* Locked (confirmed) state — visually communicate read-only and hide affordances that
+   would let the user mutate the table. */
+.itemization-expense.is-locked .itemization-table .table-input {
+    background-color: #f8f9fa;
+    color: #495057;
+    cursor: not-allowed;
+}
+
+.itemization-expense.is-locked .itemization-table .table-input:hover {
+    border-color: #dee2e6;
+    background-color: #f8f9fa;
+}
+
+.itemization-expense.is-locked .itemization-table .table-input:focus {
+    border: 1px solid #dee2e6;
+    box-shadow: none;
+}
+
+.itemization-expense.is-locked .itemization-row-remove,
+.itemization-expense.is-locked .itemization-table-actions {
+    display: none;
+}
+
+.itemization-expense.is-locked .itemization-expense-header::after {
+    content: "Confirmed";
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+    border-radius: 999px;
+}
+
+.itemization-totals {
+    margin-top: 0;
+    padding: 0.45rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.itemization-totals.is-balanced {
+    background: #d4f7d4;
+    color: #155724;
+    border: 1px solid #b6e7b6;
+}
+
+.itemization-totals.is-unbalanced {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c2c7;
+}
+
+.itemization-totals.is-unknown {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
 }

@@ -171,6 +171,32 @@ async def connect_to_browser():
         return None
 
 
+async def _get_or_create_page(context, *, prefer_blank: bool = True):
+    """Get a usable page from the context, reusing a blank/new-tab page when possible.
+
+    When the dedicated Edge profile launches it opens a window with a "New Tab" page; if we
+    blindly call ``context.new_page()`` for each navigation we want, CDP creates a *fresh
+    window* per page (it doesn't reuse the existing one), so the user ends up with multiple
+    near-empty Edge windows. Reusing the existing new-tab page keeps everything in a single
+    window with tabs.
+
+    Returns the chosen page, navigated nowhere yet — the caller is expected to ``goto`` it.
+    """
+    if prefer_blank:
+        for existing in context.pages:
+            try:
+                url = existing.url
+            except Exception:
+                continue
+            # New-tab placeholders we can safely repurpose: edge://newtab/, about:blank,
+            # chrome://newtab/, and the data: blank that some Chromium variants use.
+            if not url or url.startswith(
+                ("edge://newtab", "about:blank", "chrome://newtab", "data:text/html")
+            ):
+                return existing
+    return await context.new_page()
+
+
 async def get_expense_page_from_browser(browser):
     """
     Get the expense management page from an existing browser connection.
@@ -178,7 +204,7 @@ async def get_expense_page_from_browser(browser):
     """
     # Find the expense management page
     context = browser.contexts[0] if browser.contexts else await browser.new_context()
-    page = await context.new_page()
+    page = await _get_or_create_page(context)
     # Wait a moment for the page to be fully created
     await page.wait_for_load_state("domcontentloaded")
     await page.goto(f"https://{EXPENSE_APP_URL}")
@@ -257,7 +283,11 @@ async def _open_frontend_when_ready(browser, url: str) -> None:
     if browser is not None:
         try:
             context = browser.contexts[0] if browser.contexts else await browser.new_context()
-            page = await context.new_page()
+            # Reuse a blank/new-tab page if Edge left one open, otherwise create a tab. This
+            # keeps the FE and MyExpense in the same window — calling new_page() blindly in
+            # CDP mode creates a fresh window per call, so the user would otherwise end up
+            # with multiple Edge windows.
+            page = await _get_or_create_page(context)
             await page.goto(url)
             await page.bring_to_front()
             _raise_dedicated_browser_to_front()
@@ -270,6 +300,35 @@ async def _open_frontend_when_ready(browser, url: str) -> None:
     if not opened_in_dedicated:
         print("🔧 Opening web interface in the default browser...")
         webbrowser.open_new(url)
+
+    # Close any leftover blank/new-tab pages so the user only sees the MyExpense and FE
+    # tabs. Edge sometimes restores extra placeholder tabs from its previous run even
+    # after we've cleared the Sessions directory, and CDP's connect_over_cdp surfaces
+    # them all — we don't want the user staring at three tabs when only two are useful.
+    # Two passes: one immediate, one after a short settle (Edge sometimes spawns extra
+    # NTP tabs late, after we've already cleaned up the visible ones).
+    async def _close_blanks() -> None:
+        if browser is None or not browser.contexts:
+            return
+        context = browser.contexts[0]
+        for stray in list(context.pages):
+            try:
+                stray_url = stray.url
+            except Exception:
+                continue
+            if stray_url and stray_url.startswith(
+                ("edge://newtab", "about:blank", "chrome://newtab", "data:text/html")
+            ):
+                try:
+                    await stray.close()
+                except Exception:
+                    pass  # Closing a phantom tab is best-effort
+
+    await _close_blanks()
+    # Late-arriving NTP tab cleanup (Edge sometimes opens an additional one ~1-2s after
+    # the dedicated profile finishes booting).
+    await asyncio.sleep(2)
+    await _close_blanks()
 
     _notify_ready(url)
 

@@ -1,4 +1,5 @@
 import io
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -8,8 +9,10 @@ import urllib3
 from playwright.async_api import Page
 
 import playwright_manager
-from config import IMPORT_EXPENSE_MOCK
+from config import HOTEL_SUBCATEGORIES, IMPORT_EXPENSE_MOCK
 from resource_utils import load_env_file
+
+logger = logging.getLogger(__name__)
 
 # Disable urllib3 SSL warnings when using verify=False
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -41,6 +44,39 @@ def split_currency_and_amount(expense_df: pd.DataFrame) -> pd.DataFrame:
     return expense_df
 
 
+def _drop_itemization_sub_rows(expense_df: pd.DataFrame) -> pd.DataFrame:
+    """Drop itemization sub-line rows from a MyExpense export.
+
+    When a hotel expense has been itemized, MyExpense exports each itemization line as a
+    separate row in the grid alongside the parent hotel line. Those sub-rows share the same
+    itemization batch's "Created ID" and carry a hotel-itemization subcategory
+    ("Daily Room Rate", "Hotel Tax", etc.) in the "Expense category" column — values that
+    aren't real top-level expense categories.
+
+    We can't fill these as new expenses (MyExpense blocks creating a top-level "Daily Room
+    Rate" line — that field is itemization-only), and the parent hotel's existing
+    itemization will be cleared and re-filled when we re-itemize it. So we filter them
+    out at import time. This keeps the rest of the fill flow unaware that the report was
+    previously itemized.
+    """
+    if "Expense category" not in expense_df.columns or not HOTEL_SUBCATEGORIES:
+        return expense_df
+
+    subcategories = {s.strip() for s in HOTEL_SUBCATEGORIES if s}
+    is_sub_row = expense_df["Expense category"].astype(str).str.strip().isin(subcategories)
+    dropped = int(is_sub_row.sum())
+    if dropped:
+        logger.info(
+            "Dropping %d itemization sub-row(s) from the import (categories matched "
+            "hotel subcategories: %s)",
+            dropped,
+            sorted(
+                expense_df.loc[is_sub_row, "Expense category"].astype(str).unique().tolist()
+            ),
+        )
+    return expense_df.loc[~is_sub_row].reset_index(drop=True)
+
+
 def postprocess_expense_data(expense_df: pd.DataFrame) -> pd.DataFrame:
     """
     Post-process the imported expense data to ensure it matches the expected format.
@@ -55,6 +91,7 @@ def postprocess_expense_data(expense_df: pd.DataFrame) -> pd.DataFrame:
     expense_df["Date"] = expense_df["Date"].dt.date.astype(str)  # type: ignore[union-attr]
 
     expense_df = split_currency_and_amount(expense_df)
+    expense_df = _drop_itemization_sub_rows(expense_df)
 
     return expense_df
 

@@ -2,6 +2,7 @@
 Expense-related API routes for the Flask application.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -60,81 +61,280 @@ async def _wait_for_shell_unblocked(page, timeout: float = 10_000) -> None:
         pass
 
 
-async def _locate_expense_line(page, created_id: str, max_scrolls: int = 30):
+async def _locate_expense_line(
+    page, created_id: str, max_scrolls: int = 30, known_ids: set | None = None
+):
     """Locate an expense line's "Created ID" cell, scrolling the virtualized grid as needed.
 
-    The MyExpense expense grid is virtualized *and windowed*: as you scroll down it renders new
-    rows at the bottom while unloading rows above, so the *number* of rendered "Created ID"
-    inputs plateaus almost immediately even when many more rows still exist below. Treating a
-    stable rendered-row count as "reached the bottom" therefore gives up far too early and can
-    never reach rows near the end of a long report (e.g. the last line) — the grid keeps a
-    roughly fixed-size window of rows in the DOM no matter how far down we are.
+    The MyExpense expense grid is a React FixedDataTable: virtualized, windowed at ~25 rows,
+    and **owns its own scroll state** (setting ``scrollTop`` on the surrounding DOM has no
+    effect — the component restores its own scroll offset on the next render). Worse, its
+    ``scrollHeight`` only reflects rendered rows, not the *total* row count, so probes that
+    check "are we at the bottom?" by comparing ``scrollTop + clientHeight`` to ``scrollHeight``
+    give false positives.
 
-    Instead we track the *value* of the last rendered "Created ID" row: while scrolling keeps
-    revealing new rows that value keeps changing, and only once it stops changing across
-    several consecutive scrolls have we genuinely hit the bottom. This lets us walk all the way
-    down to a target at the very end of the grid.
+    Strategy: wheel-scroll first (fast and works for moderately-sized grids), then fall back
+    to keyboard navigation (clicking the last visible row and pressing ``ArrowDown``, which
+    drives Dynamics' own row-selection state and is the only signal the grid reliably
+    listens to). Keyboard nav is slower per row but is the only path that works when the
+    grid has more rows than its rendered window can hold (e.g. 26 real expenses + a leftover
+    itemization batch group from a previous fill).
     """
     created_id = str(created_id)
     target = page.locator(f'input[aria-label="Created ID"][value="{created_id}"]')
 
-    # Scroll the last rendered "Created ID" row to the bottom of the viewport (forcing the grid
-    # to render the next batch below it) and return that row's value so we can tell whether the
-    # scroll actually advanced us further down the grid. Returns null if no rows are rendered.
-    scroll_down_js = """() => {
-        const inputs = [...document.querySelectorAll('input')]
-            .filter(e => (e.getAttribute('aria-label') || '') === 'Created ID');
-        const last = inputs[inputs.length - 1];
-        if (!last) return null;
-        const row = last.closest('[role="row"]');
-        if (row) row.scrollIntoView({ block: 'end' });
-        return last.getAttribute('value') || '';
+    # Returns the rendered Created IDs (so we can detect "no progress" reliably) along
+    # with the grid's bounding box so we know where to direct the mouse wheel.
+    grid_state_js = """() => {
+        const inputs = document.querySelectorAll('input[aria-label="Created ID"]');
+        if (!inputs.length) return null;
+        // The grid container is the first scrolling ancestor that contains our inputs.
+        let el = inputs[0];
+        let container = null;
+        for (let i = 0; i < 30 && el; i++, el = el.parentElement) {
+            if (el.scrollHeight > el.clientHeight + 2 && el.clientHeight > 50) {
+                container = el;
+                break;
+            }
+        }
+        // Fall back to the closest parent of inputs that actually has size.
+        if (!container) {
+            container = inputs[0].closest('[role="grid"]') || inputs[0].closest('.fixedDataTableLayout_main');
+        }
+        const rect = container ? container.getBoundingClientRect() : null;
+        const values = [];
+        for (const inp of inputs) {
+            values.push(inp.getAttribute('value') || inp.value || '');
+        }
+        return {
+            rect: rect ? {
+                x: rect.x, y: rect.y, width: rect.width, height: rect.height
+            } : null,
+            renderedIds: values,
+        };
+    }"""
+
+    scroll_to_top_js = """() => {
+        const inputs = document.querySelectorAll('input[aria-label="Created ID"]');
+        if (!inputs.length) return;
+        let el = inputs[0];
+        for (let i = 0; i < 30 && el; i++, el = el.parentElement) {
+            if (el.scrollHeight > el.clientHeight + 2 && el.clientHeight > 50) {
+                el.scrollTop = 0;
+                return;
+            }
+        }
     }"""
 
     start = time.monotonic()
-    last_value = None
-    stale = 0
+
+    # Phase 1: wheel scrolling. Fast when it works; bails after a couple of no-progress
+    # iterations so we can fall back to keyboard nav.
+    previous_ids: tuple = ()
+    stale_iters = 0
     for scrolls in range(max_scrolls):
         if await target.count() > 0:
             _log_timing(
                 f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
-                f"({scrolls} scroll(s))"
+                f"({scrolls} wheel scroll(s))"
             )
             return target.first
 
-        last_rendered = await page.evaluate(scroll_down_js)
-        await page.wait_for_timeout(600)
+        state = await page.evaluate(grid_state_js)
+        if state is None or state.get("rect") is None:
+            logger.warning(
+                "[fill-debug] locate %s: grid container not found; skipping wheel phase",
+                created_id,
+            )
+            break
 
-        # Detect real progress by the last rendered row's value rather than the row count
-        # (which plateaus immediately on this windowed grid). Only conclude we've hit the
-        # bottom after a few consecutive no-progress scrolls, to tolerate transient render lag.
-        if last_rendered is None or last_rendered == last_value:
-            stale += 1
-            if stale >= 3:
-                # Genuinely at the bottom and the target wasn't found there; as a last resort
-                # scroll back to the top in case it sits above the current window.
-                await page.evaluate(
-                    """() => {
-                        const input = document.querySelector('input[aria-label="Created ID"]');
-                        const row = input && input.closest('[role="row"]');
-                        if (row) row.scrollIntoView({ block: 'start' });
-                    }"""
+        rect = state["rect"]
+
+        # Dispatch a real mouse-wheel scroll over the grid centre. FixedDataTable handles
+        # wheel deltaY in its own scroll state and re-renders the window when it agrees.
+        cx = rect["x"] + rect["width"] / 2
+        cy = rect["y"] + rect["height"] / 2
+        try:
+            await page.mouse.move(cx, cy)
+            wheel_dy = max(200, int(rect["height"] * 0.8))
+            await page.mouse.wheel(0, wheel_dy)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "[fill-debug] locate %s: mouse.wheel failed: %s; ending wheel phase",
+                created_id,
+                exc,
+            )
+            break
+        await page.wait_for_timeout(500)
+
+        # Detect "no progress" by comparing the rendered ID sets between iterations.
+        new_state = await page.evaluate(
+            "() => Array.from(document.querySelectorAll('input[aria-label=\"Created ID\"]'))"
+            ".map(i => i.getAttribute('value') || i.value || '')"
+        )
+        new_ids = tuple(new_state or ())
+        if new_ids == previous_ids:
+            stale_iters += 1
+            if stale_iters >= 2:
+                logger.info(
+                    "[fill-debug] locate %s: wheel scrolling stalled after %d attempts "
+                    "(lastRendered=%s) — switching to keyboard navigation",
+                    created_id,
+                    scrolls + 1,
+                    new_ids[-1] if new_ids else None,
                 )
-                await page.wait_for_timeout(600)
-                if await target.count() > 0:
-                    _log_timing(
-                        f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
-                        f"({scrolls + 1} scroll(s), via top)"
-                    )
-                    return target.first
                 break
         else:
-            stale = 0
-        last_value = last_rendered
+            stale_iters = 0
+        previous_ids = new_ids
+
+    # Phase 2: keyboard nav fallback. The Dynamics grid responds to keyboard navigation:
+    # clicking a row puts the grid in row-selection mode, and ArrowDown moves selection
+    # down by one — which auto-scrolls the grid to keep the selected row visible. This is
+    # the ONLY signal that reliably renders rows beyond the FixedDataTable's "I'm at the
+    # bottom" lie, because the component's scrollTo() is driven by its own selection state.
+    keyboard_start = time.monotonic()
+    kb_ok = await _keyboard_scroll_until_visible(
+        page, target, created_id, known_ids=known_ids
+    )
+    if kb_ok:
+        _log_timing(
+            f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
+            f"(keyboard nav: {time.monotonic() - keyboard_start:.2f}s)"
+        )
+        return target.first
+
+    # Last resort: scroll to top in case the target sits above the current window.
+    await page.evaluate(scroll_to_top_js)
+    await page.wait_for_timeout(500)
+    if await target.count() > 0:
+        _log_timing(
+            f"[timing] locate {created_id}: {time.monotonic() - start:.2f}s "
+            f"(via scroll-to-top)"
+        )
+        return target.first
+
+    # Final diagnostic: dump every rendered Created ID so we can see what the grid does
+    # contain, in case the target ID is subtly different (whitespace, type coercion, …).
+    rendered = await page.evaluate(
+        """() => Array.from(document.querySelectorAll('input[aria-label="Created ID"]'))
+            .map(i => i.getAttribute('value') || i.value || '')"""
+    )
+    logger.error(
+        "[fill-debug] locate %s: not found after %.1fs. Grid currently shows %d "
+        "row(s) with Created IDs: %s",
+        created_id,
+        time.monotonic() - start,
+        len(rendered),
+        rendered,
+    )
 
     raise RuntimeError(
         f"Could not locate expense line with Created ID {created_id} after scrolling the grid."
     )
+
+
+async def _keyboard_scroll_until_visible(
+    page, target, created_id: str, max_presses: int = 80, known_ids: set | None = None
+) -> bool:
+    """Drive Dynamics' grid via keyboard ArrowDown until the target row renders.
+
+    Picks an anchor input from the rendered Created ID cells and clicks it to focus the
+    cell, then presses ArrowDown. **Key heuristic**: when the rendered window contains
+    hotel-itemization sub-rows (Created IDs that aren't in ``known_ids`` — i.e. weren't
+    imported as top-level expenses), clicking the *last* rendered input lands focus inside
+    the itemization child table, and subsequent ArrowDown presses navigate within those
+    children rather than scrolling the parent grid. We pick the last *known* (non-orphan)
+    Created ID instead, so ArrowDown moves down through the parent rows and Dynamics
+    auto-scrolls to render the still-virtualised top-level rows below.
+
+    Returns True if the target appears, False if we exhaust the cap.
+    """
+    # Pick the anchor input. Prefer the last "known" rendered Created ID (a top-level
+    # expense from our import) over the literal last rendered input — see docstring.
+    anchor_input = None
+    try:
+        rendered = await page.evaluate(
+            "() => Array.from(document.querySelectorAll('input[aria-label=\"Created ID\"]'))"
+            ".map(i => i.getAttribute('value') || i.value || '')"
+        )
+    except Exception:
+        rendered = []
+
+    if known_ids and rendered:
+        # Walk the rendered list from the back, find the last entry that's a known
+        # top-level expense. That's the safest place to focus before pressing ArrowDown.
+        for value in reversed(rendered):
+            if value in known_ids:
+                anchor_input = page.locator(
+                    f'input[aria-label="Created ID"][value="{value}"]'
+                ).first
+                logger.info(
+                    "[fill-debug] locate %s: keyboard nav anchored on last known parent row "
+                    "Created ID %s (skipped %d trailing orphan row(s))",
+                    created_id,
+                    value,
+                    len(rendered) - 1 - rendered[::-1].index(value),
+                )
+                break
+
+    if anchor_input is None:
+        # No known anchor — fall back to the literal last rendered input.
+        anchor_input = page.locator('input[aria-label="Created ID"]').last
+
+    try:
+        await anchor_input.evaluate("el => el.scrollIntoView({ block: 'center' })")
+        # Click the INPUT itself (not the row container). When the input is focused,
+        # ArrowDown navigates to the corresponding column in the next row.
+        await anchor_input.click(timeout=5_000)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[fill-debug] locate %s: keyboard nav setup failed (couldn't click anchor input): %s",
+            created_id,
+            exc,
+        )
+        return False
+
+    await page.wait_for_timeout(250)
+
+    # Track the last-rendered ID so we can spot when keyboard nav has reached the true
+    # grid bottom (the rendered set stops changing).
+    previous_last = None
+    no_progress = 0
+    for press in range(max_presses):
+        if await target.count() > 0:
+            logger.info(
+                "[fill-debug] locate %s: keyboard nav found target after %d ArrowDown press(es)",
+                created_id,
+                press,
+            )
+            return True
+        await page.keyboard.press("ArrowDown")
+        await page.wait_for_timeout(180)
+
+        # Check the last rendered ID; if it hasn't changed across several presses, we've
+        # genuinely walked off the bottom of the grid.
+        try:
+            cur_last = await page.locator(
+                'input[aria-label="Created ID"]'
+            ).last.get_attribute("value")
+        except Exception:
+            cur_last = None
+        if cur_last == previous_last:
+            no_progress += 1
+            if no_progress >= 5:
+                logger.warning(
+                    "[fill-debug] locate %s: keyboard nav stalled at lastRendered=%s after "
+                    "%d press(es); giving up",
+                    created_id,
+                    cur_last,
+                    press + 1,
+                )
+                return False
+        else:
+            no_progress = 0
+        previous_last = cur_last
+    return False
 
 
 async def _open_expense_line(page, expense_line_locator) -> None:
@@ -287,6 +487,69 @@ async def _attach_receipt_file(page, receipt_file_path: str) -> None:
     # NOTE: do not click CommandButtonNext here. That button reloads/navigates the report
     # (the importer uses it precisely to force a reload), and clicking it after each receipt
     # intermittently navigates away from the report, closing the page mid-fill.
+
+
+async def _snapshot_page_state(page, label: str) -> None:
+    """Log a snapshot of the page state to diagnose grid/dialog leakage between expenses.
+
+    Logged values (best-effort; never raises):
+    - `url` / `title`
+    - whether the Dynamics ShellBlockingDiv overlay is currently visible
+    - whether any *modal* dialog popup is currently visible (a leftover modal will block
+      grid interaction even though the overlay is gone)
+    - whether the expense report grid is visible AND how many Created ID cells it currently
+      has rendered (virtualized, so a low count when 26 lines exist suggests we're scrolled
+      to the wrong part of the grid or stuck on a detail view)
+    - whether the expense-line detail pane is currently expanded (Additional Information
+      textarea visible) — when true after `Save and continue` we're stuck on detail view
+    """
+    try:
+        state = await page.evaluate(
+            """() => {
+                const overlay = document.querySelector('[class*="ShellBlockingDiv"]');
+                const overlayVisible = overlay
+                    ? (overlay.offsetParent !== null && getComputedStyle(overlay).display !== 'none')
+                    : false;
+                const dialog = document.querySelector('div.dialog-popup.conductorContent');
+                const dialogVisible = dialog
+                    ? (dialog.offsetParent !== null && getComputedStyle(dialog).display !== 'none')
+                    : false;
+                const detail = document.querySelector('textarea[name="TrvExpTrans_AdditionalInformation"]');
+                const detailVisible = detail
+                    ? (detail.offsetParent !== null && !detail.disabled)
+                    : false;
+                const createdIds = document.querySelectorAll('input[aria-label="Created ID"]');
+                // Sample a few visible values so we can see what part of the grid is rendered.
+                const sampleValues = [];
+                for (const inp of createdIds) {
+                    const v = inp.getAttribute('value') || inp.value || '';
+                    if (v) sampleValues.push(v);
+                    if (sampleValues.length >= 6) break;
+                }
+                return {
+                    href: location.href,
+                    title: document.title,
+                    overlayVisible,
+                    dialogVisible,
+                    detailVisible,
+                    createdIdCount: createdIds.length,
+                    firstCreatedIds: sampleValues,
+                };
+            }"""
+        )
+        logger.info(
+            "[fill-debug] %s: title=%r overlay=%s dialog=%s detail=%s "
+            "grid_created_id_count=%d first_grid_ids=%s",
+            label,
+            state.get("title"),
+            state.get("overlayVisible"),
+            state.get("dialogVisible"),
+            state.get("detailVisible"),
+            state.get("createdIdCount", 0),
+            state.get("firstCreatedIds"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[fill-debug] %s: snapshot failed: %s", label, exc)
 
 
 async def _save_and_continue(page) -> None:
@@ -1085,7 +1348,105 @@ async def fill_expense_report():
         try:
             yield _sse({"status": "starting", "total": total_expenses})
 
+            # ── Pre-fill: clear any existing itemization on hotel expenses ────────────
+            # If a hotel expense was itemized in a previous fill, its itemization rows
+            # show in the report's grid as their own rows (sharing a "Created ID" that
+            # isn't in our import). Those orphan rows take up slots in the grid's 25-row
+            # render window and can virtualize out the real expense rows below the hotel,
+            # making the main fill loop unable to locate them. Clearing the hotel's
+            # itemization here removes those rows from the grid before we start.
+            hotels_to_preclear = [
+                e for e in existing_expenses_to_update
+                if str(e.get("Expense category", "")).strip().lower() == "hotel"
+            ]
+            if hotels_to_preclear:
+                # Cheap pre-check: are there any orphan itemization rows in the grid at
+                # all? If the grid only contains the expense rows we imported, there's
+                # nothing to pre-clear and we can skip the (slow, sometimes-flaky) open
+                # Itemize → clear-all → close dance entirely. We detect orphans by
+                # rendered "Created ID" values that don't match any of our imports.
+                known_ids = {str(e["Created ID"]) for e in existing_expenses_to_update}
+                try:
+                    rendered_ids = await page.evaluate(
+                        """() => Array.from(
+                            document.querySelectorAll('input[aria-label="Created ID"]')
+                        ).map(i => i.getAttribute('value') || i.value || '')"""
+                    )
+                except Exception:
+                    rendered_ids = []
+                orphan_count = sum(1 for v in rendered_ids if v and v not in known_ids)
+                if orphan_count == 0:
+                    logger.info(
+                        "[fill] Skipping pre-clear: grid has no orphan itemization rows "
+                        "(rendered=%d, all match imported expenses)",
+                        len(rendered_ids),
+                    )
+                else:
+                    logger.info(
+                        "[fill] Pre-clear: grid has %d orphan itemization row(s) (rendered=%d)",
+                        orphan_count,
+                        len(rendered_ids),
+                    )
+                    yield _sse({
+                        "status": "pre_clear_itemization",
+                        "total": len(hotels_to_preclear),
+                    })
+                    from itemization import (
+                        _POPUP_PANE_SELECTOR,
+                        _clear_existing_itemization_rows,
+                        click_itemize_button,
+                    )
+                    for hotel in hotels_to_preclear:
+                        hotel_id = hotel["Created ID"]
+                        try:
+                            logger.info(
+                                "[fill] Pre-clearing existing itemization on hotel %s "
+                                "(prevents orphan rows from blocking grid scroll)",
+                                hotel_id,
+                            )
+                            line = await _locate_expense_line(page, hotel_id)
+                            await _open_expense_line(page, line)
+                            await click_itemize_button(page)
+                            popup_pane = page.locator(_POPUP_PANE_SELECTOR)
+                            await popup_pane.wait_for(state="visible", timeout=10_000)
+                            deletions = await _clear_existing_itemization_rows(
+                                page, popup_pane
+                            )
+                            # Close the dialog — at this point the itemization is empty
+                            # (or as empty as we could get it), and closing commits the
+                            # deletion.
+                            try:
+                                await popup_pane.locator(
+                                    "button[name='CloseButton']"
+                                ).click(timeout=5_000)
+                            except Exception:
+                                await page.get_by_role(
+                                    "button", name="Close", exact=True
+                                ).click()
+                            await _wait_for_shell_unblocked(page)
+                            logger.info(
+                                "[fill] Pre-clear of hotel %s deleted %d itemization "
+                                "row(s)",
+                                hotel_id,
+                                deletions,
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "[fill] Pre-clear of hotel %s failed (%s); proceeding "
+                                "anyway — the main fill loop may not be able to reach "
+                                "the last rows of the grid if orphan rows remain.",
+                                hotel_id,
+                                exc,
+                            )
+
             completed = 0
+
+            # Set of imported expense Created IDs — used by the locate helper to pick a
+            # parent-row anchor for keyboard navigation when the rendered window contains
+            # itemization sub-rows that would otherwise trap ArrowDown inside the children.
+            known_top_level_ids = {
+                str(e["Created ID"]) for e in existing_expenses_to_update
+            }
 
             # Update existing expenses in MyExpense with receipts
             for expense in existing_expenses_to_update:
@@ -1096,11 +1457,16 @@ async def fill_expense_report():
                 logger.info(
                     f"Expense {expense_created_id}: {len(attached_receipts)} receipts attached"
                 )
+                await _snapshot_page_state(
+                    page, f"before locate expense {expense_created_id} (#{completed + 1})"
+                )
 
                 # Locate the expense line on demand, scrolling the virtualized grid so rows
                 # that aren't rendered yet (e.g. the last lines after import) are found
                 # without requiring the user to manually zoom out.
-                expense_line_to_fill = await _locate_expense_line(page, expense_created_id)
+                expense_line_to_fill = await _locate_expense_line(
+                    page, expense_created_id, known_ids=known_top_level_ids
+                )
                 await _open_expense_line(page, expense_line_to_fill)
 
                 # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
@@ -1121,6 +1487,9 @@ async def fill_expense_report():
                 # text-box-only edit (no receipt) is not auto-saved, so without this the
                 # "Additional information" we just filled would be lost.
                 await _save_and_continue(page)
+                await _snapshot_page_state(
+                    page, f"after save expense {expense_created_id} (#{completed + 1})"
+                )
 
                 _log_timing(
                     f"[timing] expense {expense_created_id} TOTAL: "
@@ -1267,83 +1636,279 @@ async def take_screenshot():
         return jsonify({"success": False, "error": "Screenshot failed", "message": str(e)}), 500
 
 
-@expense_bp.route("/itemize", methods=["POST"])
-async def itemize_expenses():
-    """
-    Itemize expenses with the provided expense data.
+@expense_bp.route("/hotel-subcategories", methods=["GET"])
+def get_hotel_subcategories():
+    """Return the configured valid hotel itemization subcategories (for the review-table dropdown)."""
+    from config import HOTEL_SUBCATEGORIES
 
-    Accepts JSON data containing:
-    - expenses: List of expense records
-    - timestamp: Timestamp of when the request was made
+    return jsonify({"success": True, "subcategories": list(HOTEL_SUBCATEGORIES)})
 
-    Returns:
-    - JSON response indicating success or failure
-    """
+
+def _is_hotel_expense(expense: dict) -> bool:
+    """True if an expense record is in the Hotel category."""
+    return str(expense.get("Expense category", "")).strip().lower() == "hotel"
+
+
+def _parse_amount(value) -> float | None:
+    """Parse an expense Amount that may be a number or a string (currency/commas tolerated)."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    import re as _re
+
+    cleaned = _re.sub(r"[^\d.\-]", "", str(value))
     try:
-        logger.info("Starting itemize expenses process")
+        return float(cleaned) if cleaned else None
+    except ValueError:
+        return None
 
-        # Get the JSON data from the request
-        data = await request.get_json()
-        if not data:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": "No data provided",
-                    "message": "Request body must contain JSON data",
-                }
-            ), 400
 
-        # Extract expense data
-        expenses = data.get("expenses", [])
-        if not expenses:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": "No expenses provided",
-                    "message": "The expenses list is empty",
-                }
-            ), 400
+def _balance_info(lines: list, amount) -> dict:
+    """Compute itemized total vs the expense amount for validation surfacing."""
+    from invoice_extractor import is_balanced, itemized_total
 
-        logger.info(f"Processing {len(expenses)} expenses for itemization")
+    total = itemized_total(lines)
+    parsed = _parse_amount(amount)
+    difference = round(total - parsed, 2) if parsed is not None else None
+    return {
+        "amount": parsed,
+        "itemized_total": total,
+        "difference": difference,
+        "balanced": is_balanced(lines, amount),
+    }
 
-        # Import the itemization functions
-        try:
-            from itemization import click_itemize_button, itemize_hotel_invoice
-        except ImportError as e:
-            logger.error(f"Could not import itemization functions: {e}")
-            return jsonify(
-                {
-                    "success": False,
-                    "error": "Import error",
-                    "message": "Could not import itemization functions",
-                }
-            ), 500
 
-        # Import playwright and browser manager
-        page = get_expense_page()
+def _primary_receipt_path(expense: dict) -> str | None:
+    """Return the file path of the first attached receipt (the hotel invoice), if any."""
+    receipts = expense.get("Receipts") or expense.get("receipts") or []
+    for receipt in receipts:
+        if isinstance(receipt, dict):
+            path = receipt.get("filePath") or receipt.get("file_path")
+            if path:
+                return path
+    return None
 
-        # Convert expenses to DataFrame for itemization functions
-        import pandas as pd
 
-        expenses_df = pd.DataFrame(expenses)
+@expense_bp.route("/itemize/extract", methods=["POST"])
+async def itemize_extract():
+    """Run LLM extraction over each Hotel expense's matched receipt to produce itemization lines.
 
-        # Call the itemization functions
-        logger.info("Calling click_itemize_button function")
-        await click_itemize_button(page)
-
-        logger.info("Calling itemize_hotel_invoice function")
-        await itemize_hotel_invoice(page, expenses_df)
-
-        logger.info("Itemize expenses completed successfully")
+    Accepts JSON: {expenses: [...], provider?: str}. For every Hotel-category expense that has a
+    matched receipt, the receipt (hotel invoice) is sent to the extractor concurrently. Returns
+    one result per hotel expense with its extracted line items for the review table.
+    """
+    data = await request.get_json()
+    if not data:
         return jsonify(
             {
-                "success": True,
-                "message": "Expenses itemized successfully",
+                "success": False,
+                "error": "No data provided",
+                "message": "Request body must contain JSON data",
+            }
+        ), 400
+
+    expenses = data.get("expenses", [])
+    provider = data.get("provider") or None
+
+    hotel_expenses = [e for e in expenses if _is_hotel_expense(e) and _primary_receipt_path(e)]
+    if not hotel_expenses:
+        return jsonify(
+            {
+                "success": False,
+                "error": "No hotel expenses",
+                "message": "No Hotel expenses with a matched receipt to itemize.",
+            }
+        ), 400
+
+    logger.info(f"Extracting itemization for {len(hotel_expenses)} hotel expense(s)")
+
+    from invoice_extractor import extract_hotel_itemization
+
+    async def _extract_one(expense: dict) -> dict:
+        receipt_path = _primary_receipt_path(expense)
+        expected_total = _parse_amount(expense.get("Amount"))
+        lines = await extract_hotel_itemization(
+            receipt_path, provider=provider, expected_total=expected_total
+        )
+        return {
+            "id": expense.get("id"),
+            "created_id": expense.get("Created ID"),
+            "merchant": expense.get("Merchant", ""),
+            "expense_category": expense.get("Expense category", ""),
+            "amount": expense.get("Amount"),
+            "receipt_path": receipt_path,
+            "lines": lines,
+            **_balance_info(lines, expense.get("Amount")),
+        }
+
+    raw_results = await asyncio.gather(
+        *[_extract_one(e) for e in hotel_expenses], return_exceptions=True
+    )
+
+    results = []
+    for expense, result in zip(hotel_expenses, raw_results):
+        if isinstance(result, Exception):
+            logger.error(f"Itemization extraction failed for {expense.get('id')}: {result}")
+            results.append(
+                {
+                    "id": expense.get("id"),
+                    "created_id": expense.get("Created ID"),
+                    "merchant": expense.get("Merchant", ""),
+                    "expense_category": expense.get("Expense category", ""),
+                    "amount": expense.get("Amount"),
+                    "lines": [],
+                    "error": str(result),
+                    **_balance_info([], expense.get("Amount")),
+                }
+            )
+        else:
+            if not result.get("balanced"):
+                logger.warning(
+                    "Itemization for expense %s does not reconcile: itemized=%s vs amount=%s",
+                    result.get("created_id") or result.get("id"),
+                    result.get("itemized_total"),
+                    result.get("amount"),
+                )
+            results.append(result)
+
+    return jsonify(
+        {
+            "success": True,
+            "results": results,
+            "message": f"Extracted itemization for {len(results)} hotel expense(s)",
+        }
+    )
+
+
+@expense_bp.route("/itemize/fill", methods=["POST"])
+async def itemize_fill():
+    """Fill the (reviewed) itemization lines into MyExpense for each hotel expense.
+
+    Accepts JSON: {items: [{created_id, id?, lines: [...]}], ...}. For each item the matching
+    expense line is located and opened, the Itemize dialog is launched, and the lines are filled.
+    """
+    data = await request.get_json()
+    if not data:
+        return jsonify(
+            {
+                "success": False,
+                "error": "No data provided",
+                "message": "Request body must contain JSON data",
+            }
+        ), 400
+
+    items = data.get("items", [])
+    if not items:
+        return jsonify(
+            {
+                "success": False,
+                "error": "No items provided",
+                "message": "The items list is empty",
+            }
+        ), 400
+
+    page = get_expense_page()
+    if page is None:
+        return jsonify(
+            {
+                "success": False,
+                "error": "Browser session not available",
+                "message": "Expense page not available. Make sure the browser session is initialized.",
+            }
+        ), 500
+
+    # Itemization drives the same shared Playwright page as fill; never run them concurrently.
+    global _fill_in_progress
+    if _fill_in_progress:
+        return jsonify(
+            {
+                "success": False,
+                "error": "Operation already in progress",
+                "message": "Another fill/itemize operation is already running.",
+            }
+        ), 409
+    _fill_in_progress = True
+
+    try:
+        import pandas as pd
+
+        from itemization import click_itemize_button, itemize_hotel_invoice
+
+        results = []
+        for item in items:
+            created_id = item.get("created_id") or item.get("Created ID")
+            lines = item.get("lines", [])
+
+            if not created_id:
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "created_id": None,
+                        "success": False,
+                        "message": "Missing Created ID; the hotel expense line must exist in MyExpense first.",
+                    }
+                )
+                continue
+            if not lines:
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "created_id": created_id,
+                        "success": False,
+                        "message": "No itemization lines to fill.",
+                    }
+                )
+                continue
+
+            try:
+                balance = _balance_info(lines, item.get("amount"))
+                if item.get("amount") is not None and not balance["balanced"]:
+                    logger.warning(
+                        "Filling unbalanced itemization for %s: itemized=%s vs amount=%s (diff=%s)",
+                        created_id,
+                        balance["itemized_total"],
+                        balance["amount"],
+                        balance["difference"],
+                    )
+
+                expense_line = await _locate_expense_line(page, created_id)
+                await _open_expense_line(page, expense_line)
+                await click_itemize_button(page)
+                await itemize_hotel_invoice(page, pd.DataFrame(lines))
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "created_id": created_id,
+                        "success": True,
+                        "lines": len(lines),
+                        **balance,
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Error itemizing expense {created_id}: {e}", exc_info=True)
+                results.append(
+                    {
+                        "id": item.get("id"),
+                        "created_id": created_id,
+                        "success": False,
+                        "message": str(e),
+                    }
+                )
+
+        succeeded = sum(1 for r in results if r.get("success"))
+        return jsonify(
+            {
+                "success": succeeded > 0,
+                "results": results,
+                "message": f"Itemized {succeeded} of {len(items)} hotel expense(s)",
             }
         )
 
     except Exception as e:
-        logger.error(f"Error itemizing expenses: {e}")
+        logger.error(f"Error itemizing expenses: {e}", exc_info=True)
         return jsonify(
             {"success": False, "error": "Failed to itemize expenses", "message": str(e)}
         ), 500
+    finally:
+        _fill_in_progress = False

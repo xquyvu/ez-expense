@@ -299,12 +299,40 @@ class BrowserProcess:
         profile.mkdir(parents=True, exist_ok=True)
         return str(profile)
 
+    def _purge_session_restore_state(self) -> None:
+        """Delete the profile's saved-session state so launches always open one window.
+
+        Chromium browsers (incl. Edge) restore previously-open tabs/windows from the
+        profile's ``Default/Sessions`` and ``Default/EdgeSessions`` directories. Without
+        purging them, every relaunch reopens whatever windows were live at the previous
+        shutdown — over time the dedicated profile accumulates multiple stale windows,
+        which is what makes the MyExpense + FE flow look like "two Edge windows opened".
+        Deleting these dirs is safe: they only hold transient session data, not bookmarks,
+        history, saved passwords, or cookies.
+        """
+        import shutil
+
+        profile = Path(self._profile_dir()) / "Default"
+        for name in ("Sessions", "EdgeSessions", "Last Session", "Last Tabs"):
+            target = profile / name
+            if not target.exists():
+                continue
+            try:
+                if target.is_dir():
+                    shutil.rmtree(target, ignore_errors=True)
+                else:
+                    target.unlink(missing_ok=True)
+            except Exception as exc:  # noqa: BLE001 — best-effort cleanup
+                logger.warning(f"Could not purge {target}: {exc}")
+
     def start_browser_debug_mode(self):
         """Launch the browser in debug mode using a DEDICATED profile, in the background.
 
         Uses a separate --user-data-dir so it runs alongside (and never closes) the user's
         own browser, and `open -g` on macOS so it doesn't steal focus.
         """
+        # Always start from a clean window state — see _purge_session_restore_state for why.
+        self._purge_session_restore_state()
         args = [
             "--no-first-run",
             "--no-default-browser-check",
@@ -314,6 +342,9 @@ class BrowserProcess:
             "--remote-allow-origins=*",
             "--log-level=3",
             "--disable-logging",
+            # Tell Chromium not to restore last session even if the profile's Preferences
+            # file requests it (belt-and-braces with the session-state purge above).
+            "--restore-last-session=false",
         ]
         if sys.platform == "darwin" and self.browser.app_name:
             # `open -g` = background (no focus steal), `-n` = new instance.

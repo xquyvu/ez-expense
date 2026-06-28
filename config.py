@@ -6,6 +6,7 @@ that need to be shared across different components of the application.
 """
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -169,6 +170,31 @@ EXPENSE_CATEGORIES = [
     "Volunteer Event Items - Non US",
     "Volunteer Event Items - US",
 ]
+
+
+def _load_hotel_subcategories() -> list[str]:
+    """Load valid hotel itemization subcategories from ``hotel_subcategories.txt``.
+
+    The file lives next to this module (and is bundled with the packaged app). One
+    subcategory per line; blank lines and ``#`` comments are ignored. Returns an empty
+    list if the file is missing or empty, in which case extraction/UI fall back to
+    free-form subcategory text.
+    """
+    subcategories_file = Path(__file__).resolve().parent / "hotel_subcategories.txt"
+    try:
+        lines = subcategories_file.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            result.append(stripped)
+    return result
+
+
+HOTEL_SUBCATEGORIES = _load_hotel_subcategories()
 
 # Map of common currency symbols to their ISO codes (used by local LLM postprocessing)
 CURRENCY_SYMBOL_MAP = {

@@ -1,0 +1,14 @@
+# Valid hotel itemization subcategories — one per line.
+#
+# These must match the "Subcategory" lookup values in the MyExpense itemization
+# dialog EXACTLY (otherwise the Dynamics form will reject them on fill).
+#
+# Lines starting with "#" and blank lines are ignored.
+
+Daily Room Rate
+Hotel Deposit
+Hotel Tax
+Hotel Telephone
+Incidentals
+Laundry
+Room Service & Meals etc

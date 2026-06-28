@@ -17,3 +17,4 @@ ez-expense.log
 ez-expense-fe.log
 test_screenshots/*
 .playwright-mcp
+.session-receipts
