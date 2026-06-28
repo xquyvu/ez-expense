@@ -59,9 +59,6 @@ def _drop_itemization_sub_rows(expense_df: pd.DataFrame) -> pd.DataFrame:
     out at import time. This keeps the rest of the fill flow unaware that the report was
     previously itemized.
     """
-    if "Expense category" not in expense_df.columns or not HOTEL_SUBCATEGORIES:
-        return expense_df
-
     subcategories = {s.strip() for s in HOTEL_SUBCATEGORIES if s}
     is_sub_row = expense_df["Expense category"].astype(str).str.strip().isin(subcategories)
     dropped = int(is_sub_row.sum())
@@ -70,9 +67,7 @@ def _drop_itemization_sub_rows(expense_df: pd.DataFrame) -> pd.DataFrame:
             "Dropping %d itemization sub-row(s) from the import (categories matched "
             "hotel subcategories: %s)",
             dropped,
-            sorted(
-                expense_df.loc[is_sub_row, "Expense category"].astype(str).unique().tolist()
-            ),
+            sorted(expense_df.loc[is_sub_row, "Expense category"].astype(str).unique().tolist()),
         )
     return expense_df.loc[~is_sub_row].reset_index(drop=True)
 

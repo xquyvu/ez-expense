@@ -337,7 +337,7 @@ async def _keyboard_scroll_until_visible(
     return False
 
 
-async def _open_expense_line(page, expense_line_locator) -> None:
+async def _open_expense_line(page, expense_line_locator, *, block: str = "nearest") -> bool:
     """Open/select an existing expense line from its "Created ID" grid cell.
 
     The "Created ID" field itself is a hidden ``<input>``, so a real Playwright click on it
@@ -351,15 +351,24 @@ async def _open_expense_line(page, expense_line_locator) -> None:
     Selecting a line makes Dynamics re-render the detail pane, so we then wait for the row
     to actually become selected before returning — a fixed delay races that re-render and
     causes receipts to land on the previously-selected line.
+
+    ``block`` controls the vertical alignment used to scroll the row into view. The default
+    ``"nearest"`` keeps the fill loop from re-centering (and visually jumping) on every line.
+    Pass ``"center"`` when selecting an arbitrary line *cold* — e.g. a hotel that is the
+    FIRST grid row, where a sticky "receipt required" message bar overlaps the top of the
+    grid: a ``"nearest"`` scroll leaves that row under the bar so the selecting click misses.
+
+    Returns ``True`` if the row was observed to become selected, ``False`` if it fell through
+    to the settle fallback (selection could not be confirmed) so callers can verify/retry.
     """
     open_start = time.monotonic()
     await _wait_for_shell_unblocked(page)
-    # Bring the row into view if needed, using 'nearest' so a row that is already visible
-    # (e.g. the line Dynamics just auto-scrolled to after "Save and continue") does not get
-    # yanked to the middle of the viewport on every expense — that re-centering is what made
-    # the screen jump around during a fill. 'nearest' scrolls the minimum amount, and only
-    # when the row is actually off-screen.
-    await expense_line_locator.evaluate("el => el.scrollIntoView({ block: 'nearest' })")
+    # Bring the row into view if needed. 'nearest' (the default) scrolls the minimum amount so
+    # a line Dynamics just auto-scrolled to after "Save and continue" is not yanked to the
+    # middle of the viewport on every expense (that re-centering made the screen jump during a
+    # fill). 'center' is used when selecting a line cold, so a sticky top message bar cannot
+    # overlap — and swallow the selecting click on — the first grid row.
+    await expense_line_locator.evaluate("(el, b) => el.scrollIntoView({ block: b })", block)
     row = expense_line_locator.locator("xpath=ancestor::*[@role='row'][1]")
 
     # Click the row to select it. The click can transiently fail actionability while the
@@ -388,11 +397,12 @@ async def _open_expense_line(page, expense_line_locator) -> None:
     # Wait for Dynamics to finish loading/selecting the line (overlay clears + row marked
     # selected) instead of a fixed delay.
     await _wait_for_shell_unblocked(page)
-    await _wait_for_row_selected(page, row)
+    selected = await _wait_for_row_selected(page, row)
     _log_timing(f"[timing] open_expense_line total: {time.monotonic() - open_start:.2f}s")
+    return selected
 
 
-async def _wait_for_row_selected(page, row, timeout: float = 10_000) -> None:
+async def _wait_for_row_selected(page, row, timeout: float = 10_000) -> bool:
     """Poll until the grid row reports it is selected (best-effort, with a settle fallback).
 
     Logs whether a selection marker was detected (and how long it took) or whether it fell
@@ -400,6 +410,11 @@ async def _wait_for_row_selected(page, row, timeout: float = 10_000) -> None:
     can identify the *real* selection indicator Dynamics uses and replace this timeout-based
     wait with a precise signal -- this poll, when no marker is found, is the dominant
     per-expense latency in the fill flow (it runs once per expense line).
+
+    Returns ``True`` when a selection marker was observed and ``False`` when it timed out and
+    fell through to the settle fallback. Callers that select a line cold (e.g. itemization)
+    can use the ``False`` result to verify the right card opened and retry rather than
+    trusting that the click landed.
     """
     start = time.monotonic()
     deadline = start + (timeout / 1000)
@@ -416,7 +431,7 @@ async def _wait_for_row_selected(page, row, timeout: float = 10_000) -> None:
                 f"[timing] wait_for_row_selected: detected in "
                 f"{time.monotonic() - start:.2f}s (aria-selected={selected!r})"
             )
-            return
+            return True
         await page.wait_for_timeout(250)
     # No explicit selection marker observed; give the detail pane a moment to settle.
     try:
@@ -430,6 +445,7 @@ async def _wait_for_row_selected(page, row, timeout: float = 10_000) -> None:
         f"row.outerHTML[:400]={(row_html or '')[:400]!r}"
     )
     await page.wait_for_timeout(800)
+    return False
 
 
 async def _attach_receipt_file(page, receipt_file_path: str) -> None:
@@ -1348,97 +1364,6 @@ async def fill_expense_report():
         try:
             yield _sse({"status": "starting", "total": total_expenses})
 
-            # ── Pre-fill: clear any existing itemization on hotel expenses ────────────
-            # If a hotel expense was itemized in a previous fill, its itemization rows
-            # show in the report's grid as their own rows (sharing a "Created ID" that
-            # isn't in our import). Those orphan rows take up slots in the grid's 25-row
-            # render window and can virtualize out the real expense rows below the hotel,
-            # making the main fill loop unable to locate them. Clearing the hotel's
-            # itemization here removes those rows from the grid before we start.
-            hotels_to_preclear = [
-                e for e in existing_expenses_to_update
-                if str(e.get("Expense category", "")).strip().lower() == "hotel"
-            ]
-            if hotels_to_preclear:
-                # Cheap pre-check: are there any orphan itemization rows in the grid at
-                # all? If the grid only contains the expense rows we imported, there's
-                # nothing to pre-clear and we can skip the (slow, sometimes-flaky) open
-                # Itemize → clear-all → close dance entirely. We detect orphans by
-                # rendered "Created ID" values that don't match any of our imports.
-                known_ids = {str(e["Created ID"]) for e in existing_expenses_to_update}
-                try:
-                    rendered_ids = await page.evaluate(
-                        """() => Array.from(
-                            document.querySelectorAll('input[aria-label="Created ID"]')
-                        ).map(i => i.getAttribute('value') || i.value || '')"""
-                    )
-                except Exception:
-                    rendered_ids = []
-                orphan_count = sum(1 for v in rendered_ids if v and v not in known_ids)
-                if orphan_count == 0:
-                    logger.info(
-                        "[fill] Skipping pre-clear: grid has no orphan itemization rows "
-                        "(rendered=%d, all match imported expenses)",
-                        len(rendered_ids),
-                    )
-                else:
-                    logger.info(
-                        "[fill] Pre-clear: grid has %d orphan itemization row(s) (rendered=%d)",
-                        orphan_count,
-                        len(rendered_ids),
-                    )
-                    yield _sse({
-                        "status": "pre_clear_itemization",
-                        "total": len(hotels_to_preclear),
-                    })
-                    from itemization import (
-                        _POPUP_PANE_SELECTOR,
-                        _clear_existing_itemization_rows,
-                        click_itemize_button,
-                    )
-                    for hotel in hotels_to_preclear:
-                        hotel_id = hotel["Created ID"]
-                        try:
-                            logger.info(
-                                "[fill] Pre-clearing existing itemization on hotel %s "
-                                "(prevents orphan rows from blocking grid scroll)",
-                                hotel_id,
-                            )
-                            line = await _locate_expense_line(page, hotel_id)
-                            await _open_expense_line(page, line)
-                            await click_itemize_button(page)
-                            popup_pane = page.locator(_POPUP_PANE_SELECTOR)
-                            await popup_pane.wait_for(state="visible", timeout=10_000)
-                            deletions = await _clear_existing_itemization_rows(
-                                page, popup_pane
-                            )
-                            # Close the dialog — at this point the itemization is empty
-                            # (or as empty as we could get it), and closing commits the
-                            # deletion.
-                            try:
-                                await popup_pane.locator(
-                                    "button[name='CloseButton']"
-                                ).click(timeout=5_000)
-                            except Exception:
-                                await page.get_by_role(
-                                    "button", name="Close", exact=True
-                                ).click()
-                            await _wait_for_shell_unblocked(page)
-                            logger.info(
-                                "[fill] Pre-clear of hotel %s deleted %d itemization "
-                                "row(s)",
-                                hotel_id,
-                                deletions,
-                            )
-                        except Exception as exc:  # noqa: BLE001
-                            logger.warning(
-                                "[fill] Pre-clear of hotel %s failed (%s); proceeding "
-                                "anyway — the main fill loop may not be able to reach "
-                                "the last rows of the grid if orphan rows remain.",
-                                hotel_id,
-                                exc,
-                            )
-
             completed = 0
 
             # Set of imported expense Created IDs — used by the locate helper to pick a
@@ -1833,7 +1758,11 @@ async def itemize_fill():
     try:
         import pandas as pd
 
-        from itemization import click_itemize_button, itemize_hotel_invoice
+        from itemization import (
+            _dismiss_flyout_if_open,
+            click_itemize_button,
+            itemize_hotel_invoice,
+        )
 
         results = []
         for item in items:
@@ -1872,10 +1801,57 @@ async def itemize_fill():
                         balance["difference"],
                     )
 
-                expense_line = await _locate_expense_line(page, created_id)
-                await _open_expense_line(page, expense_line)
-                await click_itemize_button(page)
+                # Hotel lines are frequently the FIRST grid row, where a sticky "receipt
+                # required" message bar overlaps the row: the selecting click misses, the
+                # wrong card stays open, and its Actions menu has no "Itemize" — so
+                # click_itemize_button raises. Re-select the line (centered, so the banner
+                # can't hide it) and retry a few times, treating the Itemize dialog actually
+                # opening as the source of truth rather than the unreliable selection marker.
+                max_open_attempts = 4
+                itemize_opened = False
+                last_open_err: Exception | None = None
+                for open_attempt in range(max_open_attempts):
+                    expense_line = await _locate_expense_line(page, created_id)
+                    selected = await _open_expense_line(
+                        page, expense_line, block="center"
+                    )
+                    if not selected:
+                        logger.info(
+                            "[itemize] row %s selection unconfirmed (attempt %d/%d)",
+                            created_id,
+                            open_attempt + 1,
+                            max_open_attempts,
+                        )
+                    try:
+                        await click_itemize_button(page)
+                        itemize_opened = True
+                        break
+                    except RuntimeError as open_err:
+                        last_open_err = open_err
+                        logger.warning(
+                            "[itemize] Itemize unavailable for %s (attempt %d/%d): %s",
+                            created_id,
+                            open_attempt + 1,
+                            max_open_attempts,
+                            open_err,
+                        )
+                        # Dismiss a stray Actions flyout before re-selecting the line —
+                        # but ONLY if one is actually open. A blind Escape here lands on the
+                        # expense-report form and closes it, navigating back to the
+                        # workspace (the "taken to another page" failure). click_itemize_button
+                        # now self-heals a swallowed click, so this is just belt-and-braces.
+                        await _dismiss_flyout_if_open(page)
+                        await page.wait_for_timeout(800)
+                if not itemize_opened:
+                    raise last_open_err or RuntimeError(
+                        f"Could not open the Itemize dialog for expense {created_id}."
+                    )
                 await itemize_hotel_invoice(page, pd.DataFrame(lines))
+                # itemize_hotel_invoice commits the dialog (Close); now persist the line.
+                # "Save and continue" saves the expense and advances — the final
+                # confirmation step of the manual flow — so the itemization sticks before
+                # we move on to the next hotel.
+                await _save_and_continue(page)
                 results.append(
                     {
                         "id": item.get("id"),

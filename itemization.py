@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 import time
 import types
 
@@ -52,6 +53,29 @@ async def _overlay_visible(page: Page) -> bool:
     except Exception:
         return False
 
+
+
+async def _wait_for_commit_settled(page: Page, timeout: float = 90_000) -> None:
+    """Wait for a post-action ShellBlockingDiv commit overlay to appear, then fully clear.
+
+    Closing the Itemize dialog kicks off a server-side commit of the itemization rows, and
+    Dynamics shows the ShellBlockingDiv while it runs — for a hotel with many rows this can
+    far exceed the usual 10s budget (observed ~40s). Anything clicked before it clears —
+    notably "Save and continue" — is swallowed by the overlay and burns its whole timeout.
+
+    So we first let the overlay *appear* (best-effort, short budget; it may already be up or
+    may never show for an instant commit), then wait for it to *disappear* with a generous
+    budget, so the next action lands on a settled page.
+    """
+    try:
+        await page.wait_for_selector(
+            '[class*="ShellBlockingDiv"]', state="visible", timeout=2_000
+        )
+    except Exception:
+        # Overlay may already be gone or never appear (instant commit); proceed to the
+        # hidden-wait regardless.
+        pass
+    await _wait_for_shell_unblocked(page, timeout=timeout)
 
 
 def prime_and_locals(coro):
@@ -115,32 +139,67 @@ async def _wait_for_itemization_row_count_below(
     )
 
 
-async def _clear_existing_itemization_rows(
-    page: Page, popup_pane, max_iterations: int = 100
-) -> int:
-    """Delete every existing itemization row until the grid contains only the header.
+def _select_all_modifier() -> str:
+    """Return the Playwright modifier key for Dynamics' "select all rows" shortcut.
 
-    Returns the number of rows deleted. Loops on the *current* data-row count (re-read
-    each iteration), not a pre-computed total — so we drain reliably regardless of how
-    many rows the dialog opened with.
-
-    Reliability strategy (no retries, no stall heuristics):
-    1. Before each click, wait for Dynamics' ShellBlockingDiv overlay to clear — while
-       it's up the click is silently swallowed and we'd "delete" 0 rows but think we
-       deleted N.
-    2. After clicking Delete + confirming "Yes", **wait for the data-row count to
-       actually drop** below the value we observed before the click. That's the only
-       reliable signal the delete was committed by the server (the confirm dialog
-       closes synchronously, but the grid only re-renders once the server replies).
-    3. If the count never drops within ``_delete_settle_timeout``, raise — never close
-       the dialog with stale rows, because the parent expense re-saves them under a
-       fresh itemization batch ID and they reappear in the report grid as orphans.
+    Dynamics F&O binds the grid "select all" command to Cmd+Shift+M on macOS and
+    Ctrl+Shift+M on Windows/Linux. The Edge browser runs on the same host as this
+    process, so the process platform is the right one to key off.
     """
-    delete_button = popup_pane.locator("button[name='DeleteButtonItemizationGroup']")
+    return "Meta" if sys.platform == "darwin" else "Control"
+
+
+async def _select_all_itemization_rows(page: Page, popup_pane) -> None:
+    """Mark every row in the itemization grid in one shot via the keyboard shortcut.
+
+    We click the first data row first so the itemization grid is the active control, then
+    fire Dynamics' "select all rows" shortcut (Cmd+Shift+M / Ctrl+Shift+M). This engages
+    Dynamics' real row-selection state — unlike clicking a cell's ``<input>``, which only
+    moves focus and leaves the Delete button with nothing marked.
+    """
     rows = popup_pane.locator(
         "div.fixedDataTableLayout_rowsContainer div.fixedDataTableRowLayout_body"
     )
-    # Per-delete timeout: Dynamics' server commit for a saved itemization row can take
+    # Focus the grid. nth(0) is the header, so nth(1) is the first data row. Clicking the
+    # row body (not a specific input) selects the row without dropping into cell-edit mode.
+    try:
+        await rows.nth(1).click(timeout=15_000)
+    except Exception:
+        # Fall back to the row's first input if the body itself isn't clickable yet.
+        await rows.nth(1).locator("input").first.click(timeout=15_000)
+    await page.keyboard.press(f"{_select_all_modifier()}+Shift+M")
+
+
+async def _clear_existing_itemization_rows(
+    page: Page, popup_pane, max_iterations: int = 5
+) -> int:
+    """Delete every existing itemization row via grid "select all" + a single Delete.
+
+    Returns the number of rows deleted.
+
+    We previously deleted rows one at a time, clicking a cell's hidden ``<input>`` to
+    "select" each row — but that only moves focus, it does not engage Dynamics' row-
+    selection state, so the Delete button had nothing marked and the server deleted
+    nothing (the row count never dropped and we'd give up reporting "deleted 0 of N").
+    Instead we use Dynamics' built-in "select all rows" shortcut (Cmd+Shift+M on macOS,
+    Ctrl+Shift+M on Windows) to mark the whole group, then click Delete once.
+
+    Reliability strategy:
+    1. Before acting, wait for Dynamics' ShellBlockingDiv overlay to clear — while it's up
+       the click is silently swallowed and we'd "delete" 0 rows but think we deleted N.
+    2. Select all rows, click the group Delete, confirm "Yes" if Dynamics asks.
+    3. **Wait for the data-row count to actually drop** below the value observed before the
+       click — the only reliable signal the server committed the deletion (the confirm
+       dialog closes synchronously, but the grid only re-renders once the server replies).
+    4. If the count never drops within ``_delete_settle_timeout``, raise — never close the
+       dialog with stale rows, because the parent expense re-saves them under a fresh
+       itemization batch ID and they reappear in the report grid as orphans.
+
+    ``max_iterations`` bounds the number of select-all+Delete passes (one normally clears
+    the whole group; extra passes only guard against a partial server commit).
+    """
+    delete_button = popup_pane.locator("button[name='DeleteButtonItemizationGroup']")
+    # Per-delete timeout: Dynamics' server commit for a saved itemization group can take
     # 5–15s under load. 30s gives generous headroom without hanging the fill forever.
     _delete_settle_timeout = 30_000
 
@@ -148,10 +207,10 @@ async def _clear_existing_itemization_rows(
     if initial == 0:
         return 0
     logger.info(
-        "[itemize] Found %d existing itemization row(s); draining before fill", initial
+        "[itemize] Found %d existing itemization row(s); clearing via select-all + Delete",
+        initial,
     )
 
-    deletions = 0
     for iteration in range(max_iterations):
         # Step 1: ensure the page isn't blocked on a prior server op.
         await _wait_for_shell_unblocked(page, timeout=_delete_settle_timeout)
@@ -161,35 +220,26 @@ async def _clear_existing_itemization_rows(
         if current == 0:
             break
 
-        # Step 3: activate the first data row. The "Created ID" cell is a hidden input,
-        # so we click any visible input inside the row's body to drive Dynamics'
-        # row-selection state. nth(0) is the header, so nth(1) is the first data row.
-        # Generous timeout because the ShellBlockingDiv from a prior server commit can
-        # transiently intercept pointer events; Playwright auto-retries through it.
+        # Step 3: mark every row in one shot.
         try:
-            await rows.nth(1).locator("input").first.click(timeout=15_000)
+            await _select_all_itemization_rows(page, popup_pane)
         except Exception as exc:
             logger.warning(
-                "[itemize] Could not activate first data row on iteration %d "
-                "(rows still showing: %d): %s",
+                "[itemize] Select-all failed on pass %d (rows still showing: %d): %s",
                 iteration + 1,
                 current,
                 exc,
             )
-            # Brief settle, then re-loop; we re-read the count and will retry the
-            # same iteration. If activation keeps failing across iterations the
-            # row-count-drop wait below will catch it the next time.
             await page.wait_for_timeout(500)
             continue
 
         # Step 4: click the group Delete button. Generous timeout so Playwright's
-        # auto-retry sees through any ShellBlockingDiv that briefly intercepts events
-        # right after row selection.
+        # auto-retry sees through any ShellBlockingDiv that briefly intercepts events.
         try:
             await delete_button.click(timeout=15_000)
         except Exception as exc:
             logger.warning(
-                "[itemize] Delete button click failed on iteration %d "
+                "[itemize] Delete button click failed on pass %d "
                 "(rows still showing: %d): %s",
                 iteration + 1,
                 current,
@@ -198,21 +248,20 @@ async def _clear_existing_itemization_rows(
             await page.wait_for_timeout(500)
             continue
 
-        # Step 5: confirm "Yes" if Dynamics asks (committed rows trigger this; the
-        # auto-populated unsaved first row does not). Wait long enough that a slow
-        # confirm dialog doesn't get missed — if we proceed without clicking Yes, the
-        # delete is silently cancelled.
+        # Step 5: confirm "Yes" if Dynamics asks (deleting committed rows triggers a
+        # confirmation dialog). Wait long enough that a slow confirm dialog doesn't get
+        # missed — if we proceed without clicking Yes, the delete is silently cancelled.
         try:
             yes_button = page.get_by_role("button", name="Yes", exact=True)
             await yes_button.wait_for(state="visible", timeout=5_000)
             await yes_button.click()
         except Exception:
-            # Unsaved row: no confirmation dialog. Continue.
+            # No confirmation dialog (e.g. only unsaved rows were selected). Continue.
             pass
 
         # Step 6: WAIT for the row count to actually drop. This is the only reliable
-        # signal that the server committed the deletion. Closing the dialog before
-        # this commit lands re-saves the parent expense with the stale rows.
+        # signal that the server committed the deletion. Closing the dialog before this
+        # commit lands re-saves the parent expense with the stale rows.
         try:
             new_count = await _wait_for_itemization_row_count_below(
                 popup_pane, threshold=current, timeout=_delete_settle_timeout
@@ -221,45 +270,44 @@ async def _clear_existing_itemization_rows(
             still = await _itemization_data_row_count(popup_pane)
             overlay_up = await _overlay_visible(page)
             logger.error(
-                "[itemize] Row count did not drop after delete on iteration %d "
-                "(was %d, still %d, overlay=%s, deletions so far=%d). Refusing to "
-                "close the dialog with stale rows — caller must handle.",
+                "[itemize] Row count did not drop after select-all + Delete on pass %d "
+                "(was %d, still %d, overlay=%s). Refusing to close the dialog with stale "
+                "rows — caller must handle.",
                 iteration + 1,
                 current,
                 still,
                 overlay_up,
-                deletions,
                 exc_info=False,
             )
             raise RuntimeError(
                 f"Itemization delete did not commit (row count stuck at {still}). "
-                f"Successfully deleted {deletions} of {initial} rows before failure."
+                f"Cleared {initial - still} of {initial} rows before failure."
             ) from exc
 
-        deletions += 1
         logger.debug(
-            "[itemize] Delete iteration %d ok: %d → %d rows (%d total deleted)",
+            "[itemize] Select-all delete pass %d ok: %d → %d rows",
             iteration + 1,
             current,
             new_count,
-            deletions,
         )
     else:
         # max_iterations exhausted without count == 0. Should never happen for a real
         # itemization, but raise loudly rather than commit a partial.
         final = await _itemization_data_row_count(popup_pane)
-        raise RuntimeError(
-            f"Did not reach 0 itemization rows after {max_iterations} iterations "
-            f"(deleted {deletions}, {final} still remain)"
-        )
+        if final > 0:
+            raise RuntimeError(
+                f"Did not reach 0 itemization rows after {max_iterations} select-all "
+                f"passes ({final} still remain)"
+            )
 
     final = await _itemization_data_row_count(popup_pane)
+    deleted = initial - final
     logger.info(
         "[itemize] Cleared %d existing itemization row(s); %d remain (target: 0)",
-        deletions,
+        deleted,
         final,
     )
-    return deletions
+    return deleted
 
 
 async def itemize_hotel_invoice(page: Page, itemized_data: pd.DataFrame) -> None:
@@ -305,36 +353,39 @@ async def itemize_hotel_invoice(page: Page, itemized_data: pd.DataFrame) -> None
     except Exception:
         close_button = page.get_by_role("button", name="Close", exact=True)
     await close_button.click()
+    # Closing kicks off a server-side commit of the rows (ShellBlockingDiv overlay), which
+    # for a hotel with many rows can take far longer than the usual 10s. Wait for that
+    # commit to finish before returning so the caller's "Save and continue" click isn't
+    # swallowed by the overlay (the cause of the 30s click timeout).
+    await _wait_for_commit_settled(page)
 
 
-async def click_itemize_button(page: Page) -> None:
-    """Open the Itemize dialog by clicking Actions → Itemize on the open expense line.
+async def _open_actions_flyout(page: Page, strategy: str = "normal") -> str:
+    """Click the per-expense-line Actions button to open its flyout.
 
-    Reliability hardening (mirrors patterns the fill flow uses for Save and Browse):
-    1. Wait for the Dynamics ``ShellBlockingDiv`` overlay before each click; while it's
-       present the page swallows the click and the menu never opens.
-    2. Retry the Actions click and the Itemize click independently — Dynamics often
-       re-renders the action bar mid-fill and the first click becomes non-actionable.
-    3. Use the stable ``control-name`` attribute (``ItemizeExpenseButton``) as the primary
-       selector and fall back to the accessible name only if that locator never resolves.
-    4. Verbose timing + reason logs so a hang is diagnosable instead of opaque.
-    5. Final ``force=True`` fallback so an overlapping tooltip / icon can't burn the
-       full timeout budget.
+    Returns the selector label that was clicked. ``strategy`` escalates *how* the click is
+    delivered so a swallowed/intercepted click can still register:
+
+    * ``"normal"`` – a real Playwright click (full actionability checks).
+    * ``"force"``  – ``click(force=True)``: skips the "receives events" check so an
+      invisible hovering element can't intercept the click.
+    * ``"js"``     – ``dispatch_event("click")``: fires a synthetic click straight at the
+      node, bypassing hit-testing entirely (defeats a transparent overlay).
+
+    Always waits for the ShellBlockingDiv overlay to clear first. Raises if no Actions
+    selector resolves at all.
+
+    NOTE: a successful return does NOT guarantee the flyout opened — Dynamics frequently
+    accepts the click with no effect while it is mid round-trip. The caller MUST verify by
+    looking for the Itemize item (see ``_find_visible_itemize``).
+
+    Selector order prefers the **per-expense-line** Actions button
+    (``CardBottomMenuFormMenuButtonControl``) over the generic accessible name, which on the
+    report detail page also matches the page-level "Actions" toolbar button (``MoreActions``)
+    whose menu has no Itemize item.
     """
-    overall_start = time.monotonic()
-    logger.info("[itemize] click_itemize_button: start")
-
-    # 1. Open the Actions flyout.
-    # IMPORTANT: prefer the **per-expense-line** Actions button (CardBottomMenuFormMenuButtonControl
-    # at the bottom of the expense detail card) over the generic accessible-name match,
-    # which on the report detail page ALSO matches the page-level "Actions" toolbar button
-    # (named MoreActions). Opening the page-level one shows menu items like "Edit expense
-    # report" / "Export to Microsoft Excel" — none of which is "Itemize" — and the subsequent
-    # Itemize lookup correctly times out. The fix is selector order.
-    actions_start = time.monotonic()
-    actions_opened = False
-    last_actions_err: Exception | None = None
-    actions_candidates = [
+    await _wait_for_shell_unblocked(page)
+    candidates = [
         (
             'button[name="CardBottomMenuFormMenuButtonControl"]',
             page.locator('button[name="CardBottomMenuFormMenuButtonControl"]'),
@@ -347,47 +398,104 @@ async def click_itemize_button(page: Page) -> None:
         ),
         ("role=button name=Actions", page.get_by_role("button", name="Actions")),
     ]
-    for attempt in range(3):
-        for label, loc in actions_candidates:
-            try:
-                await _wait_for_shell_unblocked(page)
-                await loc.first.scroll_into_view_if_needed(timeout=3_000)
-                await loc.first.click(timeout=8_000)
-                logger.info(
-                    "[itemize] Actions clicked via %s on attempt %d (%.2fs)",
-                    label,
-                    attempt + 1,
-                    time.monotonic() - actions_start,
-                )
-                actions_opened = True
-                break
-            except Exception as exc:  # noqa: BLE001
-                last_actions_err = exc
-                logger.debug(
-                    "[itemize] Actions click via %s attempt %d failed: %s",
-                    label,
-                    attempt + 1,
-                    exc,
-                )
-        if actions_opened:
-            break
-        # Brief settle before retrying the whole candidate list.
-        await page.wait_for_timeout(400)
+    last_err: Exception | None = None
+    for label, loc in candidates:
+        try:
+            target = loc.first
+            await target.scroll_into_view_if_needed(timeout=3_000)
+            if strategy == "force":
+                await target.click(force=True, timeout=8_000)
+            elif strategy == "js":
+                await target.dispatch_event("click")
+            else:
+                await target.click(timeout=8_000)
+            return label
+        except Exception as exc:  # noqa: BLE001 - fall through to the next selector
+            last_err = exc
+            continue
+    raise last_err or RuntimeError("No Actions button selector resolved")
 
-    if not actions_opened:
-        # Last resort: force-click the most stable selector. Logs why each variant failed.
-        logger.warning(
-            "[itemize] Actions menu refused normal clicks (last error: %s); "
-            "forcing click on control-name selector.",
-            last_actions_err,
+
+async def _find_visible_itemize(
+    candidates, primary_timeout: float = 2_000, fallback_timeout: float = 400
+):
+    """Return ``(label, locator)`` for the first visible Itemize control, else ``(None, None)``.
+
+    Uses a SHORT budget so a swallowed flyout is detected in seconds — the old code waited
+    3 × 15s = 45s for an Itemize item that wasn't there. The first candidate (the stable
+    ``ItemizeExpenseButton`` control name) gets ``primary_timeout``; the accessible-name
+    fallbacks get the smaller ``fallback_timeout`` because if the flyout is open at all the
+    primary already resolves.
+    """
+    for index, (label, loc) in enumerate(candidates):
+        timeout = primary_timeout if index == 0 else fallback_timeout
+        try:
+            await loc.first.wait_for(state="visible", timeout=timeout)
+            return label, loc.first
+        except PlaywrightTimeoutError:
+            continue
+    return None, None
+
+
+async def _actions_flyout_open(page: Page) -> bool:
+    """True when a per-line Actions flyout/menu is currently open.
+
+    Used to decide whether pressing Escape is safe: Escape with no flyout open lands on the
+    Dynamics expense-report form and closes it, navigating back to the workspace.
+    """
+    try:
+        return await page.evaluate(
+            """() => {
+                const menu = document.querySelector('[role="menu"]');
+                if (menu && menu.offsetParent !== null) return true;
+                const item = document.querySelector(
+                    "button[name='ItemizeExpenseButton'], button[name='SplitExpenseButton']"
+                );
+                return !!(item && item.offsetParent !== null);
+            }"""
         )
-        await _wait_for_shell_unblocked(page)
-        await page.locator(
-            'button[name="CardBottomMenuFormMenuButtonControl"]'
-        ).first.click(force=True, timeout=8_000)
+    except Exception:
+        return False
 
-    # 2. Click the Itemize menu item in the now-open flyout.
-    itemize_start = time.monotonic()
+
+async def _dismiss_flyout_if_open(page: Page) -> None:
+    """Press Escape to close an Actions flyout, but ONLY if one is actually open.
+
+    Pressing Escape blindly is what caused the "taken back to another page" failures: when
+    the Actions click was swallowed there was no flyout, so Escape closed the expense-report
+    form itself and Dynamics navigated back to the workspace.
+    """
+    if await _actions_flyout_open(page):
+        try:
+            await page.keyboard.press("Escape")
+        except Exception:  # noqa: BLE001 - best-effort dismissal
+            pass
+
+
+async def click_itemize_button(page: Page) -> None:
+    """Open the Itemize dialog by clicking Actions → Itemize on the open expense line.
+
+    Reliability model — *verify the flyout, don't trust the click*:
+    1. Wait for the Dynamics ``ShellBlockingDiv`` overlay before each click; while it's
+       present the page swallows the click and the menu never opens.
+    2. The per-line Actions click frequently returns success (~0.2s, no exception) yet the
+       flyout never opens because Dynamics is mid round-trip right after the line was
+       selected. So success is measured by *Itemize becoming visible* on a short budget —
+       not by the click returning. If it doesn't appear we re-open Actions with an
+       escalating delivery (normal → force → JS-dispatch) after letting the page settle.
+    3. Use the stable ``control-name`` attribute (``ItemizeExpenseButton``) as the primary
+       selector and fall back to the accessible name only if that locator never resolves.
+    4. Never press Escape unless a flyout is actually open — on the bare report form Escape
+       closes the form and navigates back to the workspace.
+    5. Verbose timing + reason logs so a hang is diagnosable instead of opaque.
+    """
+    overall_start = time.monotonic()
+    logger.info("[itemize] click_itemize_button: start")
+
+    # Phases 1+2 (merged): open the Actions flyout AND verify it opened by finding the
+    # Itemize menu item on a short budget. See the docstring for why the click's return
+    # value is not trusted — Itemize becoming visible is the only success signal.
+    open_start = time.monotonic()
     itemize_candidates = [
         ("button[name='ItemizeExpenseButton']", page.locator("button[name='ItemizeExpenseButton']")),
         (
@@ -396,24 +504,52 @@ async def click_itemize_button(page: Page) -> None:
         ),
         ("role=button name=Itemize", page.get_by_role("button", name="Itemize", exact=True)),
     ]
+    # Escalate the click delivery as attempts progress: a settled normal re-click fixes the
+    # common timing race; force / JS-dispatch defeat a rarer intercepting overlay.
+    open_strategies = ["normal", "normal", "force", "js", "force"]
     chosen_label = None
     chosen_locator = None
-    for label, loc in itemize_candidates:
+    for index, strategy in enumerate(open_strategies):
+        if index > 0:
+            # Only dismiss a flyout that is actually open — a blind Escape on the bare form
+            # closes it and navigates back to the workspace. Then let the post-round-trip
+            # re-render settle before re-opening Actions.
+            await _dismiss_flyout_if_open(page)
+            await _wait_for_shell_unblocked(page)
+            await page.wait_for_timeout(600)
         try:
-            await loc.first.wait_for(state="visible", timeout=15_000)
-            chosen_label = label
-            chosen_locator = loc.first
+            opened_via = await _open_actions_flyout(page, strategy)
+        except Exception as exc:  # noqa: BLE001 - record and try the next strategy
+            logger.debug(
+                "[itemize] Actions open via %s strategy failed on attempt %d: %s",
+                strategy,
+                index + 1,
+                exc,
+            )
+            continue
+        # Brief settle, then verify the flyout truly opened.
+        await page.wait_for_timeout(250)
+        chosen_label, chosen_locator = await _find_visible_itemize(
+            itemize_candidates, primary_timeout=2_000, fallback_timeout=400
+        )
+        if chosen_locator is not None:
             logger.info(
-                "[itemize] Itemize menuitem found via %s after %.2fs",
-                label,
-                time.monotonic() - itemize_start,
+                "[itemize] Actions flyout opened via %s (%s strategy) on attempt %d; "
+                "Itemize visible (%.2fs)",
+                opened_via,
+                strategy,
+                index + 1,
+                time.monotonic() - open_start,
             )
             break
-        except PlaywrightTimeoutError:
-            logger.debug(
-                "[itemize] Itemize selector %s not visible within 15s; trying next",
-                label,
-            )
+        logger.warning(
+            "[itemize] Actions click via %s (%s strategy) did not open the flyout "
+            "(attempt %d/%d) — Itemize not visible; re-opening.",
+            opened_via,
+            strategy,
+            index + 1,
+            len(open_strategies),
+        )
 
     if chosen_locator is None:
         # Capture diagnostic state — what menu items *are* visible? — and re-raise so the
@@ -433,8 +569,9 @@ async def click_itemize_button(page: Page) -> None:
         except Exception:
             visible_items = []
         logger.error(
-            "[itemize] Could not find Itemize menu item after Actions opened. "
-            "Visible buttons/menuitems (top 25): %s",
+            "[itemize] Could not open the Actions flyout with an Itemize item after %d "
+            "attempts. Visible buttons/menuitems (top 25): %s",
+            len(open_strategies),
             visible_items,
         )
         raise RuntimeError(
