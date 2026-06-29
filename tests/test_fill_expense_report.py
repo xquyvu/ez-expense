@@ -177,7 +177,15 @@ def _make_fake_expense_page(created_id: str) -> MagicMock:
 
     page = MagicMock()
     page.locator = MagicMock(return_value=created_locator)
-    page.evaluate = AsyncMock()
+
+    # _open_expense_line verifies the open card via document.activeElement's row Created ID;
+    # return the target for that probe so selection confirms (MagicMock for other evaluates).
+    async def _fake_evaluate(js, *args):
+        if "activeElement" in js:
+            return created_id
+        return MagicMock()
+
+    page.evaluate = AsyncMock(side_effect=_fake_evaluate)
     page.wait_for_timeout = AsyncMock()
     page.wait_for_selector = AsyncMock(return_value=None)
     page.query_selector = AsyncMock(return_value=text_box)
@@ -405,6 +413,44 @@ async def test_open_expense_line_real_clicks_row_and_waits_for_selection():
     # JS is used only to scroll the row into view (not to click it).
     js = line.evaluate.call_args.args[0]
     assert "scrollIntoView" in js and "click()" not in js
+
+
+@pytest.mark.asyncio
+async def test_open_expense_line_confirms_selection_by_created_id():
+    """With a created_id, selection is confirmed via the open card's Created ID."""
+    from front_end.routes import expense_routes
+
+    page = MagicMock()
+    page.wait_for_selector = AsyncMock(return_value=None)
+    page.wait_for_timeout = AsyncMock()
+    page.evaluate = AsyncMock(return_value="EXP-9")  # open card matches target
+    row = MagicMock()
+    row.click = AsyncMock()
+    row.scroll_into_view_if_needed = AsyncMock()
+    line = MagicMock()
+    line.evaluate = AsyncMock()
+    line.locator = MagicMock(return_value=row)
+
+    assert await expense_routes._open_expense_line(page, line, created_id="EXP-9") is True
+
+
+@pytest.mark.asyncio
+async def test_open_expense_line_returns_false_when_wrong_card_opens():
+    """If the open card is a different line, selection is reported as failed (callers raise)."""
+    from front_end.routes import expense_routes
+
+    page = MagicMock()
+    page.wait_for_selector = AsyncMock(return_value=None)
+    page.wait_for_timeout = AsyncMock()
+    page.evaluate = AsyncMock(return_value="OTHER")  # never matches the target
+    row = MagicMock()
+    row.click = AsyncMock()
+    row.scroll_into_view_if_needed = AsyncMock()
+    line = MagicMock()
+    line.evaluate = AsyncMock()
+    line.locator = MagicMock(return_value=row)
+
+    assert await expense_routes._open_expense_line(page, line, created_id="EXP-HOTEL") is False
 
 
 @pytest.mark.asyncio

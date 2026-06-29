@@ -132,6 +132,8 @@ async def _locate_expense_line(
     # iterations so we can fall back to keyboard nav.
     previous_ids: tuple = ()
     stale_iters = 0
+    wheel_dir = 1
+    flipped = False
     for scrolls in range(max_scrolls):
         if await target.count() > 0:
             _log_timing(
@@ -156,7 +158,7 @@ async def _locate_expense_line(
         cy = rect["y"] + rect["height"] / 2
         try:
             await page.mouse.move(cx, cy)
-            wheel_dy = max(200, int(rect["height"] * 0.8))
+            wheel_dy = max(200, int(rect["height"] * 0.8)) * wheel_dir
             await page.mouse.wheel(0, wheel_dy)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
@@ -176,9 +178,19 @@ async def _locate_expense_line(
         if new_ids == previous_ids:
             stale_iters += 1
             if stale_iters >= 2:
+                if not flipped:
+                    # Reached one end without the target — flip wheel direction (the line
+                    # may be above us, e.g. the hotel at the top after filling 26 rows).
+                    logger.info(
+                        "[fill-debug] locate %s: wheel stalled scrolling %s; reversing",
+                        created_id,
+                        "down" if wheel_dir > 0 else "up",
+                    )
+                    wheel_dir, flipped, stale_iters, previous_ids = -1, True, 0, ()
+                    continue
                 logger.info(
-                    "[fill-debug] locate %s: wheel scrolling stalled after %d attempts "
-                    "(lastRendered=%s) — switching to keyboard navigation",
+                    "[fill-debug] locate %s: wheel scrolling stalled both ways after %d "
+                    "attempts (lastRendered=%s) — switching to keyboard navigation",
                     created_id,
                     scrolls + 1,
                     new_ids[-1] if new_ids else None,
@@ -235,7 +247,7 @@ async def _locate_expense_line(
 
 
 async def _keyboard_scroll_until_visible(
-    page, target, created_id: str, max_presses: int = 80, known_ids: set | None = None
+    page, target, created_id: str, max_presses: int = 16, known_ids: set | None = None
 ) -> bool:
     """Drive Dynamics' grid via keyboard ArrowDown until the target row renders.
 
@@ -297,20 +309,26 @@ async def _keyboard_scroll_until_visible(
 
     await page.wait_for_timeout(250)
 
-    # Track the last-rendered ID so we can spot when keyboard nav has reached the true
-    # grid bottom (the rendered set stops changing).
+    # Scroll the grid by keyboard. Start ArrowDown; if the rendered window stops changing
+    # (we hit one end and the target's still not here), flip to ArrowUp once and scan back.
+    key, label = "ArrowDown", "down"
     previous_last = None
     no_progress = 0
+    flipped = False
     for press in range(max_presses):
         if await target.count() > 0:
             logger.info(
-                "[fill-debug] locate %s: keyboard nav found target after %d ArrowDown press(es)",
+                "[fill-debug] locate %s: keyboard nav found target after %d burst(s)",
                 created_id,
                 press,
             )
             return True
-        await page.keyboard.press("ArrowDown")
-        await page.wait_for_timeout(180)
+        # Render is responsive, only opening a line is slow — so fire a burst of 5 arrows
+        # in quick succession (no per-press wait) and only check after the grid settles.
+        for _ in range(5):
+            await page.keyboard.press(key)
+            await page.wait_for_timeout(100)
+        await page.wait_for_timeout(300)
 
         # Check the last rendered ID; if it hasn't changed across several presses, we've
         # genuinely walked off the bottom of the grid.
@@ -322,13 +340,22 @@ async def _keyboard_scroll_until_visible(
             cur_last = None
         if cur_last == previous_last:
             no_progress += 1
-            if no_progress >= 5:
+            if no_progress >= 2:
+                if not flipped:
+                    logger.info(
+                        "[fill-debug] locate %s: hit grid %s end; flipping to scroll up",
+                        created_id,
+                        label,
+                    )
+                    key, label, flipped, no_progress, previous_last = (
+                        "ArrowUp", "up", True, 0, None,
+                    )
+                    continue
                 logger.warning(
-                    "[fill-debug] locate %s: keyboard nav stalled at lastRendered=%s after "
-                    "%d press(es); giving up",
+                    "[fill-debug] locate %s: keyboard nav stalled both directions "
+                    "(lastRendered=%s); giving up",
                     created_id,
                     cur_last,
-                    press + 1,
                 )
                 return False
         else:
@@ -337,7 +364,94 @@ async def _keyboard_scroll_until_visible(
     return False
 
 
-async def _open_expense_line(page, expense_line_locator, *, block: str = "nearest") -> bool:
+async def _active_line_created_id(page) -> str | None:
+    """Created ID of the grid row that currently holds keyboard focus (the open card).
+
+    The expense grid exposes no ``aria-selected`` marker, but after a real row click Dynamics
+    moves focus into a cell of the opened line, so ``document.activeElement``'s enclosing
+    ``[role="row"]`` identifies which line's card is open. Returns ``None`` when focus isn't
+    inside a grid row.
+    """
+    try:
+        return await page.evaluate(
+            """() => {
+                const ae = document.activeElement;
+                if (!ae || !ae.closest) return null;
+                const row = ae.closest('div.fixedDataTableRowLayout_main[role="row"]');
+                if (!row) return null;
+                const cid = row.querySelector('input[aria-label="Created ID"]');
+                return cid ? (cid.value || cid.getAttribute('value') || null) : null;
+            }"""
+        )
+    except Exception:  # noqa: BLE001 - best-effort signal
+        return None
+
+
+async def _keyboard_select_line(page, created_id: str, max_bursts: int = 12) -> bool:
+    """Select an expense line by keyboard when a click can't reach it (e.g. the top row sits
+    under the WorkspaceHeader). Clicks the nearest clickable anchor, then arrows toward the
+    target — moving the open card — confirming by the focused row's Created ID."""
+    target = str(created_id)
+    try:
+        plan = await page.evaluate(
+            """(targetId) => {
+                const rows = Array.from(document.querySelectorAll(
+                    'div.fixedDataTableRowLayout_main[role="row"]'));
+                const info = [];
+                for (const r of rows) {
+                    const cid = r.querySelector('input[aria-label="Created ID"]');
+                    const v = cid ? (cid.value || cid.getAttribute('value') || '') : '';
+                    if (!v) continue;
+                    const rect = r.getBoundingClientRect();
+                    const mid = document.elementFromPoint(rect.x + rect.width / 2,
+                                                          rect.y + rect.height / 2);
+                    info.push({v, rowindex: parseInt(r.getAttribute('aria-rowindex') || '0', 10),
+                               clickable: !!(mid && r.contains(mid))});
+                }
+                const t = info.find(o => o.v === targetId);
+                if (!t) return null;
+                let anchor = null, best = Infinity;
+                for (const o of info) { if (!o.clickable) continue;
+                    const d = Math.abs(o.rowindex - t.rowindex); if (d < best){best=d; anchor=o;} }
+                return { targetRowindex: t.rowindex, anchor };
+            }""",
+            target,
+        )
+    except Exception:  # noqa: BLE001
+        plan = None
+    if not isinstance(plan, dict) or not plan.get("anchor"):
+        return False
+    anchor = plan["anchor"]
+    try:
+        await (
+            page.locator(f'input[aria-label="Created ID"][value="{anchor["v"]}"]')
+            .first.locator("xpath=ancestor::*[@role='row'][1]").click(timeout=8_000)
+        )
+    except Exception:  # noqa: BLE001
+        return False
+    await page.wait_for_timeout(400)
+    if await _active_line_created_id(page) == target:
+        return True
+    key = "ArrowUp" if plan["targetRowindex"] < anchor["rowindex"] else "ArrowDown"
+    last, no_progress = None, 0
+    for _ in range(max_bursts):
+        for _ in range(5):
+            await page.keyboard.press(key)
+            await page.wait_for_timeout(100)
+        await page.wait_for_timeout(250)
+        active = await _active_line_created_id(page)
+        if active == target:
+            return True
+        no_progress = no_progress + 1 if active == last else 0
+        if no_progress >= 3:
+            return False
+        last = active
+    return False
+
+
+async def _open_expense_line(
+    page, expense_line_locator, *, block: str = "nearest", created_id: str | None = None
+) -> bool:
     """Open/select an existing expense line from its "Created ID" grid cell.
 
     The "Created ID" field itself is a hidden ``<input>``, so a real Playwright click on it
@@ -394,9 +508,36 @@ async def _open_expense_line(page, expense_line_locator, *, block: str = "neares
         await row.click(force=True, position={"x": 20, "y": 6})
     _log_timing(f"[timing] row click: {time.monotonic() - click_start:.2f}s")
 
-    # Wait for Dynamics to finish loading/selecting the line (overlay clears + row marked
-    # selected) instead of a fixed delay.
+    # Wait for Dynamics to finish loading/selecting the line, then VERIFY the right card
+    # opened. The grid exposes no aria-selected marker, but after a real row click focus
+    # lands in a cell of the opened line, so document.activeElement's row Created ID tells
+    # us which line is actually selected. Callers must treat False as a hard failure.
     await _wait_for_shell_unblocked(page)
+    if created_id is not None:
+        target = str(created_id)
+        for _ in range(16):  # ~4s
+            if await _active_line_created_id(page) == target:
+                _log_timing(
+                    f"[timing] open_expense_line total: {time.monotonic() - open_start:.2f}s "
+                    f"(verified {target})"
+                )
+                return True
+            await page.wait_for_timeout(250)
+        # Click didn't open the target (e.g. first row under the WorkspaceHeader) — recover
+        # by keyboard-navigating to it, then re-verify.
+        logger.info(
+            "[fill-debug] open %s: click left card=%s; keyboard-selecting",
+            target,
+            await _active_line_created_id(page),
+        )
+        if await _keyboard_select_line(page, target):
+            return True
+        logger.error(
+            "[fill-debug] open %s: selection NOT confirmed (open card=%s)",
+            target,
+            await _active_line_created_id(page),
+        )
+        return False
     selected = await _wait_for_row_selected(page, row)
     _log_timing(f"[timing] open_expense_line total: {time.monotonic() - open_start:.2f}s")
     return selected
@@ -577,9 +718,28 @@ async def _save_and_continue(page) -> None:
     unless we explicitly save. Clicking "Save and continue" persists the line while keeping
     us on the report so the fill loop can proceed to the next expense.
     """
-    await _wait_for_shell_unblocked(page)
-    await page.get_by_role("button", name="Save and continue").click()
-    await _wait_for_shell_unblocked(page)
+    # The previous step — especially closing the Itemize dialog — can kick off a heavy
+    # server commit whose ShellBlockingDiv overlay appears slightly *after* we arrive here
+    # and can outlast the click's own timeout (observed >30s for a hotel with many rows).
+    # So let any overlay appear, wait it out generously, then click — retrying (with another
+    # wait) if the overlay re-appears for the save itself.
+    for attempt in range(3):
+        try:
+            await page.wait_for_selector(
+                '[class*="ShellBlockingDiv"]', state="visible", timeout=1_500
+            )
+        except Exception:  # noqa: BLE001 - overlay may already be gone / never appear
+            pass
+        await _wait_for_shell_unblocked(page, timeout=120_000)
+        try:
+            await page.get_by_role("button", name="Save and continue").click(timeout=15_000)
+            break
+        except playwright_TimeoutError:
+            logger.warning(
+                "[fill] Save and continue blocked by overlay (attempt %d/3); re-waiting",
+                attempt + 1,
+            )
+    await _wait_for_shell_unblocked(page, timeout=120_000)
 
 
 @expense_bp.route("/categories", methods=["GET"])
@@ -1392,7 +1552,16 @@ async def fill_expense_report():
                 expense_line_to_fill = await _locate_expense_line(
                     page, expense_created_id, known_ids=known_top_level_ids
                 )
-                await _open_expense_line(page, expense_line_to_fill)
+                # Select the line and confirm the right card opened before we attach its
+                # receipt — otherwise the receipt would land on whatever line was already
+                # open. If selection can't be confirmed, fail loudly rather than mis-filing.
+                if not await _open_expense_line(
+                    page, expense_line_to_fill, created_id=expense_created_id
+                ):
+                    raise RuntimeError(
+                        f"Could not select expense line {expense_created_id} "
+                        "(open card did not match) — aborting before attaching its receipt."
+                    )
 
                 # Fill in additional information box. This can be flaky so we need to explicitely click on the box and fill it
                 text_box = await page.query_selector(
@@ -1813,7 +1982,7 @@ async def itemize_fill():
                 for open_attempt in range(max_open_attempts):
                     expense_line = await _locate_expense_line(page, created_id)
                     selected = await _open_expense_line(
-                        page, expense_line, block="center"
+                        page, expense_line, block="center", created_id=created_id
                     )
                     if not selected:
                         logger.info(
