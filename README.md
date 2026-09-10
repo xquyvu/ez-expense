@@ -87,15 +87,31 @@ When you launch the app, a prompt will pop up asking for permission. Just allow 
 
 ## AI Extraction Options
 
-The app supports two AI providers for extracting invoice details from receipts:
+The app supports three AI providers for extracting invoice details from receipts (PDF, PNG/JPG/GIF, HEIC and HTML receipts are all supported):
 
-| Provider     | Speed               | Accuracy | Setup                                  |
-| ------------ | ------------------- | -------- | -------------------------------------- |
-| **Azure AI** | Fast (parallel)     | Higher   | Requires Azure OpenAI config in `.env` |
-| **Local AI** | Slower (sequential) | Good     | No setup — download model on first use |
+| Provider           | Speed               | Accuracy | Setup                                        |
+| ------------------ | ------------------- | -------- | --------------------------------------------- |
+| **GitHub Copilot** | Fast (parallel)     | Higher   | None — default, uses your existing Copilot login |
+| **Azure AI**       | Fast (parallel)     | Higher   | Requires Azure OpenAI config in `.env`        |
+| **Local AI**        | Slower (sequential) | Good     | No setup — download model on first use        |
 
-- **Azure AI** is recommended if you have access to Azure OpenAI. Set `AZURE_OPENAI_ENDPOINT` and `INVOICE_DETAILS_EXTRACTOR_MODEL_NAME` in your `.env` file.
+- **GitHub Copilot** is the default: zero setup, just requires you to be signed in to Copilot.
+- **Azure AI** is an alternative if you have access to Azure OpenAI. Set `EXTRACTION_PROVIDER=azure`, plus `AZURE_TENANT_ID`, `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` in your `.env` file.
 - **Local AI** works offline with no API keys. Just click "Download" in the app to get the model (~400 MB).
+
+### Using GitHub Copilot (fastest way to start)
+
+Nothing to install — the Copilot CLI ships inside the `github-copilot-sdk` dependency
+that `uv sync` already installed. Requirements:
+
+1. A GitHub account with an active Copilot subscription (Individual, Business or Enterprise).
+2. Sign in once: open the app, go to the **AI Extraction Options** panel, and click
+   **Login** next to GitHub Copilot (runs the standard OAuth device-code flow in a
+   popup — no terminal needed). The login is cached, so this is a one-time step.
+
+That's it — select the GitHub Copilot radio button and start uploading receipts.
+
+The app also auto-itemizes hotel line items (subcategory, dates, daily rate, quantity) instead of requiring you to fill in the itemization dialog by hand.
 
 ## TODO
 

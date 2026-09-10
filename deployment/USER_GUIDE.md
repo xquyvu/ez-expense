@@ -13,8 +13,9 @@ The app needs some configuration to work properly. You'll find a `.env.template`
 1. If you don't see the file. Make sure your file explorer is set to show hidden files.
 2. **Rename** `.env.template` to `.env`
 3. **Edit** the file with your settings, following the instructions in the file.
-   - Set your Azure OpenAI configuration (endpoint, API key, model name)
    - Configure `DATE_FORMAT` to match your region (e.g., `DD/MM/YYYY` for UK, `MM/DD/YYYY` for US)
+   - AI extraction works out of the box via GitHub Copilot — no `.env` changes needed.
+     Only edit the Azure OpenAI section if you want to use that provider instead (see Step 2).
 
 **Additional instructions for MacOS:**
 
@@ -46,20 +47,25 @@ When you launch the app, it will open MyExpense page, and also a local web inter
 Before uploading receipts, select an AI extraction provider in the **AI Extraction
 Options** panel:
 
-| Provider     | Speed                      | Accuracy | Setup                                                       |
-| ------------ | -------------------------- | -------- | ----------------------------------------------------------- |
-| **Azure AI** | Fast (parallel processing) | Higher   | Requires Azure OpenAI configuration in `.env`               |
-| **Local AI** | Slower (sequential)        | Good     | No setup — just click "Download" to get the model (~400 MB) |
+| Provider           | Speed                      | Accuracy | Setup                                                         |
+| ------------------ | -------------------------- | -------- | -------------------------------------------------------------- |
+| **GitHub Copilot** | Fast (parallel processing) | Higher   | None — sign in once via the in-app "Login" link                |
+| **Azure AI**       | Fast (parallel processing) | Higher   | Requires Azure OpenAI configuration in `.env`                 |
+| **Local AI**       | Slower (sequential)        | Good     | No setup — just click "Download" to get the model (~400 MB)  |
 
+- **GitHub Copilot** is the default and fastest way to get started — the CLI is bundled
+  with the app, nothing to install. You need a GitHub account with an active Copilot
+  subscription (Individual, Business or Enterprise). If the panel shows "Not signed in",
+  click **Login** and complete the device-code sign-in popup — this is a one-time step.
 - **Azure AI** sends receipts to Azure OpenAI for extraction. All receipts are processed
   in parallel, making it significantly faster for bulk uploads. Requires
-  `AZURE_OPENAI_ENDPOINT` and `INVOICE_DETAILS_EXTRACTOR_MODEL_NAME` to be set in your
-  `.env` file.
+  `AZURE_TENANT_ID`, `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` to be set in
+  your `.env` file.
 - **Local AI** runs entirely on your machine using a small language model. Receipts are
   processed one at a time. No internet connection or API keys required — just download
   the model on first use.
 
-You can also disable AI extraction entirely by leaving both options unselected. In that
+You can also disable AI extraction entirely by leaving all options unselected. In that
 case, receipts will be uploaded without automatic detail extraction.
 
 #### Upload receipts
@@ -138,11 +144,21 @@ for /f "tokens=5" %a in ('netstat -ano ^| findstr ":5001 :9222"') do taskkill /P
 lsof -ti:5001,9222 | xargs kill -9
 ```
 
+#### GitHub Copilot sign-in issues
+
+- **"Not signed in"**: click **Login** next to GitHub Copilot in the AI Extraction
+  Options panel and complete the popup sign-in.
+- **"Not available"**: the bundled Copilot CLI failed to install for your platform —
+  re-run `uv sync` (or re-download/reinstall the app if using the standalone build).
+- **"No vision-capable Copilot model is available for this account"**: your GitHub
+  account/org doesn't have Copilot access — use Azure AI or Local AI instead, or ask
+  your org admin to grant Copilot access.
+
 #### API Errors
 
 - Make sure your `.env` file has valid configuration
 - Check your internet connection (if using AI features)
-- Verify your Azure OpenAI credits/quotas (if using AI features)
+- Verify your Azure OpenAI credits/quotas (if using Azure AI)
 - The app can work without API keys for basic functionality
 
 ### Getting Help
@@ -157,4 +173,4 @@ If you encounter issues:
 
 ---
 
-**Technical Note**: This app runs a local web server and browser automation. It's completely private - no data leaves your computer except for optional API calls to Azure OpenAI for AI-powered processing.
+**Technical Note**: This app runs a local web server and browser automation. It's completely private - no data leaves your computer except for API calls to your chosen AI provider (GitHub Copilot or Azure OpenAI) for AI-powered processing.
